@@ -86,9 +86,20 @@ def load_payload() -> dict[str, Any]:
         return run_pipeline()
 
 
-def refresh_product() -> None:
-    with st.spinner("正在重新抓取最新價格、新聞與法人資料，請稍候..."):
-        run_pipeline()
+def refresh_product(target_section: str | None = None) -> None:
+    if target_section:
+        st.session_state["pending_section"] = target_section
+    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.2.2 已改為快取優先、並行抓取，並修正現價已高於支撐時的進場語句邏輯..."):
+        try:
+            payload = run_pipeline()
+            st.session_state["last_refresh_message"] = (
+                f"資料更新完成：{payload.get('generated_at', 'N/A')}｜"
+                f"價格 {payload.get('pm_brief', {}).get('data_quality', {}).get('price_live_count', 'N/A')} 檔"
+            )
+        except Exception as exc:
+            st.session_state["last_refresh_error"] = f"重新抓取失敗：{exc}"
+            st.cache_data.clear()
+            st.rerun()
     st.cache_data.clear()
     st.rerun()
 
@@ -339,6 +350,58 @@ def teacher_item_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def build_live_portfolio_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build portfolio rows from current local config and current payload.
+
+    This guarantees the page shows analysis after a user enters holdings, even
+    if the stored dashboard payload was generated before the holding existed.
+    Full custom-stock analysis still requires pressing reload so price data can
+    be fetched.
+    """
+    portfolio = load_portfolio()
+    card_map = {card["symbol"]: card for card in payload.get("decision_cards", [])}
+    profiles = payload.get("technical_profiles", {})
+    rows: list[dict[str, Any]] = []
+    for holding in portfolio:
+        symbol = str(holding.get("symbol", ""))
+        card = card_map.get(symbol)
+        profile = profiles.get(symbol, {})
+        latest = float((card or {}).get("latest_close") or profile.get("latest_close") or 0)
+        shares = float(holding.get("shares", 0) or 0)
+        avg_cost = float(holding.get("avg_cost", 0) or 0)
+        cost_value = shares * avg_cost
+        market_value = shares * latest
+        pnl = market_value - cost_value
+        pnl_pct = 0.0 if cost_value == 0 else pnl / cost_value * 100
+        rows.append({
+            "symbol": symbol,
+            "name": holding.get("name") or (card or {}).get("name") or symbol,
+            "display_name": f"{symbol} {holding.get('name') or (card or {}).get('name') or symbol}",
+            "shares": shares,
+            "avg_cost": avg_cost,
+            "latest_close": round(latest, 2),
+            "market_value": round(market_value, 0),
+            "cost_value": round(cost_value, 0),
+            "pnl": round(pnl, 0),
+            "pnl_pct": round(pnl_pct, 2),
+            "decision": (card or {}).get("decision", "需重新抓取資料"),
+            "radar_score": (card or {}).get("radar_score", "需重新抓取"),
+            "confidence": (card or {}).get("confidence", None),
+            "breakout_price": (card or {}).get("breakout_price"),
+            "pullback_low": (card or {}).get("pullback_low"),
+            "pullback_high": (card or {}).get("pullback_high"),
+            "reduce_price": (card or {}).get("reduce_price"),
+            "stop_loss_price": (card or {}).get("stop_loss_price"),
+            "entry_condition": (card or {}).get("entry_condition", "請按『重新抓取最新資料』完成持股分析。"),
+            "reduce_condition": (card or {}).get("reduce_condition", "請按『重新抓取最新資料』完成持股分析。"),
+            "invalidation_condition": (card or {}).get("invalidation_condition", "請按『重新抓取最新資料』完成持股分析。"),
+            "action": (card or {}).get("position_guidance", "已存入持股；請重新抓取資料取得完整股市老師建議。"),
+            "price_source": (card or {}).get("price_source") or profile.get("price_source", "N/A"),
+            "latest_date": profile.get("latest_date", "N/A"),
+        })
+    return rows
+
+
 def render_compact_decision_card(card: dict[str, Any], key_prefix: str) -> None:
     with st.container(border=True):
         left, right = st.columns([4, 1])
@@ -587,7 +650,7 @@ def render_add_watchlist_form(payload: dict[str, Any], location: str) -> None:
         if stock:
             add_user_watchlist_item(stock.symbol, stock.name)
             st.success(f"已加入觀察：{stock.display_name}")
-            refresh_product()
+            refresh_product("指定觀察個股")
         else:
             st.error("找不到個股。請輸入 4 碼股號，或使用目前支援的股票名稱。")
 
@@ -608,7 +671,7 @@ def render_add_portfolio_form(payload: dict[str, Any], location: str) -> None:
             add_user_watchlist_item(stock.symbol, stock.name)
             add_or_update_holding(stock.symbol, stock.name, shares, avg_cost, note)
             st.success(f"已更新持股：{stock.display_name}")
-            refresh_product()
+            refresh_product("個人持股分析")
         else:
             st.error("請輸入有效股號/名稱、股數與成本。")
 
@@ -628,7 +691,7 @@ def render_sidebar_workspace(payload: dict[str, Any]) -> None:
             cols[0].write(f"{item.get('symbol')} {item.get('name')}")
             if cols[1].button("移除", key=f"remove-watch-{item.get('symbol')}"):
                 remove_user_watchlist_item(str(item.get("symbol")))
-                refresh_product()
+                refresh_product("指定觀察個股")
 
     st.sidebar.divider()
     with st.sidebar.expander("新增/更新持股", expanded=False):
@@ -716,15 +779,22 @@ if pending_section in SECTIONS:
 render_sidebar_workspace(payload)
 
 st.title("🚀 AI Stock Radar")
-st.caption(f"v{payload['version']}｜Phase 5 MVP｜資料可信度｜推薦防呆｜輕量回測｜個人持股總教練")
+st.caption(f"v{payload['version']}｜Phase 5+｜資料修正｜MACD 新鮮度｜AI 股市老師總評｜持股總教練｜快速刷新 Hotfix")
 
 header_cols = st.columns([1, 4])
 with header_cols[0]:
-    if st.button("重新抓取最新資料"):
+    if st.button("重新抓取最新資料（快取加速）"):
         refresh_product()
 with header_cols[1]:
     payload_time = payload.get("generated_at", "N/A")
     st.markdown(f'<div class="section-title">功能列表｜目前載入資料：{payload_time}</div>', unsafe_allow_html=True)
+
+_last_refresh_message = st.session_state.pop("last_refresh_message", None)
+if _last_refresh_message:
+    st.success(_last_refresh_message)
+_last_refresh_error = st.session_state.pop("last_refresh_error", None)
+if _last_refresh_error:
+    st.error(_last_refresh_error)
 
 selected_section = st.radio(
     "功能列表",
@@ -751,6 +821,19 @@ if selected_section == "盤前決策總覽":
     m6.metric("持股檔數", quality.get("portfolio_count", 0))
 
     st.info(pm["headline"])
+    ai_teacher = payload.get("ai_teacher_brief", {})
+    if ai_teacher:
+        with st.container(border=True):
+            st.subheader("AI 股市老師總評")
+            st.success(ai_teacher.get("posture", ""))
+            st.write(ai_teacher.get("teacher_summary", ""))
+            st.caption(ai_teacher.get("data_warning", ""))
+            scenario = ai_teacher.get("scenario_plan", {})
+            if scenario:
+                c1, c2, c3 = st.columns(3)
+                c1.info("開高：" + scenario.get("開高", ""))
+                c2.info("平盤：" + scenario.get("平盤震盪", ""))
+                c3.info("開低：" + scenario.get("開低", ""))
     st.subheader("今日主策略")
     st.write(pm["strategy"])
     if pm.get("recommended_stocks"):
@@ -906,7 +989,7 @@ elif selected_section == "法人籌碼 Radar":
 
 elif selected_section == "MACD 觀察名單":
     st.header("AI 選出 MACD 觀察名單")
-    st.caption("已區分：即將翻正、剛翻正、已翻正延續。不是所有名單都代表已翻正。")
+    st.caption("已區分：即將翻正、剛翻正、已翻正延續。v2.2.2 已排除 fallback 與日期落後資料，並修正價格位置語句，避免現價已高於支撐卻仍寫「需站回支撐」。")
     rows = []
     for item in payload["macd_candidates"]:
         rows.append(
@@ -986,13 +1069,15 @@ elif selected_section == "指定觀察個股":
                     stock_button(symbol, "📈 查看線圖", f"watch-chart-{idx}")
                     if st.button("移除觀察", key=f"watch-remove-main-{idx}"):
                         remove_user_watchlist_item(symbol)
-                        refresh_product()
+                        refresh_product("指定觀察個股")
 
 elif selected_section == "個人持股分析":
     st.header("個人持股分析")
     st.write("可用股號或股票名稱新增持股。加入後會立刻納入 Radar，並以成本、最新價、技術位置、今日策略與失效條件產生波段管理建議。")
     render_add_portfolio_form(payload, "main")
-    rows = payload.get("portfolio_analysis", [])
+    if load_portfolio() and not payload.get("portfolio_analysis"):
+        st.warning("偵測到本機已有持股，但目前 payload 尚未包含完整分析。請按上方『重新抓取最新資料』更新。")
+    rows = build_live_portfolio_rows(payload)
     if not rows:
         st.info("目前尚未輸入個人持股。")
     else:
@@ -1064,7 +1149,7 @@ elif selected_section == "個人持股分析":
                     stock_button(row["symbol"], "📈 查看線圖", f"portfolio-chart-{idx}")
                     if st.button("移除持股", key=f"portfolio-remove-{idx}"):
                         remove_holding(row["symbol"])
-                        refresh_product()
+                        refresh_product("個人持股分析")
 
 elif selected_section == "個股技術線圖":
     st.header("個股技術線圖")

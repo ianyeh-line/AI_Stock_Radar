@@ -1,19 +1,20 @@
-# Roadmap
+# ROADMAP
 
-## Current: v2.1.0 Phase 5 MVP
+## Current: v2.2.2 Action Logic Hotfix
 
-完成資料可信度、防呆、輕量回測與持股總教練雛形。
+- 修正價格位置語句防呆。
+- 個股建議會根據現價相對支撐區與突破價產生不同建議。
+- 保留 v2.2.1 快取與並行抓取效能修正。
+- 保留 v2.2.0 MACD 新鮮度與個人持股分析修正。
 
-## Next: v2.2.0 Daily Automation
+## Next: v2.3.0
 
-- 一鍵盤前流程
-- 自動產出每日報告
-- 更嚴格資料 freshness policy
-- 可選擇保守 / 積極波段模式
+- 強化持股總教練：產業集中度、現金比例與持股汰弱留強。
+- 將每檔股票的建議拆成「今日可做 / 等拉回 / 等突破 / 只續抱 / 減碼」。
+- 加入推薦審計紀錄：每天保存推薦、價格與後續表現。
 
-## Future: v3.0.0 AI 股市老師
+## Later
 
-- 盤後追蹤推薦績效
-- 自動調整權重
-- 多策略模式
-- 個人風險偏好與部位上限
+- Automated daily run.
+- Performance tracking of past recommendations.
+- Strategy mode: 穩健波段 / 積極波段 / 防守型.

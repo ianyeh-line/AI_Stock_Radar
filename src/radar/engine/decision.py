@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +20,7 @@ from radar.engine.technical import evaluate_technical, rank_macd_turn_candidates
 from radar.knowledge.stock_map import load_stock_universe
 from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockMeta, TechnicalProfile
 
-VERSION = "2.1.0"
+VERSION = "2.2.2"
 
 
 def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:
@@ -208,39 +209,106 @@ def _volume_ratio_note(ratio: float) -> str:
     return f"量能比 {ratio:.2f}：" + tone.format(ratio=ratio)
 
 
+def _level_context(profile: TechnicalProfile, levels: dict[str, float]) -> dict[str, Any]:
+    close = float(profile.latest_close or 0)
+    breakout = float(levels["breakout"])
+    pullback_low = float(levels["pullback_low"])
+    pullback_high = float(levels["pullback_high"])
+    reduce_price = float(levels["reduce"])
+    stop_price = float(levels["stop"])
+    in_pullback_zone = pullback_low <= close <= pullback_high
+    below_support = close < pullback_low
+    between_support_and_breakout = pullback_high < close < breakout
+    above_breakout = close >= breakout
+    return {
+        "close": close,
+        "breakout": breakout,
+        "pullback_low": pullback_low,
+        "pullback_high": pullback_high,
+        "reduce_price": reduce_price,
+        "stop_price": stop_price,
+        "in_pullback_zone": in_pullback_zone,
+        "below_support": below_support,
+        "between_support_and_breakout": between_support_and_breakout,
+        "above_breakout": above_breakout,
+    }
+
+
+def _entry_text_for_non_buy(ctx: dict[str, Any], required_label: str = "重新評估") -> str:
+    close = ctx["close"]
+    breakout = ctx["breakout"]
+    pullback_low = ctx["pullback_low"]
+    pullback_high = ctx["pullback_high"]
+    if ctx["below_support"]:
+        return (
+            f"現價 {close:.2f} 仍低於波段支撐區 {pullback_low:.2f}～{pullback_high:.2f}，"
+            f"暫不建立新部位；需先站回 {pullback_high:.2f}，再放量突破 {breakout:.2f} 才{required_label}。"
+        )
+    if ctx["in_pullback_zone"]:
+        return (
+            f"現價 {close:.2f} 位於拉回觀察區 {pullback_low:.2f}～{pullback_high:.2f}，"
+            f"但整體訊號尚未達買進標準；需量縮守穩此區，或放量突破 {breakout:.2f} 才{required_label}。"
+        )
+    if ctx["between_support_and_breakout"]:
+        return (
+            f"現價 {close:.2f} 已高於支撐區 {pullback_low:.2f}～{pullback_high:.2f}，"
+            f"但尚未突破關鍵壓力 {breakout:.2f}；不追高，等待突破 {breakout:.2f} 或回測支撐區守穩再{required_label}。"
+        )
+    return (
+        f"現價 {close:.2f} 已站上突破價 {breakout:.2f}，但目前決策分數或風險條件不足；"
+        f"等待回測 {pullback_low:.2f}～{pullback_high:.2f} 不破，或量能延續確認後再{required_label}。"
+    )
+
+
 def _manager_language(stock: StockMeta, profile: TechnicalProfile, decision: str, levels: dict[str, float], volume_note: str) -> tuple[str, str, str, str, str, str]:
-    breakout = levels["breakout"]
-    pullback_low = levels["pullback_low"]
-    pullback_high = levels["pullback_high"]
-    reduce_price = levels["reduce"]
-    stop_price = levels["stop"]
+    ctx = _level_context(profile, levels)
+    breakout = ctx["breakout"]
+    pullback_low = ctx["pullback_low"]
+    pullback_high = ctx["pullback_high"]
+    reduce_price = ctx["reduce_price"]
+    stop_price = ctx["stop_price"]
+    close = ctx["close"]
+
     if decision == "波段買進":
         swing_view = f"{stock.display_name} 具備主線或技術改善，是今日波段優先標的。{stock.pm_view}"
-        entry = f"兩種做法：一是放量突破 {breakout:.2f} 後小量追蹤；二是拉回 {pullback_low:.2f}～{pullback_high:.2f} 區間量縮止穩分批進場。"
+        if ctx["in_pullback_zone"]:
+            entry = f"現價 {close:.2f} 位於建議拉回區 {pullback_low:.2f}～{pullback_high:.2f}，若量縮守穩可分批進場；若放量突破 {breakout:.2f}，可追蹤第二批。"
+        elif ctx["below_support"]:
+            entry = f"現價 {close:.2f} 仍低於理想拉回區，先等站回 {pullback_low:.2f}～{pullback_high:.2f} 且量能改善，再分批進場；突破確認價為 {breakout:.2f}。"
+        elif ctx["between_support_and_breakout"]:
+            entry = f"現價 {close:.2f} 已離開拉回區但尚未突破 {breakout:.2f}；不追高，等待回測 {pullback_low:.2f}～{pullback_high:.2f}，或放量突破 {breakout:.2f} 後再小量追蹤。"
+        else:
+            entry = f"現價 {close:.2f} 已站上突破價 {breakout:.2f}，只適合續抱或等回測不破再加碼，不建議開盤急追。"
         hold = f"只要守住 {pullback_low:.2f}～{pullback_high:.2f} 支撐區且 MACD 未轉弱，可續抱波段部位。"
         reduce = f"若跌破 {reduce_price:.2f} 且 MACD 柱狀體連續轉弱，先降低 30%～50% 部位。"
         invalidation = f"跌破 {stop_price:.2f}、MACD 轉弱且新聞主線降溫，波段假設失效。"
     elif decision == "波段觀察":
         swing_view = f"{stock.display_name} 有波段機會，但訊號尚未完全一致，不適合重倉。{stock.pm_view}"
-        entry = f"等待突破 {breakout:.2f} 或回測 {pullback_low:.2f}～{pullback_high:.2f} 支撐後，再以小部位試單。"
+        if ctx["in_pullback_zone"]:
+            entry = f"現價 {close:.2f} 位於觀察支撐區 {pullback_low:.2f}～{pullback_high:.2f}，可等量縮止穩後小部位試單；若突破 {breakout:.2f} 再提高信心。"
+        elif ctx["between_support_and_breakout"]:
+            entry = f"現價 {close:.2f} 高於支撐但未突破 {breakout:.2f}；先觀察，不追高，等待突破 {breakout:.2f} 或回測 {pullback_low:.2f}～{pullback_high:.2f} 再試單。"
+        elif ctx["below_support"]:
+            entry = f"現價 {close:.2f} 低於觀察支撐區，先等站回 {pullback_high:.2f}，再看是否突破 {breakout:.2f}。"
+        else:
+            entry = f"現價 {close:.2f} 已高於突破價 {breakout:.2f}，但訊號尚未完全一致；若已持有可續抱，未持有等回測 {pullback_high:.2f} 附近再評估。"
         hold = f"若已持有，可續抱觀察；未突破 {breakout:.2f} 前不主動加碼。"
         reduce = f"若跌破 {reduce_price:.2f}，代表整理失敗，應降低曝險。"
         invalidation = f"跌破 {stop_price:.2f} 且量能低於 20 日均量，移出優先觀察名單。"
     elif decision == "等待":
         swing_view = f"{stock.display_name} 目前風險報酬比尚未達到波段進場標準。"
-        entry = f"等待 MACD 翻正、站回 {pullback_high:.2f} 以上，或重新突破 {breakout:.2f} 後再評估。"
+        entry = _entry_text_for_non_buy(ctx, "重新評估")
         hold = f"若已持有，以小部位續抱，不主動加碼；防守觀察 {reduce_price:.2f}。"
         reduce = f"若量縮跌破 {reduce_price:.2f} 或主線轉弱，可先出場等待。"
         invalidation = f"跌破 {stop_price:.2f} 且沒有明確主線，持續不列入主攻。"
     else:
         swing_view = f"{stock.display_name} 目前不符合波段操作條件，資金效率不佳。"
-        entry = f"暫不建立新部位；至少需重新站回 {pullback_high:.2f} 並突破 {breakout:.2f} 才重新評估。"
+        entry = _entry_text_for_non_buy(ctx, "解除減碼觀點")
         hold = f"若已有部位，僅保留核心或等待反彈至 {pullback_high:.2f}～{breakout:.2f} 區間調節。"
         reduce = f"若跌破 {reduce_price:.2f} 或反彈無量，優先減碼。"
-        invalidation = f"需重新站回 {breakout:.2f} 並出現 MACD 改善，才可解除減碼觀點。"
+        invalidation = f"需重新突破 {breakout:.2f} 並出現 MACD 改善，才可解除減碼觀點。"
     risk = f"主要風險：市場風格切換、利率變數、短線過熱或技術轉弱。技術狀態：{profile.technical_summary}。{volume_note}"
     return swing_view, entry, hold, reduce, invalidation, risk
-
 
 def build_decision_cards(news_items: list[NewsItem], stocks: list[StockMeta], profiles: dict[str, TechnicalProfile], profile_config: dict[str, Any], institutional_flows: dict[str, InstitutionalFlowProfile] | None = None) -> list[DecisionCard]:
     cards: list[DecisionCard] = []
@@ -400,12 +468,12 @@ def _build_pm_brief(cards: list[DecisionCard], news_items: list[NewsItem], profi
         "institutional_fallback_count": institutional_fallback,
         "institutional_source": "TWSE T86 三大法人（若官方端點不可用則啟用 fallback flow model）",
         "institutional_frequency": "每次重新產生 Radar 時，嘗試抓取 TWSE 最新可得交易日三大法人買賣超；若尚未公布或抓取失敗，改以量價推估並降低信心。",
-        "price_frequency": "每次執行 CLI 或按下『重新抓取最新資料』都會重新抓取 Yahoo Finance 日線資料；這不是逐筆即時報價，但會以抓取當下可取得的最新日線收盤資料重新計算。",
+        "price_frequency": "使用 Yahoo Finance 最新可得日線資料；v2.2.2 採同日快取優先、並行抓取與價格位置語句修正，按『重新抓取最新資料』會更新缺失/過期資料，不是逐筆即時報價。",
         "news_frequency": "RSS 於每次重新產生 Radar 時更新，非付費即時新聞終端。",
         "price_latest_date_min": price_latest_date_min,
         "price_latest_date_max": price_latest_date_max,
         "decision_scope": "目前以抓取當下最新可得日線價格、技術指標、RSS 新聞影響鏈、三大法人籌碼、AI 產業鏈股票池、使用者觀察與持股為主要維度；尚未納入逐筆即時成交、財報估值模型與券商研究報告。",
-        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v2.1.0 新增 Phase 5 MVP：資料可信度、防呆、輕量回測與持股總教練：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
+        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v2.1.0 新增 Phase 5 MVP：資料可信度、防呆、輕量回測與持股總教練：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；v2.2.2 使用同日價格快取、並行抓取與價格位置邏輯修正，避免重新抓取長時間卡住與進場語句不合邏輯；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
     }
     return PMBrief(headline, strategy, allocation, recommended_stocks, top_actions, avoid_actions, risk_controls, quality)
 
@@ -580,14 +648,101 @@ def build_teacher_buy_list(cards: list[DecisionCard], portfolio_analysis: list[d
     }
 
 
+
+def build_ai_teacher_brief(cards: list[DecisionCard], teacher_buy_list: dict[str, Any], data_trust: dict[str, Any], backtest_summary: dict[str, Any], portfolio_coach: dict[str, Any], macd_candidates: list[Any]) -> dict[str, Any]:
+    """Build an AI stock-teacher style synthesis.
+
+    This is deterministic, explainable analysis built from the same evidence as
+    the dashboard. It does not pretend to be a black-box prediction; it converts
+    Radar, guardrails, backtest and portfolio context into a concise teacher
+    plan.
+    """
+    ready = teacher_buy_list.get("ready_to_buy", [])
+    b_items = teacher_buy_list.get("wait_breakout", []) + teacher_buy_list.get("pullback_watch", [])
+    blocked = data_trust.get("guardrail_blocked_count", 0)
+    passed = data_trust.get("guardrail_passed_count", 0)
+    stale = data_trust.get("price_stale_count", 0)
+    fallback = data_trust.get("price_fallback_count", 0)
+    top = cards[0] if cards else None
+
+    if ready:
+        posture = "今日可以做，但只做通過資料與價格紀律的 A 級標的。"
+    elif b_items:
+        posture = "今日不急著買，重點是等突破或拉回到老師願意出手的位置。"
+    else:
+        posture = "今日先保護資金，不強迫交易。"
+
+    if fallback or stale:
+        data_warning = f"資料面仍需保守：Fallback {fallback} 檔、日期落後 {stale} 檔；這些標的不應列為主攻。"
+    else:
+        data_warning = "資料面可用：主要推薦均使用最新可得 Yahoo 日線，並通過資料防呆。"
+
+    focus_names = [item["display_name"] for item in ready[:3]] or [item["display_name"] for item in b_items[:3]]
+    focus_text = "、".join(focus_names) if focus_names else "今日無高信念主攻名單"
+
+    scenario_plan = {
+        "開高": "開盤若直接跳空高於突破價，不追高；等 5～15 分鐘量能延續，或回測突破價不破再小部位。",
+        "平盤震盪": "優先看 A/B 名單是否回到建議買進區間；沒有到價就不出手。",
+        "開低": "若跌到失效價附近且量能放大，先不要接刀；等止跌與 MACD 柱狀體改善。",
+    }
+
+    if top:
+        teacher_summary = f"第一優先觀察 {top.display_name}，Radar {top.radar_score}、信心 {top.confidence}%，但仍以 {top.pullback_low:.2f}～{top.pullback_high:.2f} 拉回區或 {top.breakout_price:.2f} 突破確認作為交易紀律。"
+    else:
+        teacher_summary = "今日沒有足夠資料產生第一優先標的。"
+
+    return {
+        "headline": "AI 股市老師總評",
+        "posture": posture,
+        "focus_list": focus_names,
+        "focus_text": focus_text,
+        "teacher_summary": teacher_summary,
+        "data_warning": data_warning,
+        "scenario_plan": scenario_plan,
+        "portfolio_commentary": portfolio_coach.get("headline", "尚未建立持股，無法提供組合層級建議。"),
+        "macd_commentary": f"MACD 名單已排除 fallback 與日期落後資料；目前有效候選 {len(macd_candidates)} 檔。",
+        "quality_commentary": f"A 級通過 {passed} 檔，禁止買進 {blocked} 檔。推薦品質優先於數量。",
+        "teacher_rules": [
+            "只買到價標的，不買情緒。",
+            "資料不足的股票不列為 A 級買進。",
+            "突破買要有量，拉回買要有守。",
+            "跌破失效價先處理風險，不用攤平替代停損。",
+        ],
+    }
+
+def _load_technical_profiles_parallel(stocks: list[StockMeta], price_days: int) -> dict[str, TechnicalProfile]:
+    """Load technical profiles concurrently.
+
+    v2.2.2 keeps the Streamlit refresh hotfix by avoiding sequential 100-stock
+    downloads. Each symbol uses cache-first Yahoo loading, and network failures
+    are converted to fallback/cached profiles without blocking the entire page.
+    """
+    profiles: dict[str, TechnicalProfile] = {}
+    max_workers = min(16, max(4, len(stocks)))
+
+    def _load_one(stock: StockMeta) -> tuple[str, TechnicalProfile]:
+        bars, price_source = load_price_bars(stock, days=price_days)
+        return stock.symbol, evaluate_technical(stock, bars, price_source)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_load_one, stock): stock for stock in stocks}
+        for future in as_completed(futures):
+            stock = futures[future]
+            try:
+                symbol, profile = future.result()
+            except Exception:
+                bars, price_source = load_price_bars(stock, days=price_days)
+                symbol, profile = stock.symbol, evaluate_technical(stock, bars, price_source)
+            profiles[symbol] = profile
+
+    return profiles
+
+
 def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[str, Any]:
     news_items, news_source = fetch_rss_news(limit=news_limit)
     stocks = load_stock_universe()
     investor_profile = load_investor_profile()
-    technical_profiles: dict[str, TechnicalProfile] = {}
-    for stock in stocks:
-        bars, price_source = load_price_bars(stock, days=price_days)
-        technical_profiles[stock.symbol] = evaluate_technical(stock, bars, price_source)
+    technical_profiles = _load_technical_profiles_parallel(stocks, price_days)
 
     institutional_flows = load_institutional_flows(stocks, technical_profiles)
     cards = build_decision_cards(news_items, stocks, technical_profiles, investor_profile, institutional_flows)
@@ -602,6 +757,7 @@ def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[s
     portfolio_coach = build_portfolio_coach(portfolio_analysis)
     pm_brief = _build_pm_brief(cards, news_items, technical_profiles, institutional_flows, news_source, market_view, confidence, len(user_watchlist), len(portfolio))
     teacher_buy_list = build_teacher_buy_list(cards, portfolio_analysis, data_trust, backtest_summary)
+    ai_teacher_brief = build_ai_teacher_brief(cards, teacher_buy_list, data_trust, backtest_summary, portfolio_coach, macd_candidates)
 
     payload = {
         "version": VERSION,
@@ -616,9 +772,10 @@ def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[s
         "portfolio_coach": portfolio_coach,
         "pm_brief": pm_brief.as_dict(),
         "teacher_buy_list": teacher_buy_list,
+        "ai_teacher_brief": ai_teacher_brief,
         "data_trust": data_trust,
         "backtest_summary": backtest_summary,
-        "phase_target": "Phase 5 MVP：資料可信度、推薦防呆、歷史驗證、持股總教練",
+        "phase_target": "Phase 5+：資料修正、MACD 新鮮度、AI 股市老師總評、持股總教練、快速刷新與價格位置語句修正",
         "decision_cards": [card.as_dict() for card in cards],
         "macd_candidates": [candidate.as_dict() for candidate in macd_candidates],
         "news_items": [item.as_dict() for item in news_items],

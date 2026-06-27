@@ -9,10 +9,11 @@ def payload():
 
 
 def test_pipeline_generates_payload(payload):
-    assert payload["version"] == "2.1.0"
+    assert payload["version"] == "2.2.2"
     assert payload["decision_cards"]
-    assert payload["macd_candidates"]
-    assert "latest_date" in payload["macd_candidates"][0]
+    assert "macd_candidates" in payload
+    if payload["macd_candidates"]:
+        assert "latest_date" in payload["macd_candidates"][0]
     assert "portfolio_analysis" in payload
     assert "user_watchlist" in payload
     assert "generated_at" in payload
@@ -86,3 +87,63 @@ def test_phase5_fields_exist(payload):
     assert "guardrail_status" in first
     assert "backtest_sample_count" in first
     assert "capital_policy" in payload["portfolio_coach"]
+
+
+def test_v220_ai_teacher_brief_exists(payload):
+    teacher = payload["ai_teacher_brief"]
+    assert "posture" in teacher
+    assert "scenario_plan" in teacher
+    assert "macd_commentary" in teacher
+
+
+def test_macd_candidates_are_not_fallback(payload):
+    for item in payload["macd_candidates"]:
+        assert item["price_source"].startswith("Yahoo Finance")
+
+
+def test_price_context_entry_language_does_not_say_stand_back_to_lower_support():
+    from radar.engine.decision import _manager_language
+    from radar.models.domain import StockMeta, TechnicalProfile
+
+    stock = StockMeta(
+        symbol="2327",
+        name="國巨",
+        sector="Passive Components",
+        theme=["passive"],
+        yahoo_symbol="2327.TW",
+        pm_view="以波段價格紀律評估。",
+    )
+    profile = TechnicalProfile(
+        symbol="2327",
+        name="國巨",
+        yahoo_symbol="2327.TW",
+        price_source="Yahoo Finance .TW",
+        bars_count=160,
+        latest_close=1015.0,
+        change_pct=1.2,
+        ma5=1000.0,
+        ma10=980.0,
+        ma20=900.0,
+        ma60=850.0,
+        ma120=800.0,
+        volume_ma5=1,
+        volume_ma20=1,
+        bb_upper=1100.0,
+        bb_lower=850.0,
+        dif=-1.0,
+        dea=0.0,
+        macd_hist=-1.0,
+        macd_hist_prev=-0.5,
+        rsi=55.0,
+        volume_ratio=1.0,
+        trend_score=45,
+        risk_score=65,
+        ma_state="測試",
+        technical_summary="測試",
+        latest_date="2026-06-26",
+        history=[],
+    )
+    levels = {"breakout": 1160.0, "pullback_low": 890.0, "pullback_high": 915.0, "reduce": 880.0, "stop": 820.0}
+    _, entry, *_ = _manager_language(stock, profile, "減碼/避開", levels, "量能比 1.00：測試")
+    assert "現價 1015.00 已高於支撐區" in entry
+    assert "重新站回 915.00" not in entry

@@ -278,9 +278,27 @@ def _macd_status_priority(status: str) -> int:
 
 
 def rank_macd_turn_candidates(stocks: list[StockMeta], profiles: dict[str, TechnicalProfile], limit: int = 10) -> list[MacdCandidate]:
+    """Rank MACD candidates using only fresh, real Yahoo price profiles.
+
+    v2.2.1 intentionally excludes fallback and date-lagging profiles from the
+    MACD list. The MACD section is a recommendation surface; stale prices can
+    seriously distort entries, so old/fallback profiles are blocked instead of
+    silently ranked.
+    """
+    latest_dates = sorted({
+        profile.latest_date
+        for profile in profiles.values()
+        if profile.latest_date and profile.price_source.startswith("Yahoo Finance")
+    })
+    reference_date = latest_dates[-1] if latest_dates else ""
+
     candidates: list[MacdCandidate] = []
     for stock in stocks:
         profile = profiles[stock.symbol]
+        if not profile.price_source.startswith("Yahoo Finance"):
+            continue
+        if reference_date and profile.latest_date != reference_date:
+            continue
         status = _macd_status(profile)
         if status == "尚未改善":
             continue
@@ -293,6 +311,7 @@ def rank_macd_turn_candidates(stocks: list[StockMeta], profiles: dict[str, Techn
             reason = "MACD 已在正值且動能延續，適合追蹤波段續航力，但不宜盲目追高。"
         else:
             reason = "MACD 動能改善，但距離翻正仍需確認，先列入觀察。"
+        reason = f"{reason}｜資料日 {profile.latest_date}｜來源 {profile.price_source}"
         candidates.append(
             MacdCandidate(
                 symbol=stock.symbol,

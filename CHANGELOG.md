@@ -1,21 +1,40 @@
 # Changelog
 
-## v2.1.0 Phase 5 MVP
-
-### Added
-
-- Data Trust Engine：價格資料、法人資料、樣本數與 fallback 狀態檢查。
-- Recommendation Guardrails：A 級推薦必須通過資料、技術風險、法人籌碼與價格位置檢查。
-- Lightweight Backtest：以近一年相似技術訊號驗證 20 交易日後勝率、平均報酬與最大回撤。
-- Portfolio Coach Phase 5：新增資金政策、核心續抱、可加碼候選、減碼候選、題材集中度。
-- Dashboard 新增「資料可信度」與「歷史回測驗證」頁面。
-- 每日報告新增 Phase 5 資料可信度、Guardrails 與回測摘要。
-
-### Changed
-
-- A 級今日可買進名單不再只依 Radar Score，會被 Guardrails 自動降級或禁止。
-- Teacher Buy List 顯示 Guardrail 狀態與回測勝率。
+## v2.2.2 - Action Logic Hotfix
 
 ### Fixed
 
-- 避免資料不足、價格 fallback 或法人明顯偏空時仍給 A 級買進。
+- 修正進場/加碼語句的價格情境判斷。
+- 若現價已經高於支撐觀察區，系統不再提示「需重新站回支撐價」。
+- 針對「低於支撐 / 位於支撐區 / 高於支撐但未突破 / 已突破 / 明顯高於突破價」建立不同文字邏輯。
+- 修正減碼/避開標的的解除條件，改為「放量突破壓力且 MACD 改善」，避免把低於現價的支撐價誤寫成重新站回條件。
+
+### Added
+
+- 新增測試：現價 1015、高於支撐 890～915、壓力 1160 時，不得產生「重新站回 915」這類不合理語句。
+
+### Product Impact
+
+- 個股建議更像股市老師的價格語境：現價在哪裡，就給出對應操作計畫。
+- 避免使用者看到已經站上的價位卻被要求「重新站回」，降低誤解與錯誤決策風險。
+
+## v2.2.1 - Refresh Hotfix
+
+### Fixed
+
+- Fixed Dashboard refresh hanging after adding portfolio/watchlist stocks.
+- Added cache-first Yahoo Finance daily price loading.
+- Added concurrent technical profile loading for the 100-stock universe.
+- Reduced Yahoo network timeout and safely falls back to cached data before synthetic fallback.
+
+## v2.2.0 - Data Integrity + AI Teacher Upgrade
+
+### Fixed
+
+- Fixed stale MACD latest-price risk by auto-resolving Yahoo Finance .TW / .TWO suffixes and selecting the freshest valid price series.
+- MACD recommendation list excludes fallback and date-lagging price profiles.
+- Fixed personal portfolio analysis visibility by rendering holdings from local config plus current payload.
+
+### Added
+
+- AI 股市老師總評：market posture, scenario playbook, data warning, focus list and teacher rules.
