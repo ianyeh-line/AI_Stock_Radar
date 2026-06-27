@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 Impact = Literal["positive", "negative", "neutral"]
 Decision = Literal["波段買進", "波段觀察", "等待", "減碼/避開"]
@@ -51,6 +51,26 @@ class Evidence:
 
 
 @dataclass
+class ScoreBreakdown:
+    base: int
+    news_signal: int
+    technical: int
+    profile_bonus: int
+    risk_penalty: int
+    final_score: int
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "base": self.base,
+            "news_signal": self.news_signal,
+            "technical": self.technical,
+            "profile_bonus": self.profile_bonus,
+            "risk_penalty": self.risk_penalty,
+            "final_score": self.final_score,
+        }
+
+
+@dataclass
 class DecisionCard:
     symbol: str
     name: str
@@ -58,11 +78,15 @@ class DecisionCard:
     radar_score: int
     decision: Decision
     confidence: int
+    conviction: str
     swing_view: str
     entry_condition: str
     hold_condition: str
     reduce_condition: str
+    invalidation_condition: str
     risk_note: str
+    position_guidance: str
+    score_breakdown: ScoreBreakdown
     evidence: list[Evidence] = field(default_factory=list)
 
     @property
@@ -81,3 +105,14 @@ class MacdCandidate:
     rsi: float
     trend: int
     reason: str
+
+
+@dataclass(frozen=True)
+class PMBrief:
+    headline: str
+    strategy: str
+    capital_allocation: str
+    top_actions: list[str]
+    avoid_actions: list[str]
+    risk_controls: list[str]
+    data_quality: dict[str, Any]

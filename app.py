@@ -146,7 +146,7 @@ def stock_button(symbol: str, name: str, key: str) -> None:
         st.session_state["selected_stock"] = {"symbol": symbol, "name": name}
 
 
-def decision_color(decision: str) -> str:
+def decision_icon(decision: str) -> str:
     return {
         "波段買進": "🟢",
         "波段觀察": "🟡",
@@ -155,10 +155,27 @@ def decision_color(decision: str) -> str:
     }.get(decision, "⚪")
 
 
+def render_score_breakdown(card: dict) -> None:
+    breakdown = card["score_breakdown"]
+    labels = {
+        "base": "基礎分",
+        "news_signal": "新聞/主線",
+        "technical": "技術面",
+        "profile_bonus": "波段偏好",
+        "risk_penalty": "風險扣分",
+        "final_score": "最終 Radar",
+    }
+    rows = []
+    for key in ["base", "news_signal", "technical", "profile_bonus", "risk_penalty", "final_score"]:
+        value = breakdown[key]
+        rows.append({"項目": labels[key], "分數": value})
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 payload = load_payload()
 
 st.title("🚀 AI Stock Radar")
-st.caption("Stage 5：波段操作型 AI 投資經理人")
+st.caption("v1.0.0｜Investment Manager Release｜波段操作決策平台")
 
 if st.button("重新產生今日 Radar"):
     payload = run_pipeline()
@@ -166,15 +183,7 @@ if st.button("重新產生今日 Radar"):
     st.rerun()
 
 profile = payload["investor_profile"]
-
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("今日市場判斷", payload["market_view"])
-m2.metric("AI 信心指數", f"{payload['ai_confidence']}%")
-m3.metric("投資風格", profile.get("style_zh", "波段操作"))
-m4.metric("新聞來源", payload["news_source"])
-
-st.info(payload["market_summary"])
-
+pm_brief = payload["pm_brief"]
 cards = payload["decision_cards"]
 stock_options = {card["display_name"]: {"symbol": card["symbol"], "name": card["name"]} for card in cards}
 
@@ -182,28 +191,71 @@ if "selected_stock" not in st.session_state:
     first = cards[0]
     st.session_state["selected_stock"] = {"symbol": first["symbol"], "name": first["name"]}
 
-tab_overview, tab_macd, tab_chart, tab_news, tab_report = st.tabs(["今日決策", "MACD翻正十檔", "個股技術線圖", "新聞影響", "每日報告"])
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("今日市場判斷", payload["market_view"])
+m2.metric("AI 信心指數", f"{payload['ai_confidence']}%")
+m3.metric("投資風格", profile.get("style_zh", "波段操作"))
+m4.metric("新聞來源", payload["news_source"])
 
-with tab_overview:
+st.info(pm_brief["headline"])
+
+tab_pm, tab_decision, tab_macd, tab_chart, tab_news, tab_report = st.tabs(["投資經理人早會", "今日決策", "MACD翻正十檔", "個股技術線圖", "新聞影響", "每日報告"])
+
+with tab_pm:
+    st.header("投資經理人早會")
+    st.subheader("今日主策略")
+    st.write(pm_brief["strategy"])
+    st.subheader("資金配置建議")
+    st.write(pm_brief["capital_allocation"])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("今日優先動作")
+        for item in pm_brief["top_actions"]:
+            st.success(item)
+    with c2:
+        st.subheader("今日避免動作")
+        for item in pm_brief["avoid_actions"]:
+            st.warning(item)
+
+    st.subheader("風險控管")
+    for item in pm_brief["risk_controls"]:
+        st.write(f"- {item}")
+
+    st.subheader("資料品質檢查")
+    quality = pm_brief["data_quality"]
+    q1, q2, q3, q4 = st.columns(4)
+    q1.metric("新聞數量", quality["news_items"])
+    q2.metric("正向訊號", quality["positive_signals"])
+    q3.metric("負向訊號", quality["negative_signals"])
+    q4.metric("信心指數", f"{quality['confidence']}%")
+    st.caption(quality["limitation"])
+
+with tab_decision:
     st.header("波段操作 Top Decision Cards")
-    for idx, card in enumerate(cards[:8], 1):
+    for idx, card in enumerate(cards[:10], 1):
         with st.container(border=True):
             left, right = st.columns([3, 1])
             with left:
-                st.subheader(f"{idx}. {decision_color(card['decision'])} {card['display_name']}｜{card['decision']}")
+                st.subheader(f"{idx}. {decision_icon(card['decision'])} {card['display_name']}｜{card['decision']}｜{card['conviction']}")
                 st.write(card["swing_view"])
+                st.markdown(f"**部位建議：** {card['position_guidance']}")
                 st.markdown(f"**進場條件：** {card['entry_condition']}")
                 st.markdown(f"**續抱條件：** {card['hold_condition']}")
                 st.markdown(f"**減碼條件：** {card['reduce_condition']}")
+                st.markdown(f"**失效條件：** {card['invalidation_condition']}")
                 st.markdown(f"**風險提醒：** {card['risk_note']}")
                 st.markdown("**Evidence Chain**")
-                for evidence in card["evidence"][:5]:
+                for evidence in card["evidence"][:6]:
                     icon = "✅" if evidence["direction"] == "positive" else "⚠️" if evidence["direction"] == "negative" else "➖"
                     st.write(f"{icon} {evidence['label']}｜權重 {evidence['weight']}｜{evidence['explanation']}")
             with right:
                 st.metric("Radar", card["radar_score"])
                 st.metric("信心", f"{card['confidence']}%")
+                st.metric("信念", card["conviction"])
                 stock_button(card["symbol"], card["name"], f"overview-{card['symbol']}")
+                with st.expander("分數拆解"):
+                    render_score_breakdown(card)
 
 with tab_macd:
     st.header("AI 選出 MACD 即將翻正的十檔股票")
@@ -231,7 +283,11 @@ with tab_macd:
 
 with tab_chart:
     st.header("個股技術線圖")
-    selected_label = st.selectbox("選擇個股", list(stock_options.keys()), index=list(stock_options.keys()).index(f"{st.session_state['selected_stock']['symbol']} {st.session_state['selected_stock']['name']}") if f"{st.session_state['selected_stock']['symbol']} {st.session_state['selected_stock']['name']}" in stock_options else 0)
+    selected_label = st.selectbox(
+        "選擇個股",
+        list(stock_options.keys()),
+        index=list(stock_options.keys()).index(f"{st.session_state['selected_stock']['symbol']} {st.session_state['selected_stock']['name']}") if f"{st.session_state['selected_stock']['symbol']} {st.session_state['selected_stock']['name']}" in stock_options else 0,
+    )
     selected = stock_options[selected_label]
     st.session_state["selected_stock"] = selected
     render_stock_chart(selected["symbol"], selected["name"])
