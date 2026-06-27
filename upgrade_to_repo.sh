@@ -40,7 +40,7 @@ rsync -av --delete \
   --exclude 'data/cache/' \
   "$SOURCE_DIR/" "$TARGET_DIR/"
 
-# Restore repo-local files if they existed. v2.2.3 will migrate them to ~/.ai_stock_radar on next run.
+# Restore repo-local files if they existed. v2.2.4 will migrate them to ~/.ai_stock_radar on next run.
 if [ -f "$BACKUP_DIR/portfolio.json" ]; then
   mkdir -p "$TARGET_DIR/config"
   cp "$BACKUP_DIR/portfolio.json" "$TARGET_DIR/config/portfolio.json"
@@ -53,7 +53,7 @@ fi
 cd "$TARGET_DIR"
 bash scripts/cleanup_repo.sh >/dev/null 2>&1 || true
 
-echo "Upgrade complete: v2.2.3 User Data Persistence Hotfix"
+echo "Upgrade complete: v2.3.0 Web Beta Ready"
 echo "Repository: $TARGET_DIR"
 echo "User data backup: $BACKUP_DIR"
 echo "Next: PYTHONPATH=src python3 -m radar.cli run"

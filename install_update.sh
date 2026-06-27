@@ -33,5 +33,5 @@ rsync -av --delete \
   --exclude 'output/dashboard_data.json' \
   "$RELEASE_DIR/" "$TARGET_DIR/"
 
-echo "v2.2.3 已部署到 $TARGET_DIR"
+echo "v2.2.4 已部署到 $TARGET_DIR"
 echo "個人持股與觀察清單保存於：$USER_DATA_DIR"

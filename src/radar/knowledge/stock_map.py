@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from radar.engine.user_space import load_portfolio, load_user_watchlist, make_custom_stock, normalize_symbol
+from radar.knowledge.stock_master import get_stock_identity
 from radar.models.domain import StockMeta
 
 # Lightweight local alias table so users can add common Taiwan stocks by name.
@@ -109,6 +110,9 @@ def _normalize_name(text: str) -> str:
 
 
 def _resolve_alias(text: str) -> Optional[StockMeta]:
+    identity = get_stock_identity(text)
+    if identity:
+        return make_custom_stock(identity.symbol, identity.name)
     normalized_text = _normalize_name(text)
     for alias, (symbol, name) in TW_STOCK_ALIASES.items():
         normalized_alias = _normalize_name(alias)

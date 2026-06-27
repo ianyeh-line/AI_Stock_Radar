@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from radar.models.domain import DecisionCard, StockMeta, TechnicalProfile
+from radar.knowledge.stock_master import enrich_stock_name, get_stock_identity
 
 # User data must survive release upgrades.
 #
@@ -22,6 +23,39 @@ LEGACY_USER_WATCHLIST_PATH = Path("config/user_watchlist.json")
 LEGACY_PORTFOLIO_PATH = Path("config/portfolio.json")
 USER_WATCHLIST_PATH = USER_DATA_DIR / "user_watchlist.json"
 PORTFOLIO_PATH = USER_DATA_DIR / "portfolio.json"
+
+
+def _streamlit_session_state() -> Any | None:
+    """Return Streamlit session_state only when running inside a Streamlit app."""
+    try:
+        import streamlit as st  # type: ignore
+        from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
+
+        if get_script_run_ctx() is None:
+            return None
+        return st.session_state
+    except Exception:
+        return None
+
+
+def _use_guest_session() -> bool:
+    ss = _streamlit_session_state()
+    return bool(ss is not None and ss.get("guest_mode_enabled", False))
+
+
+def _guest_list(key: str) -> list[dict[str, Any]]:
+    ss = _streamlit_session_state()
+    if ss is None:
+        return []
+    ss.setdefault(key, [])
+    data = ss.get(key, [])
+    return data if isinstance(data, list) else []
+
+
+def _save_guest_list(key: str, items: list[dict[str, Any]]) -> None:
+    ss = _streamlit_session_state()
+    if ss is not None:
+        ss[key] = items
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -59,6 +93,14 @@ def _migrate_json_if_needed(target_path: Path, legacy_path: Path, default: Any) 
 
 def get_user_data_status() -> dict[str, str]:
     """Return user-data storage paths for dashboard diagnostics."""
+    if _use_guest_session():
+        return {
+            "user_data_dir": "Streamlit session state (Guest Demo Mode)",
+            "portfolio_path": "session:guest_portfolio",
+            "watchlist_path": "session:guest_watchlist",
+            "legacy_portfolio_path": str(LEGACY_PORTFOLIO_PATH),
+            "legacy_watchlist_path": str(LEGACY_USER_WATCHLIST_PATH),
+        }
     return {
         "user_data_dir": str(USER_DATA_DIR),
         "portfolio_path": str(PORTFOLIO_PATH),
@@ -83,13 +125,16 @@ def default_yahoo_symbol(symbol: str) -> str:
 
 def make_custom_stock(symbol: str, name: Optional[str] = None) -> StockMeta:
     clean_symbol = normalize_symbol(symbol)
-    clean_name = (name or f"自訂觀察{clean_symbol}").strip()
+    identity = get_stock_identity(name or clean_symbol) or get_stock_identity(clean_symbol)
+    clean_name = identity.name if identity else enrich_stock_name(clean_symbol, name)
+    sector = identity.sector if identity else "個人觀察"
+    yahoo_symbol = identity.yahoo_symbol if identity and identity.yahoo_symbol else default_yahoo_symbol(clean_symbol)
     return StockMeta(
         symbol=clean_symbol,
         name=clean_name,
-        sector="個人觀察",
+        sector=sector,
         theme=["Personal Watchlist", "Swing Trading"],
-        yahoo_symbol=default_yahoo_symbol(clean_symbol),
+        yahoo_symbol=yahoo_symbol,
         pm_view="使用者指定觀察個股，AI 以技術面與新聞關聯度進行波段評估。",
         base_priority=5,
         is_custom=True,
@@ -97,10 +142,29 @@ def make_custom_stock(symbol: str, name: Optional[str] = None) -> StockMeta:
 
 
 def load_user_watchlist() -> list[dict[str, Any]]:
-    data = _migrate_json_if_needed(USER_WATCHLIST_PATH, LEGACY_USER_WATCHLIST_PATH, [])
+    data = _guest_list("guest_watchlist") if _use_guest_session() else _migrate_json_if_needed(USER_WATCHLIST_PATH, LEGACY_USER_WATCHLIST_PATH, [])
     if not isinstance(data, list):
         return []
-    return data
+    cleaned: list[dict[str, Any]] = []
+    changed = False
+    seen: set[str] = set()
+    for item in data:
+        symbol = normalize_symbol(str(item.get("symbol", "")))
+        if not symbol or symbol in seen:
+            changed = True
+            continue
+        seen.add(symbol)
+        old_name = str(item.get("name") or "")
+        new_name = enrich_stock_name(symbol, old_name)
+        if new_name != old_name:
+            changed = True
+        cleaned.append({"symbol": symbol, "name": new_name})
+    if changed:
+        if _use_guest_session():
+            _save_guest_list("guest_watchlist", cleaned)
+        else:
+            _write_json(USER_WATCHLIST_PATH, cleaned)
+    return cleaned
 
 
 def save_user_watchlist(items: list[dict[str, Any]]) -> None:
@@ -111,8 +175,11 @@ def save_user_watchlist(items: list[dict[str, Any]]) -> None:
         if not symbol or symbol in seen:
             continue
         seen.add(symbol)
-        normalized.append({"symbol": symbol, "name": str(item.get("name") or f"自訂觀察{symbol}")})
-    _write_json(USER_WATCHLIST_PATH, normalized)
+        normalized.append({"symbol": symbol, "name": enrich_stock_name(symbol, str(item.get("name") or ""))})
+    if _use_guest_session():
+        _save_guest_list("guest_watchlist", normalized)
+    else:
+        _write_json(USER_WATCHLIST_PATH, normalized)
 
 
 def add_user_watchlist_item(symbol: str, name: Optional[str] = None) -> None:
@@ -130,7 +197,7 @@ def remove_user_watchlist_item(symbol: str) -> None:
 
 
 def load_portfolio() -> list[dict[str, Any]]:
-    data = _migrate_json_if_needed(PORTFOLIO_PATH, LEGACY_PORTFOLIO_PATH, [])
+    data = _guest_list("guest_portfolio") if _use_guest_session() else _migrate_json_if_needed(PORTFOLIO_PATH, LEGACY_PORTFOLIO_PATH, [])
     if not isinstance(data, list):
         return []
     cleaned: list[dict[str, Any]] = []
@@ -147,12 +214,17 @@ def load_portfolio() -> list[dict[str, Any]]:
         cleaned.append(
             {
                 "symbol": symbol,
-                "name": str(item.get("name") or f"自訂觀察{symbol}"),
+                "name": enrich_stock_name(symbol, str(item.get("name") or "")),
                 "shares": shares,
                 "avg_cost": avg_cost,
                 "note": str(item.get("note", "")),
             }
         )
+    if cleaned != data:
+        if _use_guest_session():
+            _save_guest_list("guest_portfolio", cleaned)
+        else:
+            _write_json(PORTFOLIO_PATH, cleaned)
     return cleaned
 
 
@@ -164,12 +236,15 @@ def save_portfolio(items: list[dict[str, Any]]) -> None:
             continue
         normalized[symbol] = {
             "symbol": symbol,
-            "name": str(item.get("name") or f"自訂觀察{symbol}"),
+            "name": enrich_stock_name(symbol, str(item.get("name") or "")),
             "shares": float(item.get("shares", 0) or 0),
             "avg_cost": float(item.get("avg_cost", 0) or 0),
             "note": str(item.get("note", "")),
         }
-    _write_json(PORTFOLIO_PATH, list(normalized.values()))
+    if _use_guest_session():
+        _save_guest_list("guest_portfolio", list(normalized.values()))
+    else:
+        _write_json(PORTFOLIO_PATH, list(normalized.values()))
 
 
 def add_or_update_holding(symbol: str, name: Optional[str], shares: float, avg_cost: float, note: str = "") -> None:
@@ -178,11 +253,11 @@ def add_or_update_holding(symbol: str, name: Optional[str], shares: float, avg_c
     updated = False
     for item in items:
         if normalize_symbol(str(item.get("symbol", ""))) == clean_symbol:
-            item.update({"name": name or item.get("name") or f"自訂觀察{clean_symbol}", "shares": shares, "avg_cost": avg_cost, "note": note})
+            item.update({"name": enrich_stock_name(clean_symbol, name or item.get("name")), "shares": shares, "avg_cost": avg_cost, "note": note})
             updated = True
             break
     if not updated:
-        items.append({"symbol": clean_symbol, "name": name or f"自訂觀察{clean_symbol}", "shares": shares, "avg_cost": avg_cost, "note": note})
+        items.append({"symbol": clean_symbol, "name": enrich_stock_name(clean_symbol, name), "shares": shares, "avg_cost": avg_cost, "note": note})
     save_portfolio(items)
 
 

@@ -1,19 +1,35 @@
-# Roadmap
+# AI Stock Radar Roadmap
 
-## Current: v2.2.3 User Data Persistence Hotfix
+## Current Release: v2.3.0 Web Beta Ready
 
-Goal: Make personal investor data durable across product releases.
+目標：讓 AI Stock Radar 可用網址分享給朋友測試，不再需要朋友下載檔案與安裝環境。
 
-- Store personal portfolio and watchlist outside the repository.
-- Automatically migrate older `config/*.json` personal files.
-- Add safe release upgrade script.
-- Keep v2.2.2 price-aware action logic and v2.2.1 refresh performance fixes.
+## Completed
 
-## Next: v2.3.0 Portfolio Trust Upgrade
+- 本機 Dashboard
+- AI 股市老師盤前決策
+- 今日可買進名單
+- MACD 觀察名單
+- 三大法人籌碼 Radar
+- 個人持股分析
+- Stock Master
+- 使用者資料持久化
+- Web Beta Guest Mode
 
-Planned:
+## Next: v2.4.0 Web Feedback Loop
 
-- Improve portfolio coach output after adding holdings.
-- Add per-holding data freshness indicator.
-- Add portfolio-level risk concentration and cash allocation suggestions.
-- Add manual refresh button specific to portfolio holdings only.
+建議下一版：
+
+1. 新增使用者回饋按鈕：有幫助 / 不合理 / 價格錯誤 / 建議太籠統。
+2. 新增每檔推薦回饋紀錄。
+3. 新增 Web Beta 使用說明區。
+4. 新增公開分享模式的免責聲明與資料更新時間提醒。
+5. 將雲端刷新流程切分成「快速刷新個人股票」與「完整刷新市場」。
+
+## Later
+
+- 使用者登入
+- 資料庫保存個人持股
+- 每日自動排程
+- LINE / Email 盤前通知
+- 更完整回測與績效追蹤

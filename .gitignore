@@ -20,6 +20,11 @@ output/*
 data/cache/*
 !data/cache/.gitkeep
 
+# Demo payload is intentionally committed for Web Beta first load
+!data/demo/
+!data/demo/dashboard_data.json
+!data/demo/daily_report.md
+
 # Local config and personal data
 .env
 config/settings.json
@@ -27,6 +32,5 @@ config/user_profile.json
 config/user_watchlist.json
 config/portfolio.json
 
-*.pyc
-output/daily_report.md
-output/dashboard_data.json
+# Streamlit local secrets
+.streamlit/secrets.toml

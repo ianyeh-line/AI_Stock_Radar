@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -60,12 +61,43 @@ st.markdown(
 
 PAYLOAD_PATH = Path("output/dashboard_data.json")
 REPORT_PATH = Path("output/daily_report.md")
+DEMO_PAYLOAD_PATH = Path("data/demo/dashboard_data.json")
+DEMO_REPORT_PATH = Path("data/demo/daily_report.md")
+
+
+def is_streamlit_cloud_env() -> bool:
+    """Best-effort detection for Streamlit Community Cloud / hosted demo mode."""
+    cwd = str(Path.cwd())
+    home = os.environ.get("HOME", "")
+    return (
+        os.environ.get("AI_STOCK_RADAR_WEB_GUEST") == "1"
+        or os.environ.get("STREAMLIT_CLOUD") == "1"
+        or home == "/home/adminuser"
+        or "/mount/src" in cwd
+    )
+
+
+def is_guest_mode() -> bool:
+    return bool(st.session_state.get("guest_mode_enabled", False))
+
+
+def ensure_guest_session_defaults() -> None:
+    if "guest_mode_enabled" not in st.session_state:
+        st.session_state["guest_mode_enabled"] = is_streamlit_cloud_env()
+    st.session_state.setdefault("guest_watchlist", [])
+    st.session_state.setdefault("guest_portfolio", [])
 
 
 def run_pipeline() -> dict[str, Any]:
     payload = run_decision_pipeline()
-    save_dashboard_payload(payload)
-    save_markdown_report(build_markdown_report(payload))
+    if is_guest_mode():
+        # Public web beta must not write visitor watchlists / holdings into a
+        # shared server file. Keep generated payload and report in session.
+        st.session_state["guest_payload"] = payload
+        st.session_state["guest_report_markdown"] = build_markdown_report(payload)
+    else:
+        save_dashboard_payload(payload)
+        save_markdown_report(build_markdown_report(payload))
     return payload
 
 
@@ -81,16 +113,37 @@ def load_payload_from_file(file_mtime: float) -> dict[str, Any]:
 
 
 def load_payload() -> dict[str, Any]:
+    if is_guest_mode():
+        if "guest_payload" in st.session_state:
+            return st.session_state["guest_payload"]
+        if DEMO_PAYLOAD_PATH.exists():
+            payload = json.loads(DEMO_PAYLOAD_PATH.read_text(encoding="utf-8"))
+            st.session_state["guest_payload"] = payload
+            if DEMO_REPORT_PATH.exists():
+                st.session_state["guest_report_markdown"] = DEMO_REPORT_PATH.read_text(encoding="utf-8")
+            else:
+                st.session_state["guest_report_markdown"] = build_markdown_report(payload)
+            return payload
+        with st.spinner("網站 Demo 第一次啟動，正在產生今日 Radar..."):
+            return run_pipeline()
     if PAYLOAD_PATH.exists():
         return load_payload_from_file(PAYLOAD_PATH.stat().st_mtime)
     with st.spinner("第一次啟動尚未找到 dashboard_data.json，正在產生今日 Radar..."):
         return run_pipeline()
 
 
+def current_report_markdown(payload: dict[str, Any]) -> str:
+    if is_guest_mode():
+        return st.session_state.get("guest_report_markdown") or build_markdown_report(payload)
+    if REPORT_PATH.exists():
+        return REPORT_PATH.read_text(encoding="utf-8")
+    return build_markdown_report(payload)
+
+
 def refresh_product(target_section: str | None = None) -> None:
     if target_section:
         st.session_state["pending_section"] = target_section
-    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.2.3 已加入個人資料永久保存，不會因版本覆蓋遺失持股與觀察清單..."):
+    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.3.0 Web Beta 已支援本機持久模式與網站 Demo 模式..."):
         try:
             payload = run_pipeline()
             st.session_state["last_refresh_message"] = (
@@ -495,11 +548,7 @@ def render_decision_overview(payload: dict[str, Any]) -> None:
     st.caption(quality["limitation"])
 
     with st.expander("每日 Markdown 報告預覽", expanded=False):
-        report_path = REPORT_PATH
-        if report_path.exists():
-            st.markdown(report_path.read_text(encoding="utf-8"))
-        else:
-            st.warning("尚未產生 daily_report.md。請按重新抓取最新資料。")
+        st.markdown(current_report_markdown(payload))
 
 
 
@@ -680,8 +729,17 @@ def render_add_portfolio_form(payload: dict[str, Any], location: str) -> None:
 def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.header("個人工作區")
     st.sidebar.caption("可用股號或股票名稱新增觀察與持股。")
+
+    mode_label = "網站 Demo 模式（訪客資料只存在本次瀏覽）" if is_guest_mode() else "本機持久模式（資料保存在這台 Mac）"
+    st.sidebar.info(mode_label)
+    if is_streamlit_cloud_env():
+        st.sidebar.caption("偵測到雲端環境，預設使用網站 Demo 模式，避免不同測試者共用持股資料。")
+    else:
+        st.sidebar.caption("本機使用時會保留個人持股與觀察清單；分享網站時建議使用 Demo 模式。")
+
     user_data = get_user_data_status()
-    st.sidebar.caption(f"個人資料會保留在：{user_data['user_data_dir']}")
+    if not is_guest_mode():
+        st.sidebar.caption(f"個人資料會保留在：{user_data['user_data_dir']}")
 
     with st.sidebar.expander("新增指定觀察個股", expanded=True):
         render_add_watchlist_form(payload, "sidebar")
@@ -703,8 +761,11 @@ def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.divider()
     st.sidebar.subheader("個人資料保存")
     user_data = get_user_data_status()
-    st.sidebar.caption("持股與觀察清單已改存於 Mac 使用者資料夾，更新版本時不需要重新輸入。")
-    st.sidebar.code(user_data.get("user_data_dir", ""), language="text")
+    if is_guest_mode():
+        st.sidebar.caption("網站 Demo 模式：觀察清單與持股僅保留在本次瀏覽 session，不寫入伺服器檔案。重新整理或閒置過久後可能消失。")
+    else:
+        st.sidebar.caption("持股與觀察清單已改存於 Mac 使用者資料夾，更新版本時不需要重新輸入。")
+        st.sidebar.code(user_data.get("user_data_dir", ""), language="text")
 
     st.sidebar.divider()
     st.sidebar.subheader("資料即時性")
@@ -772,6 +833,7 @@ def render_backtest_validation(payload: dict[str, Any]) -> None:
     rows = sorted(rows, key=lambda row: (row.get("Radar") or 0), reverse=True)
     st.dataframe(pd.DataFrame(rows[:60]), use_container_width=True, hide_index=True)
 
+ensure_guest_session_defaults()
 payload = load_payload()
 if "quick_chart_symbol" not in st.session_state:
     cards = payload.get("decision_cards", [])
@@ -788,7 +850,7 @@ if pending_section in SECTIONS:
 render_sidebar_workspace(payload)
 
 st.title("🚀 AI Stock Radar")
-st.caption(f"v{payload['version']}｜Phase 5+｜資料修正｜MACD 新鮮度｜AI 股市老師總評｜持股總教練｜快速刷新 Hotfix")
+st.caption(f"v{payload['version']}｜Web Beta Ready｜可部署網站分享｜本機持久模式 / 訪客 Demo 模式｜AI 股市老師盤前決策")
 
 header_cols = st.columns([1, 4])
 with header_cols[0]:
@@ -871,11 +933,7 @@ if selected_section == "盤前決策總覽":
         render_decision_card_compact(card, f"overview-card-{idx}")
 
     with st.expander("每日報告預覽", expanded=False):
-        report_path = REPORT_PATH
-        if report_path.exists():
-            st.markdown(report_path.read_text(encoding="utf-8"))
-        else:
-            st.warning("尚未產生 daily_report.md。請按重新產生今日 Radar。")
+        st.markdown(current_report_markdown(payload))
 
     with st.expander("資料品質與即時性說明", expanded=False):
         dq = pd.DataFrame(
@@ -998,7 +1056,7 @@ elif selected_section == "法人籌碼 Radar":
 
 elif selected_section == "MACD 觀察名單":
     st.header("AI 選出 MACD 觀察名單")
-    st.caption("已區分：即將翻正、剛翻正、已翻正延續。v2.2.3 延續 fallback/日期落後排除，並加入個人持股與觀察清單永久保存。")
+    st.caption("已區分：即將翻正、剛翻正、已翻正延續。v2.2.4 延續 fallback/日期落後排除，並加入台股 Stock Master 與個人資料永久保存。")
     rows = []
     for item in payload["macd_candidates"]:
         rows.append(
@@ -1193,8 +1251,4 @@ elif selected_section == "新聞影響鏈":
 
 elif selected_section == "每日報告":
     st.header("每日 Markdown 報告")
-    report_path = REPORT_PATH
-    if report_path.exists():
-        st.markdown(report_path.read_text(encoding="utf-8"))
-    else:
-        st.warning("尚未產生 daily_report.md。請按重新產生今日 Radar。")
+    st.markdown(current_report_markdown(payload))
