@@ -1,6 +1,6 @@
 # AI Stock Radar Roadmap
 
-## Current Release: v2.3.1 Streamlit Deploy Hotfix
+## Current Release: v2.3.2 Streamlit Import Path Hotfix
 
 目標：修正 Streamlit Cloud 部署錯誤，讓 AI Stock Radar Web Beta 可正常安裝 Python dependencies 並完成上線。
 

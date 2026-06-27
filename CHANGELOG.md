@@ -1,3 +1,12 @@
+# CHANGELOG
+
+## v2.3.2 - Streamlit Import Path Hotfix
+
+### Fixed
+
+- Fixed Streamlit Cloud `ModuleNotFoundError` for `radar.engine.decision` by adding `src/` to `sys.path` in `app.py` before local package imports.
+- Ensured no `packages.txt` is shipped because no Linux apt packages are required.
+
 # Changelog
 
 ## v2.3.1 - Streamlit Deploy Hotfix

@@ -9,7 +9,7 @@ def payload():
 
 
 def test_pipeline_generates_payload(payload):
-    assert payload["version"] == "2.3.0"
+    assert payload["version"] == "2.3.2"
     assert payload["decision_cards"]
     assert "macd_candidates" in payload
     if payload["macd_candidates"]:

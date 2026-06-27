@@ -53,7 +53,7 @@ fi
 cd "$TARGET_DIR"
 bash scripts/cleanup_repo.sh >/dev/null 2>&1 || true
 
-echo "Upgrade complete: v2.3.1 Streamlit Deploy Hotfix"
+echo "Upgrade complete: v2.3.2 Streamlit Import Path Hotfix"
 echo "Repository: $TARGET_DIR"
 echo "User data backup: $BACKUP_DIR"
 echo "Next: PYTHONPATH=src python3 -m radar.cli run"

@@ -5,9 +5,15 @@ from __future__ import annotations
 import html
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
+
+APP_ROOT = Path(__file__).resolve().parent
+SRC_DIR = APP_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -143,7 +149,7 @@ def current_report_markdown(payload: dict[str, Any]) -> str:
 def refresh_product(target_section: str | None = None) -> None:
     if target_section:
         st.session_state["pending_section"] = target_section
-    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.3.0 Web Beta 已支援本機持久模式與網站 Demo 模式..."):
+    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.3.2 Web Beta 已支援本機持久模式與網站 Demo 模式..."):
         try:
             payload = run_pipeline()
             st.session_state["last_refresh_message"] = (

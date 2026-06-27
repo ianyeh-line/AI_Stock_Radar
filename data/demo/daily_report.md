@@ -1,6 +1,6 @@
 # AI Stock Radar Daily Report
 
-Version: v2.3.0  
+Version: v2.3.2  
 Generated At: 2026-06-27T10:47:41
 
 
