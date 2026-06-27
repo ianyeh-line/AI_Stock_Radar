@@ -35,6 +35,7 @@ rsync -av --delete \
   --exclude 'backups/' \
   --exclude 'config/portfolio.json' \
   --exclude 'config/user_watchlist.json' \
+  --exclude '.streamlit/secrets.toml' \
   --exclude 'output/daily_report.md' \
   --exclude 'output/dashboard_data.json' \
   --exclude 'data/cache/' \
@@ -53,7 +54,7 @@ fi
 cd "$TARGET_DIR"
 bash scripts/cleanup_repo.sh >/dev/null 2>&1 || true
 
-echo "Upgrade complete: v2.3.2 Streamlit Import Path Hotfix"
+echo "Upgrade complete: v2.4.0 User Account + Cloud Portfolio"
 echo "Repository: $TARGET_DIR"
 echo "User data backup: $BACKUP_DIR"
 echo "Next: PYTHONPATH=src python3 -m radar.cli run"

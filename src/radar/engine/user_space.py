@@ -11,6 +11,13 @@ from typing import Any, Optional
 
 from radar.models.domain import DecisionCard, StockMeta, TechnicalProfile
 from radar.knowledge.stock_master import enrich_stock_name, get_stock_identity
+from radar.integrations.cloud_user_store import (
+    is_cloud_store_configured,
+    load_cloud_portfolio,
+    load_cloud_watchlist,
+    save_cloud_portfolio,
+    save_cloud_watchlist,
+)
 
 # User data must survive release upgrades.
 #
@@ -38,9 +45,24 @@ def _streamlit_session_state() -> Any | None:
         return None
 
 
+def _cloud_user_email() -> str:
+    ss = _streamlit_session_state()
+    if ss is None:
+        return ""
+    return str(ss.get("cloud_user_email") or "").strip().lower()
+
+
+def _use_cloud_user_store() -> bool:
+    return bool(_cloud_user_email() and is_cloud_store_configured())
+
+
 def _use_guest_session() -> bool:
     ss = _streamlit_session_state()
-    return bool(ss is not None and ss.get("guest_mode_enabled", False))
+    if ss is None:
+        return False
+    if _use_cloud_user_store():
+        return False
+    return bool(ss.get("guest_mode_enabled", False))
 
 
 def _guest_list(key: str) -> list[dict[str, Any]]:
@@ -93,6 +115,15 @@ def _migrate_json_if_needed(target_path: Path, legacy_path: Path, default: Any) 
 
 def get_user_data_status() -> dict[str, str]:
     """Return user-data storage paths for dashboard diagnostics."""
+    if _use_cloud_user_store():
+        email = _cloud_user_email()
+        return {
+            "user_data_dir": f"Supabase Cloud Portfolio ({email})",
+            "portfolio_path": "supabase:user_profiles.portfolio",
+            "watchlist_path": "supabase:user_profiles.watchlist",
+            "legacy_portfolio_path": str(LEGACY_PORTFOLIO_PATH),
+            "legacy_watchlist_path": str(LEGACY_USER_WATCHLIST_PATH),
+        }
     if _use_guest_session():
         return {
             "user_data_dir": "Streamlit session state (Guest Demo Mode)",
@@ -142,7 +173,7 @@ def make_custom_stock(symbol: str, name: Optional[str] = None) -> StockMeta:
 
 
 def load_user_watchlist() -> list[dict[str, Any]]:
-    data = _guest_list("guest_watchlist") if _use_guest_session() else _migrate_json_if_needed(USER_WATCHLIST_PATH, LEGACY_USER_WATCHLIST_PATH, [])
+    data = load_cloud_watchlist(_cloud_user_email()) if _use_cloud_user_store() else (_guest_list("guest_watchlist") if _use_guest_session() else _migrate_json_if_needed(USER_WATCHLIST_PATH, LEGACY_USER_WATCHLIST_PATH, []))
     if not isinstance(data, list):
         return []
     cleaned: list[dict[str, Any]] = []
@@ -160,7 +191,9 @@ def load_user_watchlist() -> list[dict[str, Any]]:
             changed = True
         cleaned.append({"symbol": symbol, "name": new_name})
     if changed:
-        if _use_guest_session():
+        if _use_cloud_user_store():
+            save_cloud_watchlist(_cloud_user_email(), cleaned)
+        elif _use_guest_session():
             _save_guest_list("guest_watchlist", cleaned)
         else:
             _write_json(USER_WATCHLIST_PATH, cleaned)
@@ -176,7 +209,9 @@ def save_user_watchlist(items: list[dict[str, Any]]) -> None:
             continue
         seen.add(symbol)
         normalized.append({"symbol": symbol, "name": enrich_stock_name(symbol, str(item.get("name") or ""))})
-    if _use_guest_session():
+    if _use_cloud_user_store():
+        save_cloud_watchlist(_cloud_user_email(), normalized)
+    elif _use_guest_session():
         _save_guest_list("guest_watchlist", normalized)
     else:
         _write_json(USER_WATCHLIST_PATH, normalized)
@@ -197,7 +232,7 @@ def remove_user_watchlist_item(symbol: str) -> None:
 
 
 def load_portfolio() -> list[dict[str, Any]]:
-    data = _guest_list("guest_portfolio") if _use_guest_session() else _migrate_json_if_needed(PORTFOLIO_PATH, LEGACY_PORTFOLIO_PATH, [])
+    data = load_cloud_portfolio(_cloud_user_email()) if _use_cloud_user_store() else (_guest_list("guest_portfolio") if _use_guest_session() else _migrate_json_if_needed(PORTFOLIO_PATH, LEGACY_PORTFOLIO_PATH, []))
     if not isinstance(data, list):
         return []
     cleaned: list[dict[str, Any]] = []
@@ -221,7 +256,9 @@ def load_portfolio() -> list[dict[str, Any]]:
             }
         )
     if cleaned != data:
-        if _use_guest_session():
+        if _use_cloud_user_store():
+            save_cloud_portfolio(_cloud_user_email(), cleaned)
+        elif _use_guest_session():
             _save_guest_list("guest_portfolio", cleaned)
         else:
             _write_json(PORTFOLIO_PATH, cleaned)
@@ -241,10 +278,13 @@ def save_portfolio(items: list[dict[str, Any]]) -> None:
             "avg_cost": float(item.get("avg_cost", 0) or 0),
             "note": str(item.get("note", "")),
         }
-    if _use_guest_session():
-        _save_guest_list("guest_portfolio", list(normalized.values()))
+    normalized_items = list(normalized.values())
+    if _use_cloud_user_store():
+        save_cloud_portfolio(_cloud_user_email(), normalized_items)
+    elif _use_guest_session():
+        _save_guest_list("guest_portfolio", normalized_items)
     else:
-        _write_json(PORTFOLIO_PATH, list(normalized.values()))
+        _write_json(PORTFOLIO_PATH, normalized_items)
 
 
 def add_or_update_holding(symbol: str, name: Optional[str], shares: float, avg_cost: float, note: str = "") -> None:

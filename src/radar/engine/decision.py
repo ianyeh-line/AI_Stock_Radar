@@ -20,7 +20,7 @@ from radar.engine.technical import evaluate_technical, rank_macd_turn_candidates
 from radar.knowledge.stock_map import load_stock_universe
 from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockMeta, TechnicalProfile
 
-VERSION = "2.3.2"
+VERSION = "2.4.0"
 
 
 def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:

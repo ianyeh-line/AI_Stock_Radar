@@ -31,6 +31,7 @@ from radar.engine.user_space import (
     remove_user_watchlist_item,
 )
 from radar.knowledge.stock_map import resolve_stock_query
+from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured
 from radar.report.markdown import build_markdown_report, save_markdown_report
 
 SECTIONS = [
@@ -87,8 +88,40 @@ def is_guest_mode() -> bool:
     return bool(st.session_state.get("guest_mode_enabled", False))
 
 
+def current_user_email() -> str:
+    """Return authenticated Streamlit user email when OIDC is configured."""
+    try:
+        user = st.user  # type: ignore[attr-defined]
+        if bool(getattr(user, "is_logged_in", False)):
+            email = user.get("email") if hasattr(user, "get") else getattr(user, "email", "")
+            return str(email or "").strip().lower()
+    except Exception:
+        return ""
+    return ""
+
+
+def auth_configured() -> bool:
+    """Best-effort check for Streamlit OIDC configuration."""
+    try:
+        return "auth" in st.secrets
+    except Exception:
+        return False
+
+
+def is_cloud_user_mode() -> bool:
+    return bool(is_streamlit_cloud_env() and current_user_email() and is_cloud_store_configured())
+
+
 def ensure_guest_session_defaults() -> None:
-    if "guest_mode_enabled" not in st.session_state:
+    email = current_user_email()
+    if email:
+        st.session_state["cloud_user_email"] = email
+    else:
+        st.session_state.pop("cloud_user_email", None)
+
+    if is_cloud_user_mode():
+        st.session_state["guest_mode_enabled"] = False
+    elif "guest_mode_enabled" not in st.session_state:
         st.session_state["guest_mode_enabled"] = is_streamlit_cloud_env()
     st.session_state.setdefault("guest_watchlist", [])
     st.session_state.setdefault("guest_portfolio", [])
@@ -96,9 +129,9 @@ def ensure_guest_session_defaults() -> None:
 
 def run_pipeline() -> dict[str, Any]:
     payload = run_decision_pipeline()
-    if is_guest_mode():
-        # Public web beta must not write visitor watchlists / holdings into a
-        # shared server file. Keep generated payload and report in session.
+    if is_guest_mode() or is_cloud_user_mode():
+        # Public web beta / authenticated cloud users must not write user-specific
+        # payloads into a shared server file. Keep generated payload and report in session.
         st.session_state["guest_payload"] = payload
         st.session_state["guest_report_markdown"] = build_markdown_report(payload)
     else:
@@ -119,9 +152,12 @@ def load_payload_from_file(file_mtime: float) -> dict[str, Any]:
 
 
 def load_payload() -> dict[str, Any]:
-    if is_guest_mode():
+    if is_guest_mode() or is_cloud_user_mode():
         if "guest_payload" in st.session_state:
             return st.session_state["guest_payload"]
+        if is_cloud_user_mode():
+            with st.spinner("登入成功，正在載入你的雲端持股與觀察清單並產生 Radar..."):
+                return run_pipeline()
         if DEMO_PAYLOAD_PATH.exists():
             payload = json.loads(DEMO_PAYLOAD_PATH.read_text(encoding="utf-8"))
             st.session_state["guest_payload"] = payload
@@ -732,16 +768,52 @@ def render_add_portfolio_form(payload: dict[str, Any], location: str) -> None:
             st.error("請輸入有效股號/名稱、股數與成本。")
 
 
+def render_cloud_account_panel() -> None:
+    """Render cloud login / persistence status."""
+    status = cloud_status()
+    email = current_user_email()
+    cloud_ready = is_cloud_store_configured()
+
+    with st.sidebar.expander("雲端帳號與持股保存", expanded=is_streamlit_cloud_env()):
+        if email and cloud_ready:
+            st.success(f"已登入：{email}")
+            st.caption("持股與觀察清單會保存到 Supabase，下次開啟網站會自動載入。")
+            if st.button("登出", key="logout-cloud-user"):
+                try:
+                    st.logout()  # type: ignore[attr-defined]
+                except Exception:
+                    st.session_state.pop("cloud_user_email", None)
+                    st.session_state["guest_mode_enabled"] = True
+                    st.rerun()
+        elif auth_configured() and cloud_ready:
+            st.info("登入後可保存個人持股與觀察清單；未登入則使用訪客 Demo 模式。")
+            if st.button("使用 Google 登入", key="login-cloud-user"):
+                try:
+                    st.login()  # type: ignore[attr-defined]
+                except Exception as exc:
+                    st.error(f"登入設定尚未完成：{exc}")
+        else:
+            st.warning("目前是訪客 Demo 模式：資料只保留在本次瀏覽。")
+            if not auth_configured():
+                st.caption("尚未設定 Streamlit OIDC / Google Login。")
+            if not cloud_ready:
+                st.caption(f"Supabase 狀態：{status.get('status')}")
+            st.caption("完成 Google Login + Supabase 設定後，朋友即可跨裝置保存自己的持股。")
+
+
 def render_sidebar_workspace(payload: dict[str, Any]) -> None:
+    render_cloud_account_panel()
     st.sidebar.header("個人工作區")
     st.sidebar.caption("可用股號或股票名稱新增觀察與持股。")
 
-    mode_label = "網站 Demo 模式（訪客資料只存在本次瀏覽）" if is_guest_mode() else "本機持久模式（資料保存在這台 Mac）"
+    mode_label = "雲端登入模式（朋友資料會保存）" if is_cloud_user_mode() else ("網站 Demo 模式（訪客資料只存在本次瀏覽）" if is_guest_mode() else "本機持久模式（資料保存在這台 Mac）")
     st.sidebar.info(mode_label)
-    if is_streamlit_cloud_env():
-        st.sidebar.caption("偵測到雲端環境，預設使用網站 Demo 模式，避免不同測試者共用持股資料。")
+    if is_cloud_user_mode():
+        st.sidebar.caption("你已登入，個人資料會保存到雲端資料庫，下次開啟網站會自動載入。")
+    elif is_streamlit_cloud_env():
+        st.sidebar.caption("偵測到雲端環境，未登入時使用網站 Demo 模式，避免不同測試者共用持股資料。")
     else:
-        st.sidebar.caption("本機使用時會保留個人持股與觀察清單；分享網站時建議使用 Demo 模式。")
+        st.sidebar.caption("本機使用時會保留個人持股與觀察清單；分享網站時建議使用雲端登入模式。")
 
     user_data = get_user_data_status()
     if not is_guest_mode():
@@ -767,7 +839,10 @@ def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.divider()
     st.sidebar.subheader("個人資料保存")
     user_data = get_user_data_status()
-    if is_guest_mode():
+    if is_cloud_user_mode():
+        st.sidebar.caption("雲端登入模式：觀察清單與持股會保存到 Supabase，朋友下次打開網站不用重新輸入。")
+        st.sidebar.code(user_data.get("user_data_dir", ""), language="text")
+    elif is_guest_mode():
         st.sidebar.caption("網站 Demo 模式：觀察清單與持股僅保留在本次瀏覽 session，不寫入伺服器檔案。重新整理或閒置過久後可能消失。")
     else:
         st.sidebar.caption("持股與觀察清單已改存於 Mac 使用者資料夾，更新版本時不需要重新輸入。")
@@ -856,7 +931,7 @@ if pending_section in SECTIONS:
 render_sidebar_workspace(payload)
 
 st.title("🚀 AI Stock Radar")
-st.caption(f"v{payload['version']}｜Web Beta Ready｜可部署網站分享｜本機持久模式 / 訪客 Demo 模式｜AI 股市老師盤前決策")
+st.caption(f"v{payload['version']}｜User Account Beta｜Google Login / Supabase 持股保存｜本機 / 訪客 / 雲端模式｜AI 股市老師盤前決策")
 
 header_cols = st.columns([1, 4])
 with header_cols[0]:

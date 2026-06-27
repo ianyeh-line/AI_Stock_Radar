@@ -1,36 +1,31 @@
-# AI Stock Radar Roadmap
+# ROADMAP
 
-## Current Release: v2.3.2 Streamlit Import Path Hotfix
+## Current Release: v2.4.0 User Account + Cloud Portfolio
 
-目標：修正 Streamlit Cloud 部署錯誤，讓 AI Stock Radar Web Beta 可正常安裝 Python dependencies 並完成上線。
+Goal: Let friends use AI Stock Radar from a web link without re-entering holdings every time.
 
-## Completed
+Completed:
 
-- 本機 Dashboard
-- AI 股市老師盤前決策
-- 今日可買進名單
-- MACD 觀察名單
-- 三大法人籌碼 Radar
-- 個人持股分析
-- Stock Master
-- 使用者資料持久化
-- Web Beta Guest Mode
-- Streamlit Cloud dependency installation hotfix
+- Google Login readiness
+- Supabase cloud portfolio readiness
+- Guest Mode fallback
+- Local Mac mode preserved
+- User-data deployment guide
 
-## Next: v2.4.0 Web Feedback Loop
+## Next: v2.5.0 Beta Feedback + Reliability
 
-建議下一版：
+Planned:
 
-1. 新增使用者回饋按鈕：有幫助 / 不合理 / 價格錯誤 / 建議太籠統。
-2. 新增每檔推薦回饋紀錄。
-3. 新增 Web Beta 使用說明區。
-4. 新增公開分享模式的免責聲明與資料更新時間提醒。
-5. 將雲端刷新流程切分成「快速刷新個人股票」與「完整刷新市場」。
+- In-app feedback button
+- Data anomaly reporting
+- Recommendation reliability badge
+- Admin-only issue export
+- Friend beta checklist
 
 ## Later
 
-- 使用者登入
-- 資料庫保存個人持股
-- 每日自動排程
-- LINE / Email 盤前通知
-- 更完整回測與績效追蹤
+- Scheduled daily refresh
+- Email / LINE delivery
+- More robust institutional flow data
+- Strategy backtest improvement
+- User-specific recommendation history

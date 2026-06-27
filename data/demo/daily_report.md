@@ -1,7 +1,7 @@
 # AI Stock Radar Daily Report
 
-Version: v2.3.2  
-Generated At: 2026-06-27T10:47:41
+Version: v2.4.0  
+Generated At: 2026-06-27T12:37:14
 
 
 ## 今日可買進名單（股市老師盤前版）
