@@ -23,6 +23,8 @@ def build_markdown_report(payload: dict[str, Any]) -> str:
     portfolio = payload.get("portfolio_analysis", [])
     portfolio_coach = payload.get("portfolio_coach", {})
     quality = pm["data_quality"]
+    data_trust = payload.get("data_trust", {})
+    backtest_summary = payload.get("backtest_summary", {})
     recommended_rows = []
     for item in pm.get("recommended_stocks", []):
         recommended_rows.append(
@@ -39,7 +41,7 @@ def build_markdown_report(payload: dict[str, Any]) -> str:
             rows.append(
                 f"- **{item['display_name']}**｜等級 {item['grade']}｜{item['action_type']}｜Radar {item['radar_score']}｜"
                 f"買進區間 {item['suggested_entry_zone']}｜突破 {item['breakout_trigger']:.2f}｜"
-                f"失效 {item['invalidation_price']:.2f}｜第一停利 {item['first_profit_take']:.2f}｜第二停利 {item['second_profit_take']:.2f}｜{reasons}"
+                f"失效 {item['invalidation_price']:.2f}｜第一停利 {item['first_profit_take']:.2f}｜第二停利 {item['second_profit_take']:.2f}｜Guardrail {item.get('guardrail_status', '未檢查')}｜回測勝率 {item.get('backtest_win_rate', 'N/A')}%｜{reasons}"
             )
         return "\n".join(rows)
 
@@ -113,6 +115,30 @@ Generated At: {payload['generated_at']}
     for item in pm["risk_controls"]:
         report += f"- {item}\n"
 
+    report += f"""
+## Phase 5 資料可信度與推薦防呆
+
+- 參考價格日期：{data_trust.get('reference_price_date', 'N/A')}
+- 價格資料正常：{data_trust.get('price_normal_count', 0)} 檔
+- 價格日期落後：{data_trust.get('price_stale_count', 0)} 檔
+- Fallback 價格：{data_trust.get('price_fallback_count', 0)} 檔
+- 通過 A 級 Guardrail：{data_trust.get('guardrail_passed_count', 0)} 檔
+- 降級觀察：{data_trust.get('guardrail_downgraded_count', 0)} 檔
+- 禁止買進：{data_trust.get('guardrail_blocked_count', 0)} 檔
+
+政策：{data_trust.get('policy', '')}
+
+## Phase 4 輕量歷史驗證
+
+- 方法：{backtest_summary.get('method', 'N/A')}
+- 驗證股票數：{backtest_summary.get('validated_symbols', 0)} / {backtest_summary.get('total_symbols', 0)}
+- 平均勝率：{backtest_summary.get('avg_win_rate', 'N/A')}%
+- 平均 20 日報酬：{backtest_summary.get('avg_return', 'N/A')}%
+- 平均最大回撤：{backtest_summary.get('avg_max_drawdown', 'N/A')}%
+- 限制：{backtest_summary.get('limitations', '')}
+
+"""
+
     report += "\n## Top Decision Cards\n\n"
     for idx, card in enumerate(cards[:10], 1):
         breakdown = card["score_breakdown"]
@@ -152,6 +178,8 @@ Generated At: {payload['generated_at']}
 - 風險提醒：{card['risk_note']}
 - 量能比說明：{card.get('volume_ratio_note', '')}
 - 法人籌碼：{card.get('institutional_summary', '')}
+- Data Trust：{payload.get('data_trust', {}).get('guardrails_by_symbol', {}).get(card['symbol'], {}).get('status', '未檢查')}
+- 歷史驗證：樣本 {payload.get('backtest_summary', {}).get('per_symbol', {}).get(card['symbol'], {}).get('sample_count', 0)}，勝率 {payload.get('backtest_summary', {}).get('per_symbol', {}).get(card['symbol'], {}).get('win_rate', 'N/A')}%，平均報酬 {payload.get('backtest_summary', {}).get('per_symbol', {}).get(card['symbol'], {}).get('avg_return', 'N/A')}%
 
 #### Evidence Chain
 
@@ -177,6 +205,7 @@ Generated At: {payload['generated_at']}
     if portfolio_coach:
         report += f"**總評：** {portfolio_coach.get('headline', '')}\n\n"
         report += f"**組合風格：** {portfolio_coach.get('portfolio_style', '')}\n\n"
+        report += f"**資金政策：** {portfolio_coach.get('capital_policy', '')}\n\n"
         report += f"**總市值：** {portfolio_coach.get('total_market_value', 0)}｜**總損益：** {portfolio_coach.get('total_pnl', 0)}｜**總損益%：** {portfolio_coach.get('total_pnl_pct', 0)}%｜**風險：** {portfolio_coach.get('risk_level', 'N/A')}\n\n"
         report += "### 老師建議動作\n"
         for action in portfolio_coach.get('teacher_actions', []):

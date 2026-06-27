@@ -11,13 +11,15 @@ import json
 from radar.datasource.rss_news import fetch_rss_news
 from radar.datasource.yahoo_price import load_price_bars
 from radar.datasource.institutional_flow import InstitutionalFlowProfile, load_institutional_flows
+from radar.engine.backtest import build_backtest_summary
+from radar.engine.data_trust import assess_card_guardrails, build_data_trust_summary
 from radar.engine.personalization import load_investor_profile
 from radar.engine.user_space import build_portfolio_analysis, build_portfolio_coach, load_portfolio, load_user_watchlist
 from radar.engine.technical import evaluate_technical, rank_macd_turn_candidates
 from radar.knowledge.stock_map import load_stock_universe
 from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockMeta, TechnicalProfile
 
-VERSION = "1.7.1"
+VERSION = "2.1.0"
 
 
 def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:
@@ -403,7 +405,7 @@ def _build_pm_brief(cards: list[DecisionCard], news_items: list[NewsItem], profi
         "price_latest_date_min": price_latest_date_min,
         "price_latest_date_max": price_latest_date_max,
         "decision_scope": "目前以抓取當下最新可得日線價格、技術指標、RSS 新聞影響鏈、三大法人籌碼、AI 產業鏈股票池、使用者觀察與持股為主要維度；尚未納入逐筆即時成交、財報估值模型與券商研究報告。",
-        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v1.7.1 新增 Fast Dashboard Hotfix：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
+        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v2.1.0 新增 Phase 5 MVP：資料可信度、防呆、輕量回測與持股總教練：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
     }
     return PMBrief(headline, strategy, allocation, recommended_stocks, top_actions, avoid_actions, risk_controls, quality)
 
@@ -424,13 +426,15 @@ def _is_actionable_setup(card: DecisionCard) -> bool:
     return in_pullback_zone or near_breakout or healthy_breakout_hold
 
 
-def _teacher_grade(card: DecisionCard) -> str:
-    # Teacher Buy List focuses on executable swing setups.
-    # A means "today is actionable under a concrete price condition".
-    # High-score names that are far away from both pullback zone and breakout
-    # should be B, not A, because the teacher would wait instead of forcing buy.
-    actionable = _is_actionable_setup(card)
-    if card.decision in {"波段買進", "波段觀察"} and card.radar_score >= 78 and card.confidence >= 74 and actionable:
+def _teacher_grade(card: DecisionCard, guardrail: dict[str, Any] | None = None) -> str:
+    # Teacher Buy List focuses on executable swing setups. A means the stock is
+    # actionable today, not merely high-score. Phase 5 guardrails prevent the
+    # product from issuing A-grade recommendations when data quality or price
+    # location is insufficient.
+    guardrail = guardrail or {}
+    if guardrail.get("status") == "禁止買進":
+        return "D" if card.radar_score < 66 else "C"
+    if card.decision in {"波段買進", "波段觀察"} and card.radar_score >= 78 and card.confidence >= 74 and guardrail.get("can_buy_today", False):
         return "A"
     if card.decision in {"波段買進", "波段觀察"} and card.radar_score >= 68 and card.confidence >= 62:
         return "B"
@@ -465,8 +469,10 @@ def _primary_reasons(card: DecisionCard) -> list[str]:
     return reasons
 
 
-def _teacher_item(card: DecisionCard, rank: int) -> dict[str, Any]:
-    grade = _teacher_grade(card)
+def _teacher_item(card: DecisionCard, rank: int, guardrail: dict[str, Any] | None = None, backtest: dict[str, Any] | None = None) -> dict[str, Any]:
+    guardrail = guardrail or {}
+    backtest = backtest or {}
+    grade = _teacher_grade(card, guardrail)
     action_type = _teacher_action_type(card)
     first_profit = _profit_target_price(max(card.latest_close, card.breakout_price), 4.2)
     second_profit = _profit_target_price(max(card.latest_close, card.breakout_price), 7.8)
@@ -506,11 +512,24 @@ def _teacher_item(card: DecisionCard, rank: int) -> dict[str, Any]:
         "invalidation_condition": card.invalidation_condition,
         "do_not_chase_reason": f"若開盤直接跳空超過突破價 {card.breakout_price:.2f} 且量能無法延續，等待回測 {card.pullback_low:.2f}～{card.pullback_high:.2f}，不追高。",
         "reasons": _primary_reasons(card),
+        "guardrail_status": guardrail.get("status", "未檢查"),
+        "guardrail_reasons": guardrail.get("reasons", []),
+        "guardrail_warnings": guardrail.get("warnings", []),
+        "guardrail_blocks": guardrail.get("hard_blocks", []),
+        "can_buy_today": bool(guardrail.get("can_buy_today", False)),
+        "backtest_sample_count": backtest.get("sample_count", 0),
+        "backtest_win_rate": backtest.get("win_rate"),
+        "backtest_avg_return": backtest.get("avg_return"),
+        "backtest_avg_max_drawdown": backtest.get("avg_max_drawdown"),
+        "backtest_note": backtest.get("confidence_note", "尚未建立歷史驗證。"),
     }
 
 
-def build_teacher_buy_list(cards: list[DecisionCard], portfolio_analysis: list[dict[str, Any]]) -> dict[str, Any]:
-    teacher_items = [_teacher_item(card, idx) for idx, card in enumerate(cards, 1)]
+def build_teacher_buy_list(cards: list[DecisionCard], portfolio_analysis: list[dict[str, Any]], data_trust: dict[str, Any] | None = None, backtest_summary: dict[str, Any] | None = None) -> dict[str, Any]:
+    data_trust = data_trust or {}
+    guardrails = data_trust.get("guardrails_by_symbol", {})
+    backtests = (backtest_summary or {}).get("per_symbol", {})
+    teacher_items = [_teacher_item(card, idx, guardrails.get(card.symbol, {}), backtests.get(card.symbol, {})) for idx, card in enumerate(cards, 1)]
     ready = [item for item in teacher_items if item["grade"] == "A"][:6]
     wait_breakout = [item for item in teacher_items if item["grade"] == "B" and "突破" in item["action_type"]][:8]
     pullback_watch = [item for item in teacher_items if item["grade"] in {"A", "B"} and "拉回" in item["action_type"]][:8]
@@ -572,6 +591,8 @@ def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[s
 
     institutional_flows = load_institutional_flows(stocks, technical_profiles)
     cards = build_decision_cards(news_items, stocks, technical_profiles, investor_profile, institutional_flows)
+    backtest_summary = build_backtest_summary(technical_profiles, horizon=20)
+    data_trust = build_data_trust_summary(technical_profiles, cards, backtest_summary)
     macd_candidates = rank_macd_turn_candidates(stocks, technical_profiles, limit=10)
     market_view = _market_view(cards, news_items)
     confidence = _ai_confidence(cards, news_items, technical_profiles)
@@ -580,7 +601,7 @@ def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[s
     portfolio_analysis = build_portfolio_analysis(portfolio, cards, technical_profiles)
     portfolio_coach = build_portfolio_coach(portfolio_analysis)
     pm_brief = _build_pm_brief(cards, news_items, technical_profiles, institutional_flows, news_source, market_view, confidence, len(user_watchlist), len(portfolio))
-    teacher_buy_list = build_teacher_buy_list(cards, portfolio_analysis)
+    teacher_buy_list = build_teacher_buy_list(cards, portfolio_analysis, data_trust, backtest_summary)
 
     payload = {
         "version": VERSION,
@@ -595,6 +616,9 @@ def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[s
         "portfolio_coach": portfolio_coach,
         "pm_brief": pm_brief.as_dict(),
         "teacher_buy_list": teacher_buy_list,
+        "data_trust": data_trust,
+        "backtest_summary": backtest_summary,
+        "phase_target": "Phase 5 MVP：資料可信度、推薦防呆、歷史驗證、持股總教練",
         "decision_cards": [card.as_dict() for card in cards],
         "macd_candidates": [candidate.as_dict() for candidate in macd_candidates],
         "news_items": [item.as_dict() for item in news_items],

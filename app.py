@@ -28,6 +28,8 @@ from radar.report.markdown import build_markdown_report, save_markdown_report
 SECTIONS = [
     "盤前決策總覽",
     "今日可買進名單",
+    "資料可信度",
+    "歷史回測驗證",
     "法人籌碼 Radar",
     "MACD 觀察名單",
     "指定觀察個股",
@@ -445,6 +447,7 @@ def render_teacher_stock_card(item: dict[str, Any], key_prefix: str) -> None:
             st.subheader(f"{grade_icon} {item['display_name']}｜等級 {item['grade']}｜{item['action_type']}")
             st.success(item["recommendation"] if item.get("grade") in {"A", "B"} else item["recommendation"])
             st.write(f"**股市老師觀點：** {item['manager_note']}")
+            st.caption(f"Guardrail：{item.get('guardrail_status', '未檢查')}｜回測勝率：{item.get('backtest_win_rate', 'N/A')}%｜平均報酬：{item.get('backtest_avg_return', 'N/A')}%")
             level_rows = pd.DataFrame(
                 [
                     {"項目": "建議買進區間", "數字/條件": item["suggested_entry_zone"]},
@@ -639,6 +642,64 @@ def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.caption(q.get("limitation", ""))
 
 
+
+
+def render_data_trust(payload: dict[str, Any]) -> None:
+    st.header("資料可信度與推薦防呆")
+    trust = payload.get("data_trust", {})
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("參考價格日", trust.get("reference_price_date", "N/A"))
+    c2.metric("資料正常", trust.get("price_normal_count", 0))
+    c3.metric("日期落後", trust.get("price_stale_count", 0))
+    c4.metric("Fallback", trust.get("price_fallback_count", 0))
+    c5.metric("通過 Guardrail", trust.get("guardrail_passed_count", 0))
+    c6.metric("禁止買進", trust.get("guardrail_blocked_count", 0))
+    st.info(trust.get("policy", "A 級推薦必須通過資料與風控檢查。"))
+
+    rows = []
+    for card in payload.get("decision_cards", [])[:30]:
+        symbol = card["symbol"]
+        price_q = trust.get("price_quality_by_symbol", {}).get(symbol, {})
+        guard = trust.get("guardrails_by_symbol", {}).get(symbol, {})
+        rows.append({
+            "股票": card["display_name"],
+            "Radar": card["radar_score"],
+            "Decision": card["decision"],
+            "價格狀態": price_q.get("status", "N/A"),
+            "資料日": price_q.get("latest_date", "N/A"),
+            "Guardrail": guard.get("status", "N/A"),
+            "可買進": "是" if guard.get("can_buy_today") else "否",
+            "主要阻擋": "；".join(guard.get("hard_blocks", [])[:2]),
+            "提醒": "；".join(guard.get("warnings", [])[:2]),
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_backtest_validation(payload: dict[str, Any]) -> None:
+    st.header("歷史回測驗證")
+    backtest = payload.get("backtest_summary", {})
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("驗證股票", f"{backtest.get('validated_symbols', 0)} / {backtest.get('total_symbols', 0)}")
+    c2.metric("平均勝率", f"{backtest.get('avg_win_rate', 'N/A')}%")
+    c3.metric("平均20日報酬", f"{backtest.get('avg_return', 'N/A')}%")
+    c4.metric("平均最大回撤", f"{backtest.get('avg_max_drawdown', 'N/A')}%")
+    st.caption(backtest.get("limitations", ""))
+    rows = []
+    cards_by_symbol = {card["symbol"]: card for card in payload.get("decision_cards", [])}
+    for symbol, item in backtest.get("per_symbol", {}).items():
+        card = cards_by_symbol.get(symbol, {})
+        rows.append({
+            "股票": card.get("display_name", symbol),
+            "Radar": card.get("radar_score"),
+            "樣本數": item.get("sample_count"),
+            "勝率%": item.get("win_rate"),
+            "平均20日報酬%": item.get("avg_return"),
+            "平均最大回撤%": item.get("avg_max_drawdown"),
+            "說明": item.get("confidence_note"),
+        })
+    rows = sorted(rows, key=lambda row: (row.get("Radar") or 0), reverse=True)
+    st.dataframe(pd.DataFrame(rows[:60]), use_container_width=True, hide_index=True)
+
 payload = load_payload()
 if "quick_chart_symbol" not in st.session_state:
     cards = payload.get("decision_cards", [])
@@ -655,7 +716,7 @@ if pending_section in SECTIONS:
 render_sidebar_workspace(payload)
 
 st.title("🚀 AI Stock Radar")
-st.caption(f"v{payload['version']}｜投資經理人波段決策平台｜台股漲紅跌綠｜法人籌碼 Radar｜個人持股總教練｜Fast Dashboard Hotfix")
+st.caption(f"v{payload['version']}｜Phase 5 MVP｜資料可信度｜推薦防呆｜輕量回測｜個人持股總教練")
 
 header_cols = st.columns([1, 4])
 with header_cols[0]:
@@ -833,6 +894,12 @@ elif selected_section == "今日決策卡":
                 for evidence in card["evidence"]:
                     icon = "✅" if evidence["direction"] == "positive" else "⚠️" if evidence["direction"] == "negative" else "➖"
                     st.write(f"{icon} **{evidence['label']}**：{evidence['explanation']}")
+
+elif selected_section == "資料可信度":
+    render_data_trust(payload)
+
+elif selected_section == "歷史回測驗證":
+    render_backtest_validation(payload)
 
 elif selected_section == "法人籌碼 Radar":
     render_institutional_flow(payload)

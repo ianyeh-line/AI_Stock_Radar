@@ -9,7 +9,7 @@ def payload():
 
 
 def test_pipeline_generates_payload(payload):
-    assert payload["version"] == "1.7.1"
+    assert payload["version"] == "2.1.0"
     assert payload["decision_cards"]
     assert payload["macd_candidates"]
     assert "latest_date" in payload["macd_candidates"][0]
@@ -73,3 +73,16 @@ def test_portfolio_coach_exists(payload):
     assert "headline" in coach
     assert "risk_level" in coach
     assert "teacher_actions" in coach
+
+
+def test_phase5_fields_exist(payload):
+    assert "data_trust" in payload
+    assert "backtest_summary" in payload
+    assert payload["data_trust"].get("guardrails_by_symbol")
+    assert "per_symbol" in payload["backtest_summary"]
+    teacher = payload["teacher_buy_list"]
+    all_items = teacher["ready_to_buy"] + teacher["wait_breakout"] + teacher["pullback_watch"] + teacher["observe_only"] + teacher["avoid_or_reduce"]
+    first = all_items[0]
+    assert "guardrail_status" in first
+    assert "backtest_sample_count" in first
+    assert "capital_policy" in payload["portfolio_coach"]

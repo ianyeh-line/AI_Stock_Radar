@@ -194,6 +194,7 @@ def build_portfolio_analysis(portfolio: list[dict[str, Any]], cards: list[Decisi
                 "symbol": symbol,
                 "name": holding.get("name") or (card.name if card else symbol),
                 "display_name": f"{symbol} {holding.get('name') or (card.name if card else symbol)}",
+                "sector": card.sector if card else "個人持股",
                 "shares": shares,
                 "avg_cost": avg_cost,
                 "latest_close": round(latest, 2),
@@ -235,6 +236,11 @@ def build_portfolio_coach(portfolio_rows: list[dict[str, Any]]) -> dict[str, Any
             "position_count": 0,
             "risk_level": "N/A",
             "portfolio_style": "尚未建立",
+            "capital_policy": "尚未輸入持股，暫以現金與觀察清單為主，不做組合加碼建議。",
+            "core_holdings": [],
+            "add_candidates": [],
+            "reduce_candidates": [],
+            "sector_concentration": [],
             "teacher_actions": [],
             "rebalance_plan": [],
             "risk_alerts": [],
@@ -315,6 +321,26 @@ def build_portfolio_coach(portfolio_rows: list[dict[str, Any]]) -> dict[str, Any
         for row in sorted(enriched, key=lambda x: x["portfolio_weight"], reverse=True)
     ]
 
+    sector_weight: dict[str, float] = {}
+    for row in enriched:
+        sector = str(row.get("sector") or "未分類")
+        sector_weight[sector] = sector_weight.get(sector, 0.0) + float(row.get("portfolio_weight", 0) or 0)
+    sector_concentration = [
+        {"sector": sector, "weight": round(weight, 1)}
+        for sector, weight in sorted(sector_weight.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    core_holdings = [row for row in enriched if row.get("decision") in {"波段買進", "波段觀察"} and (row.get("radar_score") or 0) >= 70]
+    reduce_candidates = [row for row in enriched if row.get("decision") == "減碼/避開" or (row.get("radar_score") or 0) < 58 or float(row.get("pnl_pct", 0) or 0) <= -8]
+    add_candidates = [row for row in core_holdings if row.get("portfolio_weight", 0) < 25 and float(row.get("pnl_pct", 0) or 0) >= -3]
+
+    if risk_level in {"偏高", "中高"}:
+        capital_policy = "先降風險再談加碼：新資金暫停追高，優先處理弱勢持股與過度集中部位。"
+    elif core_holdings:
+        capital_policy = "可保留部分機動資金，僅在強勢持股回測支撐不破或突破確認時分批加碼。"
+    else:
+        capital_policy = "組合缺乏高信念核心，現金比重宜提高，等待 A/B 級標的出現。"
+
     return {
         "headline": headline,
         "summary": style,
@@ -325,8 +351,13 @@ def build_portfolio_coach(portfolio_rows: list[dict[str, Any]]) -> dict[str, Any
         "position_count": len(portfolio_rows),
         "risk_level": risk_level,
         "portfolio_style": style,
+        "capital_policy": capital_policy,
+        "core_holdings": [row["display_name"] for row in core_holdings[:5]],
+        "add_candidates": [row["display_name"] for row in add_candidates[:5]],
+        "reduce_candidates": [row["display_name"] for row in reduce_candidates[:5]],
         "teacher_actions": teacher_actions,
         "rebalance_plan": rebalance_plan,
         "risk_alerts": risk_alerts,
         "concentration": concentration,
+        "sector_concentration": sector_concentration,
     }
