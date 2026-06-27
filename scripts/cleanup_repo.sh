@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -e
-find . -type d -name "__pycache__" -prune -exec rm -rf {} +
-find . -type f -name "*.pyc" -delete
-find . -type f -name ".DS_Store" -delete
+find . -name '__pycache__' -type d -prune -exec rm -rf {} +
+find . -name '*.pyc' -delete
+find . -name '.DS_Store' -delete
+rm -rf .pytest_cache
 rm -f output/daily_report.md output/dashboard_data.json
-mkdir -p output
-touch output/.gitkeep
+mkdir -p output data/cache
+touch output/.gitkeep data/cache/.gitkeep

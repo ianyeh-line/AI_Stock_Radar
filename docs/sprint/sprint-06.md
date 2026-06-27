@@ -1,22 +1,18 @@
-# Sprint 6 - Investment Manager Layer
+# Sprint 06 - Investor Workspace
 
-## Objective
+## Goal
 
-把 AI Stock Radar 的產品輸出從排行表升級為專業投資經理人早會決策。
+讓 AI Stock Radar 開始支援個人化使用情境。
 
-## Scope
+## Done
 
-- PM Brief
-- Score Breakdown
-- Capital Allocation
-- Top Actions
-- Avoid Actions
-- Invalidation Criteria
-- Data Quality Check
+- 使用者可新增指定觀察個股。
+- 使用者可新增個人持股。
+- 系統可根據持股成本與 AI 決策產生波段建議。
+- 所有重要個股可以點擊查看技術線圖。
+- 新聞標題可連回來源。
+- MACD 狀態不再混淆。
 
-## Definition of Done
+## Product Principle
 
-- CLI 可執行
-- Dashboard 可開啟
-- 每檔股票具備可解釋分數拆解
-- 使用者可在 3 分鐘內理解今天的主策略
+Release First, Discussion Second.

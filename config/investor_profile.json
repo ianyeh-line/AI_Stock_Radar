@@ -1,22 +1,8 @@
 {
-  "name": "Default Swing Investor",
   "style": "swing_trading",
   "style_zh": "波段操作",
-  "holding_period": "2-8 weeks",
-  "risk_level": "moderate",
-  "risk_level_zh": "中等風險",
-  "max_positions": 8,
-  "position_sizing": {
-    "core_position": "10-15%",
-    "starter_position": "5-8%",
-    "risk_per_trade": "1-2%"
-  },
-  "preferences": {
-    "prefer_trend_confirmation": true,
-    "avoid_opening_chase": true,
-    "prefer_pullback_entry": true,
-    "prefer_macd_turn_positive": true,
-    "avoid_overheated_rsi": true
-  },
-  "decision_language": "portfolio_manager"
+  "risk_level": "medium",
+  "max_single_position_pct": 20,
+  "preferred_holding_days": "10-60",
+  "notes": "以波段操作為主，重視趨勢、主線、風險報酬比與分批進出。"
 }

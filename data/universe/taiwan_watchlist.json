@@ -2,321 +2,633 @@
   {
     "symbol": "2330",
     "name": "台積電",
-    "sector": "半導體",
+    "sector": "半導體製造",
     "theme": [
       "AI Infrastructure",
+      "Semiconductor Momentum",
       "CoWoS",
-      "Semiconductor"
+      "NVIDIA",
+      "Advanced Process"
     ],
-    "macd_hist_prev": -0.42,
-    "macd_hist": -0.08,
-    "dif": 0.22,
-    "dea": 0.3,
-    "rsi": 57,
-    "trend": 78,
-    "risk": 24,
-    "ma_state": "站上月線與季線",
-    "pm_view": "AI 與先進製程核心資產，適合以拉回承接取代追高。"
+    "yahoo_symbol": "2330.TW",
+    "pm_view": "AI、先進製程與 CoWoS 是中期核心主線，是 AI 產業鏈的波段核心權值。",
+    "base_priority": 10
   },
   {
-    "symbol": "2382",
-    "name": "廣達",
-    "sector": "AI Server",
+    "symbol": "2303",
+    "name": "聯電",
+    "sector": "晶圓代工",
     "theme": [
-      "AI Server",
-      "NVIDIA Supply Chain"
+      "Semiconductor Momentum",
+      "Foundry",
+      "Mature Node"
     ],
-    "macd_hist_prev": -0.55,
-    "macd_hist": -0.12,
-    "dif": 0.18,
-    "dea": 0.3,
-    "rsi": 61,
-    "trend": 74,
-    "risk": 34,
-    "ma_state": "站上月線，接近前高壓力",
-    "pm_view": "AI Server 主線明確，但漲幅後需等回測支撐。"
+    "yahoo_symbol": "2303.TW",
+    "pm_view": "成熟製程晶圓代工代表，適合作為半導體景氣循環的觀察股。",
+    "base_priority": 6
   },
   {
-    "symbol": "3231",
-    "name": "緯創",
-    "sector": "AI Server",
+    "symbol": "6770",
+    "name": "力積電",
+    "sector": "晶圓代工",
     "theme": [
-      "AI Server",
-      "NVIDIA Supply Chain"
+      "Semiconductor Momentum",
+      "Memory",
+      "Mature Node"
     ],
-    "macd_hist_prev": -0.62,
-    "macd_hist": -0.18,
-    "dif": 0.1,
-    "dea": 0.28,
-    "rsi": 59,
-    "trend": 70,
-    "risk": 38,
-    "ma_state": "月線附近整理",
-    "pm_view": "波段動能仍在，但需要量能重新放大確認。"
+    "yahoo_symbol": "6770.TW",
+    "pm_view": "記憶體與成熟製程景氣循環股，波段需重視報價與產能利用率。",
+    "base_priority": 5
   },
   {
-    "symbol": "6669",
-    "name": "緯穎",
-    "sector": "AI Server",
+    "symbol": "5347",
+    "name": "世界",
+    "sector": "晶圓代工",
     "theme": [
-      "AI Server",
-      "Cloud CapEx"
+      "Semiconductor Momentum",
+      "Foundry",
+      "Mature Node"
     ],
-    "macd_hist_prev": -0.48,
-    "macd_hist": -0.15,
-    "dif": 0.12,
-    "dea": 0.27,
-    "rsi": 63,
-    "trend": 72,
-    "risk": 42,
-    "ma_state": "短線偏強，季線支撐仍在",
-    "pm_view": "高價股波動大，適合分批而非一次重押。"
-  },
-  {
-    "symbol": "2449",
-    "name": "京元電子",
-    "sector": "半導體測試",
-    "theme": [
-      "Semiconductor",
-      "AI Chip Testing"
-    ],
-    "macd_hist_prev": -0.35,
-    "macd_hist": -0.04,
-    "dif": 0.16,
-    "dea": 0.2,
-    "rsi": 55,
-    "trend": 68,
-    "risk": 28,
-    "ma_state": "均線糾結後轉強",
-    "pm_view": "若測試需求新聞延續，具備補漲條件。"
+    "yahoo_symbol": "5347.TWO",
+    "pm_view": "成熟製程晶圓代工，適合觀察半導體復甦擴散程度。",
+    "base_priority": 5
   },
   {
     "symbol": "2454",
     "name": "聯發科",
-    "sector": "IC設計",
+    "sector": "IC 設計",
     "theme": [
-      "Semiconductor",
-      "Edge AI"
+      "Semiconductor Momentum",
+      "AI Edge",
+      "Mobile",
+      "ASIC"
     ],
-    "macd_hist_prev": -0.38,
-    "macd_hist": -0.09,
-    "dif": 0.09,
-    "dea": 0.18,
-    "rsi": 54,
-    "trend": 65,
-    "risk": 30,
-    "ma_state": "月線附近震盪",
-    "pm_view": "基本面穩健，但波段動能需等待催化。"
+    "yahoo_symbol": "2454.TW",
+    "pm_view": "IC 設計權值股，邊緣 AI 與產品週期是波段評價關鍵。",
+    "base_priority": 8
   },
   {
-    "symbol": "2308",
-    "name": "台達電",
-    "sector": "電源與散熱",
+    "symbol": "2379",
+    "name": "瑞昱",
+    "sector": "IC 設計",
     "theme": [
-      "Power",
-      "AI Data Center"
+      "Semiconductor Momentum",
+      "Networking",
+      "AI Edge"
     ],
-    "macd_hist_prev": -0.31,
-    "macd_hist": -0.05,
-    "dif": 0.14,
-    "dea": 0.19,
-    "rsi": 58,
-    "trend": 71,
-    "risk": 26,
-    "ma_state": "多頭排列初步形成",
-    "pm_view": "資料中心電源與散熱需求支撐中期趨勢。"
+    "yahoo_symbol": "2379.TW",
+    "pm_view": "網通與消費 IC 設計代表，適合觀察半導體景氣復甦。",
+    "base_priority": 7
   },
   {
-    "symbol": "3017",
-    "name": "奇鋐",
-    "sector": "散熱",
+    "symbol": "3034",
+    "name": "聯詠",
+    "sector": "IC 設計",
     "theme": [
-      "Thermal",
-      "AI Server"
+      "Semiconductor Momentum",
+      "Display IC",
+      "AI Edge"
     ],
-    "macd_hist_prev": -0.44,
-    "macd_hist": -0.2,
-    "dif": 0.02,
-    "dea": 0.22,
-    "rsi": 66,
-    "trend": 76,
-    "risk": 45,
-    "ma_state": "強勢但短線偏熱",
-    "pm_view": "產業趨勢佳，但 RSI 偏高時不適合追價。"
+    "yahoo_symbol": "3034.TW",
+    "pm_view": "驅動 IC 與消費電子循環股，波段需搭配報價與庫存判斷。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "3443",
+    "name": "創意",
+    "sector": "ASIC",
+    "theme": [
+      "AI Infrastructure",
+      "ASIC",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "3443.TW",
+    "pm_view": "ASIC 題材明確，適合以技術趨勢與高估值風險一起評估。",
+    "base_priority": 8
   },
   {
     "symbol": "3661",
     "name": "世芯-KY",
     "sector": "ASIC",
     "theme": [
+      "AI Infrastructure",
       "ASIC",
+      "High Valuation Tech",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "3661.TW",
+    "pm_view": "高成長 ASIC 代表，波動大，適合用波段條件嚴格控管。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "5274",
+    "name": "信驊",
+    "sector": "IC 設計",
+    "theme": [
+      "AI Server",
+      "BMC",
+      "Data Center"
+    ],
+    "yahoo_symbol": "5274.TWO",
+    "pm_view": "BMC 晶片龍頭，資料中心題材強但股價高，需重視進場位置。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3529",
+    "name": "力旺",
+    "sector": "IP/矽智財",
+    "theme": [
+      "Semiconductor Momentum",
+      "IP",
       "AI Chip"
     ],
-    "macd_hist_prev": -0.71,
-    "macd_hist": -0.33,
-    "dif": -0.05,
-    "dea": 0.28,
-    "rsi": 52,
-    "trend": 62,
-    "risk": 50,
-    "ma_state": "反彈初期，尚未完全轉強",
-    "pm_view": "高波動 ASIC 指標股，適合小部位觀察。"
+    "yahoo_symbol": "3529.TWO",
+    "pm_view": "半導體 IP 權利金題材，適合作為先進製程循環觀察。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "3035",
+    "name": "智原",
+    "sector": "ASIC/IP",
+    "theme": [
+      "ASIC",
+      "AI Chip",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "3035.TW",
+    "pm_view": "ASIC 與 IP 服務股，波段需觀察接單與毛利變化。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "6531",
+    "name": "愛普",
+    "sector": "記憶體/IP",
+    "theme": [
+      "AI Infrastructure",
+      "Memory",
+      "HBM",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "6531.TW",
+    "pm_view": "記憶體與 IP 題材股，適合觀察 AI 記憶體熱度。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "6485",
+    "name": "點序",
+    "sector": "記憶體控制",
+    "theme": [
+      "Storage",
+      "NAND",
+      "AI PC"
+    ],
+    "yahoo_symbol": "6485.TWO",
+    "pm_view": "NAND 控制晶片族群，波段需搭配記憶體報價。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "2458",
+    "name": "義隆",
+    "sector": "IC 設計",
+    "theme": [
+      "AI PC",
+      "Edge AI",
+      "Consumer IC"
+    ],
+    "yahoo_symbol": "2458.TW",
+    "pm_view": "AI PC 與消費 IC 題材，適合景氣復甦階段觀察。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "4966",
+    "name": "譜瑞-KY",
+    "sector": "高速傳輸 IC",
+    "theme": [
+      "AI Server",
+      "High Speed Interface",
+      "Data Center"
+    ],
+    "yahoo_symbol": "4966.TWO",
+    "pm_view": "高速傳輸 IC 受惠 AI Server 規格升級，但需留意估值。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3227",
+    "name": "原相",
+    "sector": "感測 IC",
+    "theme": [
+      "AI Edge",
+      "Sensor",
+      "Consumer IC"
+    ],
+    "yahoo_symbol": "3227.TWO",
+    "pm_view": "感測 IC 波段需看終端需求與庫存循環。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6415",
+    "name": "矽力-KY",
+    "sector": "電源 IC",
+    "theme": [
+      "Power",
+      "AI Server",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "6415.TW",
+    "pm_view": "電源 IC 與資料中心電源管理題材，適合觀察復甦力道。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "6756",
+    "name": "威鋒電子",
+    "sector": "高速傳輸 IC",
+    "theme": [
+      "AI PC",
+      "High Speed Interface",
+      "USB"
+    ],
+    "yahoo_symbol": "6756.TW",
+    "pm_view": "高速介面與 AI PC 概念股，需看產品週期。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3105",
+    "name": "穩懋",
+    "sector": "化合物半導體",
+    "theme": [
+      "Semiconductor Momentum",
+      "RF",
+      "GaAs"
+    ],
+    "yahoo_symbol": "3105.TWO",
+    "pm_view": "化合物半導體族群，波段與手機/網通需求連動。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3711",
+    "name": "日月光投控",
+    "sector": "封測",
+    "theme": [
+      "Semiconductor Momentum",
+      "Packaging",
+      "AI Chip"
+    ],
+    "yahoo_symbol": "3711.TW",
+    "pm_view": "封測龍頭，半導體景氣擴散時具代表性。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "2449",
+    "name": "京元電子",
+    "sector": "半導體測試",
+    "theme": [
+      "Semiconductor Momentum",
+      "Testing",
+      "NVIDIA",
+      "AI Chip"
+    ],
+    "yahoo_symbol": "2449.TW",
+    "pm_view": "AI 晶片測試代表，適合搭配半導體主線與技術面操作。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "6239",
+    "name": "力成",
+    "sector": "封測",
+    "theme": [
+      "Semiconductor Momentum",
+      "Packaging",
+      "Memory"
+    ],
+    "yahoo_symbol": "6239.TW",
+    "pm_view": "記憶體與封測循環股，需看報價與稼動率。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "3264",
+    "name": "欣銓",
+    "sector": "測試",
+    "theme": [
+      "Semiconductor Momentum",
+      "Testing",
+      "Automotive IC"
+    ],
+    "yahoo_symbol": "3264.TWO",
+    "pm_view": "測試服務股，適合觀察半導體景氣復甦擴散。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6271",
+    "name": "同欣電",
+    "sector": "封裝模組",
+    "theme": [
+      "Semiconductor Momentum",
+      "Packaging",
+      "Module"
+    ],
+    "yahoo_symbol": "6271.TW",
+    "pm_view": "封裝模組股，波段需搭配產業訂單能見度。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6257",
+    "name": "矽格",
+    "sector": "封測",
+    "theme": [
+      "Semiconductor Momentum",
+      "Testing",
+      "Packaging"
+    ],
+    "yahoo_symbol": "6257.TWO",
+    "pm_view": "封測族群之一，受半導體景氣循環影響明顯。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3583",
+    "name": "辛耘",
+    "sector": "半導體設備",
+    "theme": [
+      "CoWoS",
+      "Semiconductor Equipment",
+      "AI Infrastructure"
+    ],
+    "yahoo_symbol": "3583.TW",
+    "pm_view": "CoWoS 與半導體設備題材，適合觀察訂單與技術趨勢。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3131",
+    "name": "弘塑",
+    "sector": "半導體設備",
+    "theme": [
+      "CoWoS",
+      "Semiconductor Equipment",
+      "Advanced Process"
+    ],
+    "yahoo_symbol": "3131.TWO",
+    "pm_view": "先進製程設備供應鏈，AI 擴產題材下具波段關注度。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "6187",
+    "name": "萬潤",
+    "sector": "半導體設備",
+    "theme": [
+      "CoWoS",
+      "Semiconductor Equipment",
+      "Advanced Packaging"
+    ],
+    "yahoo_symbol": "6187.TWO",
+    "pm_view": "先進封裝設備股，波段需留意股價是否已提前反映。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3680",
+    "name": "家登",
+    "sector": "半導體材料設備",
+    "theme": [
+      "EUV",
+      "Advanced Process",
+      "Semiconductor Equipment"
+    ],
+    "yahoo_symbol": "3680.TWO",
+    "pm_view": "先進製程載具與材料供應鏈，適合中期觀察。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "6438",
+    "name": "迅得",
+    "sector": "自動化設備",
+    "theme": [
+      "AI Infrastructure",
+      "Automation",
+      "Semiconductor Equipment"
+    ],
+    "yahoo_symbol": "6438.TW",
+    "pm_view": "自動化設備股，受半導體與 PCB 擴產需求帶動。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6515",
+    "name": "穎崴",
+    "sector": "測試介面",
+    "theme": [
+      "Semiconductor Momentum",
+      "Testing Interface",
+      "AI Chip"
+    ],
+    "yahoo_symbol": "6515.TW",
+    "pm_view": "高階測試介面股，AI 晶片測試需求是主要主線。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3413",
+    "name": "京鼎",
+    "sector": "半導體設備",
+    "theme": [
+      "Semiconductor Equipment",
+      "Advanced Process"
+    ],
+    "yahoo_symbol": "3413.TW",
+    "pm_view": "半導體設備與零組件股，波段看景氣復甦。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "1560",
+    "name": "中砂",
+    "sector": "半導體材料",
+    "theme": [
+      "Advanced Process",
+      "Materials",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "1560.TW",
+    "pm_view": "半導體耗材與材料股，適合搭配晶圓廠稼動率觀察。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "4763",
+    "name": "材料-KY",
+    "sector": "半導體材料",
+    "theme": [
+      "Materials",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "4763.TW",
+    "pm_view": "材料供應鏈股，波段需看供需與產品價格。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2467",
+    "name": "志聖",
+    "sector": "半導體/PCB設備",
+    "theme": [
+      "Semiconductor Equipment",
+      "PCB Equipment",
+      "CoWoS"
+    ],
+    "yahoo_symbol": "2467.TW",
+    "pm_view": "半導體與 PCB 設備股，適合觀察擴產題材。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6196",
+    "name": "帆宣",
+    "sector": "系統整合",
+    "theme": [
+      "Semiconductor Equipment",
+      "Facility",
+      "Advanced Process"
+    ],
+    "yahoo_symbol": "6196.TW",
+    "pm_view": "半導體廠務與設備工程股，受資本支出循環影響。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6538",
+    "name": "倉和",
+    "sector": "精密網版",
+    "theme": [
+      "Semiconductor Materials",
+      "PCB",
+      "Advanced Process"
+    ],
+    "yahoo_symbol": "6538.TWO",
+    "pm_view": "材料與精密製程供應鏈，適合題材型觀察。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "3167",
+    "name": "大量",
+    "sector": "設備",
+    "theme": [
+      "Semiconductor Equipment",
+      "PCB Equipment"
+    ],
+    "yahoo_symbol": "3167.TWO",
+    "pm_view": "設備股，波段需觀察訂單與族群輪動。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "3374",
+    "name": "精材",
+    "sector": "晶圓級封裝",
+    "theme": [
+      "Packaging",
+      "AI Chip",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "3374.TWO",
+    "pm_view": "晶圓級封裝題材，適合觀察先進封裝擴散。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3563",
+    "name": "牧德",
+    "sector": "AOI檢測",
+    "theme": [
+      "PCB",
+      "Inspection",
+      "AI Server"
+    ],
+    "yahoo_symbol": "3563.TWO",
+    "pm_view": "PCB 檢測設備股，受高階板材需求影響。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2382",
+    "name": "廣達",
+    "sector": "AI Server",
+    "theme": [
+      "AI Infrastructure",
+      "AI Server",
+      "NVIDIA",
+      "Data Center"
+    ],
+    "yahoo_symbol": "2382.TW",
+    "pm_view": "AI Server 主線代表股，適合用趨勢與量能確認波段續航力。",
+    "base_priority": 9
+  },
+  {
+    "symbol": "3231",
+    "name": "緯創",
+    "sector": "AI Server",
+    "theme": [
+      "AI Infrastructure",
+      "AI Server",
+      "NVIDIA",
+      "Data Center"
+    ],
+    "yahoo_symbol": "3231.TW",
+    "pm_view": "AI Server 出貨題材明確，但波動較大，需重視進場位置。",
+    "base_priority": 9
+  },
+  {
+    "symbol": "6669",
+    "name": "緯穎",
+    "sector": "AI Server",
+    "theme": [
+      "AI Infrastructure",
+      "AI Server",
+      "Cloud Capex",
+      "Data Center"
+    ],
+    "yahoo_symbol": "6669.TW",
+    "pm_view": "高價 AI Server 指標股，適合看波段但不適合追高。",
+    "base_priority": 9
   },
   {
     "symbol": "2356",
     "name": "英業達",
     "sector": "AI Server",
     "theme": [
-      "AI Server"
+      "AI Server",
+      "Data Center",
+      "ODM"
     ],
-    "macd_hist_prev": -0.28,
-    "macd_hist": -0.03,
-    "dif": 0.08,
-    "dea": 0.11,
-    "rsi": 53,
-    "trend": 60,
-    "risk": 31,
-    "ma_state": "低位階整理轉強",
-    "pm_view": "若 AI Server 題材擴散，具備落後補漲空間。"
+    "yahoo_symbol": "2356.TW",
+    "pm_view": "AI Server 與雲端伺服器供應鏈，適合觀察出貨動能。",
+    "base_priority": 7
   },
   {
-    "symbol": "8299",
-    "name": "群聯",
-    "sector": "儲存",
+    "symbol": "2317",
+    "name": "鴻海",
+    "sector": "電子代工",
     "theme": [
-      "Storage",
+      "AI Server",
+      "EV",
+      "Data Center",
+      "ODM"
+    ],
+    "yahoo_symbol": "2317.TW",
+    "pm_view": "大型電子代工與 AI Server 題材兼具，適合看趨勢與量能確認。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "2324",
+    "name": "仁寶",
+    "sector": "電子代工",
+    "theme": [
+      "AI PC",
+      "ODM",
+      "Notebook"
+    ],
+    "yahoo_symbol": "2324.TW",
+    "pm_view": "AI PC 與 NB 代工題材，波段需看產品週期。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2357",
+    "name": "華碩",
+    "sector": "品牌/主機板",
+    "theme": [
+      "AI PC",
+      "Gaming",
       "Edge AI"
     ],
-    "macd_hist_prev": -0.26,
-    "macd_hist": 0.02,
-    "dif": 0.13,
-    "dea": 0.11,
-    "rsi": 56,
-    "trend": 63,
-    "risk": 33,
-    "ma_state": "MACD 初步翻正",
-    "pm_view": "已翻正但需觀察量能是否跟上。"
-  },
-  {
-    "symbol": "2603",
-    "name": "長榮",
-    "sector": "航運",
-    "theme": [
-      "Shipping"
-    ],
-    "macd_hist_prev": -0.18,
-    "macd_hist": -0.1,
-    "dif": -0.03,
-    "dea": 0.07,
-    "rsi": 49,
-    "trend": 48,
-    "risk": 37,
-    "ma_state": "均線偏整理",
-    "pm_view": "非今日主線，除非運價訊號轉強，否則不優先。"
-  },
-  {
-    "symbol": "0050",
-    "name": "元大台灣50",
-    "sector": "ETF",
-    "theme": [
-      "Taiwan Large Cap"
-    ],
-    "macd_hist_prev": -0.12,
-    "macd_hist": -0.02,
-    "dif": 0.05,
-    "dea": 0.07,
-    "rsi": 54,
-    "trend": 58,
-    "risk": 18,
-    "ma_state": "貼近月線偏穩",
-    "pm_view": "適合作為核心配置，不作為高彈性波段標的。"
-  },
-  {
-    "symbol": "00878",
-    "name": "國泰永續高股息",
-    "sector": "ETF",
-    "theme": [
-      "Dividend ETF"
-    ],
-    "macd_hist_prev": -0.1,
-    "macd_hist": -0.05,
-    "dif": 0.02,
-    "dea": 0.07,
-    "rsi": 51,
-    "trend": 52,
-    "risk": 16,
-    "ma_state": "區間整理",
-    "pm_view": "防禦配置，與 AI 主線關聯較低。"
-  },
-  {
-    "symbol": "00919",
-    "name": "群益台灣精選高息",
-    "sector": "ETF",
-    "theme": [
-      "Dividend ETF"
-    ],
-    "macd_hist_prev": -0.09,
-    "macd_hist": -0.01,
-    "dif": 0.04,
-    "dea": 0.05,
-    "rsi": 52,
-    "trend": 54,
-    "risk": 17,
-    "ma_state": "溫和整理",
-    "pm_view": "適合穩健配置，不是短線主攻標的。"
-  },
-  {
-    "symbol": "8046",
-    "name": "南電",
-    "sector": "ABF載板",
-    "theme": [
-      "PCB",
-      "AI Server"
-    ],
-    "macd_hist_prev": -0.33,
-    "macd_hist": -0.06,
-    "dif": 0.07,
-    "dea": 0.13,
-    "rsi": 53,
-    "trend": 59,
-    "risk": 35,
-    "ma_state": "嘗試轉強",
-    "pm_view": "AI Server 若擴散至 PCB，可列入轉強觀察。"
-  },
-  {
-    "symbol": "3037",
-    "name": "欣興",
-    "sector": "PCB",
-    "theme": [
-      "PCB",
-      "AI Server"
-    ],
-    "macd_hist_prev": -0.29,
-    "macd_hist": -0.07,
-    "dif": 0.04,
-    "dea": 0.11,
-    "rsi": 50,
-    "trend": 56,
-    "risk": 34,
-    "ma_state": "低檔整理",
-    "pm_view": "尚未轉強，但 MACD 收斂可觀察。"
-  },
-  {
-    "symbol": "5274",
-    "name": "信驊",
-    "sector": "IC設計",
-    "theme": [
-      "Server Management Chip"
-    ],
-    "macd_hist_prev": -0.41,
-    "macd_hist": -0.19,
-    "dif": 0.02,
-    "dea": 0.21,
-    "rsi": 60,
-    "trend": 66,
-    "risk": 48,
-    "ma_state": "高價股震盪",
-    "pm_view": "基本面優，但波段風險較高，需嚴控部位。"
+    "yahoo_symbol": "2357.TW",
+    "pm_view": "AI PC 品牌與板卡題材，適合景氣復甦時觀察。",
+    "base_priority": 5
   },
   {
     "symbol": "2376",
@@ -324,34 +636,683 @@
     "sector": "板卡/伺服器",
     "theme": [
       "AI Server",
-      "GPU Server"
+      "GPU",
+      "Gaming"
     ],
-    "macd_hist_prev": -0.4,
-    "macd_hist": -0.11,
-    "dif": 0.05,
-    "dea": 0.16,
-    "rsi": 57,
-    "trend": 67,
-    "risk": 39,
-    "ma_state": "月線轉強",
-    "pm_view": "GPU Server 題材延續時具備波段機會。"
+    "yahoo_symbol": "2376.TW",
+    "pm_view": "GPU 板卡與伺服器題材，波段需留意股價波動。",
+    "base_priority": 6
   },
   {
     "symbol": "2377",
     "name": "微星",
     "sector": "板卡/伺服器",
     "theme": [
+      "AI Server",
       "GPU",
+      "Gaming"
+    ],
+    "yahoo_symbol": "2377.TW",
+    "pm_view": "板卡與 AI 伺服器題材，適合觀察族群輪動。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2353",
+    "name": "宏碁",
+    "sector": "品牌/AI PC",
+    "theme": [
+      "AI PC",
+      "Notebook",
+      "Edge AI"
+    ],
+    "yahoo_symbol": "2353.TW",
+    "pm_view": "AI PC 題材股，適合主題擴散時觀察。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "2395",
+    "name": "研華",
+    "sector": "工業電腦",
+    "theme": [
+      "Edge AI",
+      "Industrial AI",
+      "IoT"
+    ],
+    "yahoo_symbol": "2395.TW",
+    "pm_view": "邊緣 AI 與工業電腦代表，偏中長線配置觀察。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "8050",
+    "name": "廣積",
+    "sector": "工業電腦",
+    "theme": [
+      "Edge AI",
+      "Industrial AI",
+      "IPC"
+    ],
+    "yahoo_symbol": "8050.TWO",
+    "pm_view": "工業電腦與邊緣 AI 題材，波段需看訂單復甦。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "2308",
+    "name": "台達電",
+    "sector": "電源/散熱",
+    "theme": [
+      "AI Infrastructure",
+      "Power",
+      "Data Center",
+      "EV"
+    ],
+    "yahoo_symbol": "2308.TW",
+    "pm_view": "資料中心電源與散熱長線題材穩定，適合偏穩健波段配置。",
+    "base_priority": 9
+  },
+  {
+    "symbol": "3017",
+    "name": "奇鋐",
+    "sector": "散熱",
+    "theme": [
+      "AI Infrastructure",
+      "Thermal",
+      "AI Server",
+      "Data Center"
+    ],
+    "yahoo_symbol": "3017.TW",
+    "pm_view": "散熱是 AI Server 重要分支，但股價容易提前反應，需等待拉回。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "3324",
+    "name": "雙鴻",
+    "sector": "散熱",
+    "theme": [
+      "AI Infrastructure",
+      "Thermal",
+      "AI Server"
+    ],
+    "yahoo_symbol": "3324.TW",
+    "pm_view": "AI Server 散熱代表股，波段需搭配均線與量能。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "3653",
+    "name": "健策",
+    "sector": "散熱/機構",
+    "theme": [
+      "AI Infrastructure",
+      "Thermal",
+      "AI Server"
+    ],
+    "yahoo_symbol": "3653.TW",
+    "pm_view": "高階散熱與機構件題材，適合看 AI Server 規格升級。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "6230",
+    "name": "尼得科超眾",
+    "sector": "散熱",
+    "theme": [
+      "AI Infrastructure",
+      "Thermal",
+      "Notebook",
+      "AI Server"
+    ],
+    "yahoo_symbol": "6230.TW",
+    "pm_view": "散熱供應鏈股，需觀察 AI Server 需求擴散。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2421",
+    "name": "建準",
+    "sector": "散熱風扇",
+    "theme": [
+      "Thermal",
+      "AI Server",
+      "Cooling"
+    ],
+    "yahoo_symbol": "2421.TW",
+    "pm_view": "風扇散熱供應鏈，波段看需求與毛利率。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3013",
+    "name": "晟銘電",
+    "sector": "機殼/機構",
+    "theme": [
+      "AI Server",
+      "Chassis",
+      "Data Center"
+    ],
+    "yahoo_symbol": "3013.TW",
+    "pm_view": "AI Server 機殼供應鏈，適合觀察出貨動能。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "8996",
+    "name": "高力",
+    "sector": "散熱/能源",
+    "theme": [
+      "Thermal",
+      "AI Server",
+      "Energy"
+    ],
+    "yahoo_symbol": "8996.TW",
+    "pm_view": "散熱與能源題材股，波段需控制追高風險。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "1590",
+    "name": "亞德客-KY",
+    "sector": "自動化",
+    "theme": [
+      "Automation",
+      "Semiconductor Equipment",
+      "AI Manufacturing"
+    ],
+    "yahoo_symbol": "1590.TW",
+    "pm_view": "自動化元件股，反映製造業資本支出循環。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "1513",
+    "name": "中興電",
+    "sector": "重電/電力",
+    "theme": [
+      "Power",
+      "Data Center",
+      "Grid"
+    ],
+    "yahoo_symbol": "1513.TW",
+    "pm_view": "資料中心用電與重電題材，適合觀察資金輪動。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6121",
+    "name": "新普",
+    "sector": "電池模組",
+    "theme": [
+      "Power",
+      "Notebook",
       "AI PC"
     ],
-    "macd_hist_prev": -0.22,
-    "macd_hist": -0.02,
-    "dif": 0.07,
-    "dea": 0.09,
-    "rsi": 54,
-    "trend": 57,
-    "risk": 32,
-    "ma_state": "整理後轉強機率提升",
-    "pm_view": "題材性較強，需搭配量能確認。"
+    "yahoo_symbol": "6121.TW",
+    "pm_view": "電池模組股，與 AI PC/NB 需求連動。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6412",
+    "name": "群電",
+    "sector": "電源供應器",
+    "theme": [
+      "Power",
+      "AI Server",
+      "Notebook"
+    ],
+    "yahoo_symbol": "6412.TW",
+    "pm_view": "電源供應器族群，資料中心與 PC 需求是關鍵。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2301",
+    "name": "光寶科",
+    "sector": "電源/電子零件",
+    "theme": [
+      "Power",
+      "AI Server",
+      "Optoelectronics"
+    ],
+    "yahoo_symbol": "2301.TW",
+    "pm_view": "電源與電子零組件股，適合觀察 AI Server 擴散。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "3037",
+    "name": "欣興",
+    "sector": "PCB/載板",
+    "theme": [
+      "AI Server",
+      "PCB",
+      "ABF",
+      "CoWoS"
+    ],
+    "yahoo_symbol": "3037.TW",
+    "pm_view": "高階載板與 PCB 代表，AI Server 需求是核心題材。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "8046",
+    "name": "南電",
+    "sector": "載板",
+    "theme": [
+      "AI Server",
+      "ABF",
+      "PCB",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "8046.TW",
+    "pm_view": "ABF 載板股，波段需觀察供需與產能利用率。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "3189",
+    "name": "景碩",
+    "sector": "載板",
+    "theme": [
+      "ABF",
+      "PCB",
+      "AI Chip"
+    ],
+    "yahoo_symbol": "3189.TW",
+    "pm_view": "載板供應鏈，半導體景氣復甦時具彈性。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "2383",
+    "name": "台光電",
+    "sector": "CCL材料",
+    "theme": [
+      "AI Server",
+      "PCB",
+      "CCL",
+      "High Speed"
+    ],
+    "yahoo_symbol": "2383.TW",
+    "pm_view": "高階 CCL 受惠高速傳輸與 AI Server 規格升級。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "4958",
+    "name": "臻鼎-KY",
+    "sector": "PCB",
+    "theme": [
+      "AI Server",
+      "PCB",
+      "Consumer Electronics"
+    ],
+    "yahoo_symbol": "4958.TW",
+    "pm_view": "大型 PCB 廠，需觀察 AI Server 與消費電子需求。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "2368",
+    "name": "金像電",
+    "sector": "PCB",
+    "theme": [
+      "AI Server",
+      "PCB",
+      "Data Center"
+    ],
+    "yahoo_symbol": "2368.TW",
+    "pm_view": "AI Server 高階 PCB 代表，波段需看量能與報價。",
+    "base_priority": 7
+  },
+  {
+    "symbol": "5469",
+    "name": "瀚宇博",
+    "sector": "PCB",
+    "theme": [
+      "PCB",
+      "AI Server",
+      "Notebook"
+    ],
+    "yahoo_symbol": "5469.TW",
+    "pm_view": "PCB 族群，適合主線擴散時觀察。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6191",
+    "name": "精成科",
+    "sector": "PCB",
+    "theme": [
+      "PCB",
+      "AI Server",
+      "Notebook"
+    ],
+    "yahoo_symbol": "6191.TW",
+    "pm_view": "PCB 與 EMS 供應鏈，需觀察訂單與毛利。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "6278",
+    "name": "台表科",
+    "sector": "SMT/PCB",
+    "theme": [
+      "PCB",
+      "SMT",
+      "AI Server"
+    ],
+    "yahoo_symbol": "6278.TW",
+    "pm_view": "SMT 與 PCB 組裝供應鏈，題材擴散時觀察。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6153",
+    "name": "嘉聯益",
+    "sector": "PCB/FPC",
+    "theme": [
+      "PCB",
+      "FPC",
+      "Consumer Electronics"
+    ],
+    "yahoo_symbol": "6153.TW",
+    "pm_view": "FPC 與 PCB 供應鏈，波段需看消費電子復甦。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "8213",
+    "name": "志超",
+    "sector": "PCB",
+    "theme": [
+      "PCB",
+      "AI Server",
+      "Consumer Electronics"
+    ],
+    "yahoo_symbol": "8213.TW",
+    "pm_view": "PCB 族群，適合觀察高階板材需求是否擴散。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6672",
+    "name": "騰輝電子-KY",
+    "sector": "高階材料",
+    "theme": [
+      "PCB",
+      "CCL",
+      "AI Server"
+    ],
+    "yahoo_symbol": "6672.TW",
+    "pm_view": "高階材料供應鏈，受高速傳輸板材需求影響。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "8358",
+    "name": "金居",
+    "sector": "銅箔",
+    "theme": [
+      "PCB",
+      "CCL",
+      "AI Server"
+    ],
+    "yahoo_symbol": "8358.TW",
+    "pm_view": "銅箔材料股，波段與 PCB 景氣連動。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2345",
+    "name": "智邦",
+    "sector": "網通",
+    "theme": [
+      "AI Infrastructure",
+      "Networking",
+      "Switch",
+      "Data Center"
+    ],
+    "yahoo_symbol": "2345.TW",
+    "pm_view": "AI 資料中心交換器主線股，適合看中期趨勢。",
+    "base_priority": 8
+  },
+  {
+    "symbol": "6285",
+    "name": "啟碁",
+    "sector": "網通",
+    "theme": [
+      "Networking",
+      "AI Infrastructure",
+      "Wireless"
+    ],
+    "yahoo_symbol": "6285.TW",
+    "pm_view": "網通設備與無線通訊供應鏈，適合觀察需求復甦。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3062",
+    "name": "建漢",
+    "sector": "網通",
+    "theme": [
+      "Networking",
+      "Wireless",
+      "Edge AI"
+    ],
+    "yahoo_symbol": "3062.TW",
+    "pm_view": "網通設備股，波段需看訂單能見度。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "5388",
+    "name": "中磊",
+    "sector": "網通",
+    "theme": [
+      "Networking",
+      "Broadband",
+      "Edge AI"
+    ],
+    "yahoo_symbol": "5388.TWO",
+    "pm_view": "寬頻網通設備股，需求循環與訂單是關鍵。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3596",
+    "name": "智易",
+    "sector": "網通",
+    "theme": [
+      "Networking",
+      "Broadband",
+      "Edge AI"
+    ],
+    "yahoo_symbol": "3596.TW",
+    "pm_view": "網通設備族群，適合觀察營收動能。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "4977",
+    "name": "眾達-KY",
+    "sector": "光通訊",
+    "theme": [
+      "Optical",
+      "Data Center",
+      "AI Infrastructure"
+    ],
+    "yahoo_symbol": "4977.TWO",
+    "pm_view": "光通訊供應鏈，受資料中心高速傳輸題材帶動。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "4906",
+    "name": "正文",
+    "sector": "網通",
+    "theme": [
+      "Networking",
+      "Wireless",
+      "Edge AI"
+    ],
+    "yahoo_symbol": "4906.TW",
+    "pm_view": "網通設備股，適合主題擴散時觀察。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6213",
+    "name": "聯茂",
+    "sector": "CCL材料",
+    "theme": [
+      "PCB",
+      "CCL",
+      "High Speed",
+      "AI Server"
+    ],
+    "yahoo_symbol": "6213.TW",
+    "pm_view": "高頻高速材料供應鏈，與 AI Server 板材規格升級相關。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "3081",
+    "name": "聯亞",
+    "sector": "光通訊",
+    "theme": [
+      "Optical",
+      "Data Center",
+      "AI Infrastructure"
+    ],
+    "yahoo_symbol": "3081.TWO",
+    "pm_view": "光通訊元件股，需觀察資料中心需求。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "8299",
+    "name": "群聯",
+    "sector": "儲存/控制晶片",
+    "theme": [
+      "Storage",
+      "AI PC",
+      "NAND",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "8299.TWO",
+    "pm_view": "受儲存價格循環與 AI PC 題材影響，波段彈性大但需控管波動。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "2408",
+    "name": "南亞科",
+    "sector": "DRAM",
+    "theme": [
+      "Memory",
+      "AI PC",
+      "Semiconductor Momentum"
+    ],
+    "yahoo_symbol": "2408.TW",
+    "pm_view": "記憶體報價循環股，適合觀察 DRAM 復甦。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2344",
+    "name": "華邦電",
+    "sector": "記憶體",
+    "theme": [
+      "Memory",
+      "NOR",
+      "AI PC"
+    ],
+    "yahoo_symbol": "2344.TW",
+    "pm_view": "記憶體族群，波段受報價與庫存影響。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "2337",
+    "name": "旺宏",
+    "sector": "記憶體",
+    "theme": [
+      "Memory",
+      "NOR",
+      "Storage"
+    ],
+    "yahoo_symbol": "2337.TW",
+    "pm_view": "記憶體循環股，需看報價與需求復甦。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6488",
+    "name": "環球晶",
+    "sector": "矽晶圓",
+    "theme": [
+      "Semiconductor Momentum",
+      "Wafer",
+      "Materials"
+    ],
+    "yahoo_symbol": "6488.TW",
+    "pm_view": "矽晶圓供應鏈，受半導體景氣循環影響。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "2360",
+    "name": "致茂",
+    "sector": "測試設備",
+    "theme": [
+      "Testing Equipment",
+      "Semiconductor Equipment",
+      "AI Server"
+    ],
+    "yahoo_symbol": "2360.TW",
+    "pm_view": "測試設備股，半導體與電源測試需求是觀察重點。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3006",
+    "name": "晶豪科",
+    "sector": "記憶體IC",
+    "theme": [
+      "Memory",
+      "NAND",
+      "AI PC"
+    ],
+    "yahoo_symbol": "3006.TW",
+    "pm_view": "記憶體 IC 題材，波段需搭配報價與庫存。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "2392",
+    "name": "正崴",
+    "sector": "連接器/電源",
+    "theme": [
+      "Connector",
+      "Power",
+      "AI Server"
+    ],
+    "yahoo_symbol": "2392.TW",
+    "pm_view": "連接器與電源供應鏈，適合主題擴散時觀察。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "3023",
+    "name": "信邦",
+    "sector": "連接器/線束",
+    "theme": [
+      "Connector",
+      "Industrial",
+      "Data Center"
+    ],
+    "yahoo_symbol": "3023.TW",
+    "pm_view": "連接器線束股，工業與資料中心需求是重點。",
+    "base_priority": 5
+  },
+  {
+    "symbol": "3665",
+    "name": "貿聯-KY",
+    "sector": "線束/連接器",
+    "theme": [
+      "Connector",
+      "Data Center",
+      "EV"
+    ],
+    "yahoo_symbol": "3665.TW",
+    "pm_view": "高階線束與資料中心連接供應鏈，適合波段觀察。",
+    "base_priority": 6
+  },
+  {
+    "symbol": "2328",
+    "name": "廣宇",
+    "sector": "連接器/電子零件",
+    "theme": [
+      "Connector",
+      "AI Server",
+      "Electronics"
+    ],
+    "yahoo_symbol": "2328.TW",
+    "pm_view": "電子零組件與連接器，需看題材擴散。",
+    "base_priority": 4
+  },
+  {
+    "symbol": "6217",
+    "name": "中探針",
+    "sector": "探針/測試",
+    "theme": [
+      "Testing Interface",
+      "Semiconductor Momentum",
+      "AI Chip"
+    ],
+    "yahoo_symbol": "6217.TWO",
+    "pm_view": "測試介面族群，受 AI 晶片測試需求帶動。",
+    "base_priority": 5
   }
 ]

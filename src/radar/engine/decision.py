@@ -1,29 +1,23 @@
-"""Decision Engine for AI Stock Radar.
-
-v1.0.0 introduces the Investment Manager Layer:
-- score breakdown
-- conviction labels
-- position guidance
-- invalidation conditions
-- PM morning brief
-"""
+"""Decision OS with PM-style numeric operating levels."""
 
 from __future__ import annotations
 
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 import json
 
-from radar.engine.technical import rank_macd_turn_candidates, technical_summary
-from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockProfile
+from radar.datasource.rss_news import fetch_rss_news
+from radar.datasource.yahoo_price import load_price_bars
+from radar.datasource.institutional_flow import InstitutionalFlowProfile, load_institutional_flows
+from radar.engine.personalization import load_investor_profile
+from radar.engine.user_space import build_portfolio_analysis, build_portfolio_coach, load_portfolio, load_user_watchlist
+from radar.engine.technical import evaluate_technical, rank_macd_turn_candidates
+from radar.knowledge.stock_map import load_stock_universe
+from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockMeta, TechnicalProfile
 
-
-def _stock_related_to_news(stock: StockProfile, item: NewsItem) -> bool:
-    if stock.symbol in " ".join(item.affected_stocks):
-        return True
-    if stock.name in " ".join(item.affected_stocks):
-        return True
-    return any(theme in item.signal or theme in " ".join(item.industries) for theme in stock.theme)
+VERSION = "1.7.1"
 
 
 def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:
@@ -44,20 +38,22 @@ def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:
     return sorted(merged.values(), key=lambda item: (order.get(item.direction, 1), -item.weight))
 
 
-def _signal_score(stock: StockProfile, news_items: list[NewsItem]) -> tuple[int, list[Evidence]]:
+def _stock_related_to_news(stock: StockMeta, item: NewsItem) -> bool:
+    affected = " ".join(item.affected_stocks)
+    if stock.symbol in affected or stock.name in affected:
+        return True
+    haystack = " ".join([item.signal, item.title, item.title_zh, item.summary_zh, " ".join(item.industries)]).lower()
+    return any(theme.lower() in haystack for theme in stock.theme)
+
+
+def _news_score(stock: StockMeta, news_items: list[NewsItem]) -> tuple[int, list[Evidence]]:
     score = 0
     evidence: list[Evidence] = []
-
     for item in news_items:
         if not _stock_related_to_news(stock, item):
             continue
         if item.impact == "positive":
-            if item.signal == "AI Infrastructure":
-                weight = 9
-            elif item.signal == "Semiconductor Momentum":
-                weight = 7
-            else:
-                weight = 5
+            weight = 9 if item.signal == "AI Infrastructure" else 7 if item.signal == "Semiconductor Momentum" else 4
             score += weight
             evidence.append(
                 Evidence(
@@ -68,88 +64,70 @@ def _signal_score(stock: StockProfile, news_items: list[NewsItem]) -> tuple[int,
                 )
             )
         elif item.impact == "negative":
-            weight = -8 if item.signal == "Macro Risk" else -5
-            score += weight
+            weight = 8 if item.signal == "Macro Risk" else 5
+            score -= weight
             evidence.append(
                 Evidence(
                     label=item.signal,
                     direction="negative",
-                    weight=abs(weight),
-                    explanation=f"{item.summary_zh}，會壓抑波段追價意願。",
+                    weight=weight,
+                    explanation=f"{item.summary_zh}，會降低追價意願。",
                 )
             )
+    return max(-20, min(28, score)), _dedupe_evidence(evidence)
 
-    return max(-18, min(26, score)), _dedupe_evidence(evidence)
 
-
-def _technical_score(stock: StockProfile) -> tuple[int, list[Evidence]]:
-    score = round((stock.trend - stock.risk * 0.35) * 0.32)
+def _technical_component(profile: TechnicalProfile) -> tuple[int, list[Evidence]]:
+    component = round((profile.trend_score - 50) * 0.45)
+    component = max(-14, min(36, component))
     evidence: list[Evidence] = [
         Evidence(
             label="均線結構",
-            direction="positive" if stock.trend >= 62 else "neutral",
-            weight=max(1, round(stock.trend / 13)),
-            explanation=stock.ma_state,
+            direction="positive" if profile.trend_score >= 62 else "neutral" if profile.trend_score >= 48 else "negative",
+            weight=max(1, round(profile.trend_score / 12)),
+            explanation=profile.ma_state,
         )
     ]
+    if profile.macd_hist > 0 and profile.macd_hist > profile.macd_hist_prev:
+        evidence.append(Evidence("MACD 動能轉強", "positive", 8, "MACD 位於正值且柱狀體擴大，波段動能延續。"))
+    elif profile.macd_hist > profile.macd_hist_prev:
+        evidence.append(Evidence("MACD 接近翻正", "positive", 7, "MACD 柱狀體改善，適合列入波段觀察。"))
+    else:
+        evidence.append(Evidence("MACD 動能轉弱", "negative", 6, "MACD 柱狀體收斂或惡化，追價需保守。"))
 
-    if stock.macd_hist > stock.macd_hist_prev and stock.macd_hist <= 0.05:
-        score += 8
-        evidence.append(
-            Evidence(
-                label="MACD 即將翻正",
-                direction="positive",
-                weight=8,
-                explanation="MACD 柱狀體由負值收斂，適合列入波段觀察清單。",
-            )
-        )
-    elif stock.macd_hist > 0:
-        score += 6
-        evidence.append(
-            Evidence(
-                label="MACD 已翻正",
-                direction="positive",
-                weight=6,
-                explanation="MACD 已初步翻正，但仍需確認量能與均線支撐。",
-            )
-        )
+    if 45 <= profile.rsi <= 65:
+        evidence.append(Evidence("RSI 健康", "positive", 5, "RSI 位於波段可接受區間，尚未明顯過熱。"))
+    elif profile.rsi > 70:
+        evidence.append(Evidence("RSI 過熱", "negative", 8, "RSI 偏高，開盤急拉不宜追價。"))
+    elif profile.rsi < 42:
+        evidence.append(Evidence("RSI 偏弱", "negative", 5, "買盤強度不足，需要等待止穩。"))
 
-    if stock.rsi >= 68:
-        score -= 9
-        evidence.append(
-            Evidence(
-                label="RSI 偏熱",
-                direction="negative",
-                weight=9,
-                explanation="短線漲幅偏大，不適合開盤追價。",
-            )
-        )
-    elif 50 <= stock.rsi < 65:
-        score += 4
-        evidence.append(
-            Evidence(
-                label="RSI 健康",
-                direction="positive",
-                weight=4,
-                explanation="RSI 位於波段可接受區間，尚未明顯過熱。",
-            )
-        )
-    elif stock.rsi < 45:
-        score -= 5
-        evidence.append(
-            Evidence(
-                label="RSI 偏弱",
-                direction="negative",
-                weight=5,
-                explanation="買盤強度仍不足，需等待止穩確認。",
-            )
-        )
+    volume_note = _volume_ratio_note(profile.volume_ratio)
+    if profile.volume_ratio >= 1.2:
+        evidence.append(Evidence("量能放大", "positive", 5, volume_note))
+    elif profile.volume_ratio < 0.7:
+        evidence.append(Evidence("量能不足", "negative", 4, volume_note))
+    else:
+        evidence.append(Evidence("量能正常", "neutral", 3, volume_note))
 
-    return max(-10, min(34, score)), _dedupe_evidence(evidence)
+    if profile.price_source.startswith("Yahoo Finance"):
+        evidence.append(Evidence("真實價格資料", "positive", 4, "技術指標由 Yahoo Finance 日線資料計算。"))
+    else:
+        evidence.append(Evidence("價格資料限制", "neutral", 3, "真實價格資料暫不可用，已使用 fallback price model。"))
+    return component, _dedupe_evidence(evidence)
+
+
+def _institutional_component(flow: InstitutionalFlowProfile | None) -> tuple[int, list[Evidence]]:
+    if flow is None:
+        return 0, [Evidence("法人籌碼", "neutral", 1, "尚未取得三大法人資料，籌碼不列入主要評分。")]
+    component = max(-16, min(16, int(flow.flow_score)))
+    direction = "positive" if component >= 4 else "negative" if component <= -4 else "neutral"
+    weight = max(2, min(10, abs(component))) if direction != "neutral" else 2
+    return component, [Evidence("三大法人籌碼", direction, weight, flow.summary)]
 
 
 def _decision(score: int, risk: int) -> str:
-    if score >= 82 and risk <= 42:
+    if score >= 82 and risk <= 52:
         return "波段買進"
     if score >= 70:
         return "波段觀察"
@@ -159,7 +137,7 @@ def _decision(score: int, risk: int) -> str:
 
 
 def _conviction(score: int, confidence: int, risk: int) -> str:
-    if score >= 84 and confidence >= 82 and risk <= 38:
+    if score >= 84 and confidence >= 82 and risk <= 45:
         return "高信念"
     if score >= 72 and confidence >= 70:
         return "中高信念"
@@ -170,73 +148,121 @@ def _conviction(score: int, confidence: int, risk: int) -> str:
 
 def _position_guidance(decision: str, conviction: str) -> str:
     if decision == "波段買進" and conviction == "高信念":
-        return "可作為今日主攻標的，但仍採 2 到 3 批布局，單日不追滿部位。"
+        return "可作為今日主攻標的，但採 2 到 3 批布局，避免一次追滿。"
     if decision == "波段買進":
-        return "可建立小到中部位，優先等待拉回承接。"
+        return "可建立小到中部位，等待拉回支撐時分批。"
     if decision == "波段觀察":
-        return "列入觀察名單，小部位試單或等待突破確認。"
+        return "列入觀察清單，等突破或拉回確認後再提高部位。"
     if decision == "等待":
-        return "不新增部位，若已持有則以關鍵均線作為續抱依據。"
-    return "不建立新部位，既有部位反彈優先調節。"
+        return "不新增部位；若已持有，依 20 日或 60 日均線管理。"
+    return "不建立新部位；既有部位反彈優先調節。"
 
 
-def _manager_language(stock: StockProfile, score: int, decision: str) -> tuple[str, str, str, str, str, str]:
-    tech = technical_summary(stock)
+def _round_price(value: float) -> float:
+    if value >= 1000:
+        step = 5
+    elif value >= 500:
+        step = 1
+    elif value >= 100:
+        step = 0.5
+    elif value >= 50:
+        step = 0.1
+    else:
+        step = 0.05
+    return round(round(value / step) * step, 2)
+
+
+def _price_levels(profile: TechnicalProfile) -> dict[str, float]:
+    history = profile.history or []
+    recent = history[-22:] if len(history) >= 22 else history
+    recent_high = max((float(row.get("high") or profile.latest_close) for row in recent), default=profile.latest_close)
+    recent_low = min((float(row.get("low") or profile.latest_close) for row in recent), default=profile.latest_close)
+    structural_support = profile.ma20 if profile.ma20 > 0 else profile.latest_close * 0.96
+    mid_support = profile.ma60 if profile.ma60 > 0 else structural_support * 0.94
+    pullback_mid = structural_support if profile.latest_close >= structural_support else max(recent_low, mid_support)
+    pullback_low = min(pullback_mid * 0.985, pullback_mid)
+    pullback_high = max(pullback_mid * 1.015, pullback_mid)
+    breakout = max(recent_high * 1.005, profile.latest_close * 1.018)
+    reduce = min(structural_support * 0.985, profile.latest_close * 0.965)
+    stop = min(mid_support * 0.975, profile.latest_close * 0.93)
+    return {
+        "breakout": _round_price(breakout),
+        "pullback_low": _round_price(pullback_low),
+        "pullback_high": _round_price(pullback_high),
+        "reduce": _round_price(reduce),
+        "stop": _round_price(stop),
+    }
+
+
+def _volume_ratio_note(ratio: float) -> str:
+    if ratio >= 1.25:
+        tone = "量能明顯放大，代表今日成交量約為 20 日均量的 {ratio:.0%}，有利突破確認，但也要避免爆量長黑。"
+    elif ratio >= 1.05:
+        tone = "量能溫和放大，代表今日成交量約為 20 日均量的 {ratio:.0%}；例如 1.07 就是比 20 日均量多 7%，屬於健康確認。"
+    elif ratio >= 0.85:
+        tone = "量能接近常態，代表今日成交量約為 20 日均量的 {ratio:.0%}，訊號有效但攻擊力普通。"
+    else:
+        tone = "量能低於常態，代表今日成交量約為 20 日均量的 {ratio:.0%}，突破可信度不足。"
+    return f"量能比 {ratio:.2f}：" + tone.format(ratio=ratio)
+
+
+def _manager_language(stock: StockMeta, profile: TechnicalProfile, decision: str, levels: dict[str, float], volume_note: str) -> tuple[str, str, str, str, str, str]:
+    breakout = levels["breakout"]
+    pullback_low = levels["pullback_low"]
+    pullback_high = levels["pullback_high"]
+    reduce_price = levels["reduce"]
+    stop_price = levels["stop"]
     if decision == "波段買進":
-        swing_view = f"{stock.display_name} 同時具備主線題材與技術改善，是今日波段優先標的。{stock.pm_view}"
-        entry = "不追開盤急拉；等待回測 5 日或 20 日均線不破、量縮止穩時分批進場。"
-        hold = "只要價格維持在 20 日均線之上，且 MACD 柱狀體持續改善，可續抱波段部位。"
-        reduce = "若跌破 20 日均線且 MACD 重新擴大為負值，先降至觀察部位。"
-        invalidation = "跌破月線、MACD 轉弱且主線新聞降溫，原波段假設失效。"
-        risk = f"主要風險：短線過熱、外部利率變數與主線退潮。技術狀態：{tech}"
+        swing_view = f"{stock.display_name} 具備主線或技術改善，是今日波段優先標的。{stock.pm_view}"
+        entry = f"兩種做法：一是放量突破 {breakout:.2f} 後小量追蹤；二是拉回 {pullback_low:.2f}～{pullback_high:.2f} 區間量縮止穩分批進場。"
+        hold = f"只要守住 {pullback_low:.2f}～{pullback_high:.2f} 支撐區且 MACD 未轉弱，可續抱波段部位。"
+        reduce = f"若跌破 {reduce_price:.2f} 且 MACD 柱狀體連續轉弱，先降低 30%～50% 部位。"
+        invalidation = f"跌破 {stop_price:.2f}、MACD 轉弱且新聞主線降溫，波段假設失效。"
     elif decision == "波段觀察":
-        swing_view = f"{stock.display_name} 有波段機會，但訊號尚未完全一致，不適合一次重倉。{stock.pm_view}"
-        entry = "等待突破近期壓力或拉回支撐後量能回溫，再建立小部位。"
-        hold = "若已持有，可續抱觀察，但不建議在未突破前加碼。"
-        reduce = "若跌破整理區間低點，代表波段尚未成熟，應降低曝險。"
-        invalidation = "跌破整理區間低點且 MACD 改善失敗，移出優先觀察名單。"
-        risk = f"主要風險：訊號尚未完全一致。技術狀態：{tech}"
+        swing_view = f"{stock.display_name} 有波段機會，但訊號尚未完全一致，不適合重倉。{stock.pm_view}"
+        entry = f"等待突破 {breakout:.2f} 或回測 {pullback_low:.2f}～{pullback_high:.2f} 支撐後，再以小部位試單。"
+        hold = f"若已持有，可續抱觀察；未突破 {breakout:.2f} 前不主動加碼。"
+        reduce = f"若跌破 {reduce_price:.2f}，代表整理失敗，應降低曝險。"
+        invalidation = f"跌破 {stop_price:.2f} 且量能低於 20 日均量，移出優先觀察名單。"
     elif decision == "等待":
         swing_view = f"{stock.display_name} 目前風險報酬比尚未達到波段進場標準。"
-        entry = "等待 MACD 翻正、站回關鍵均線或出現更明確催化新聞。"
-        hold = "若已持有，以小部位續抱，不主動加碼。"
-        reduce = "若量縮跌破月線或主線轉弱，可先出場等待下一次訊號。"
-        invalidation = "沒有明確主線且技術指標未改善，持續不列入主攻名單。"
-        risk = f"主要風險：缺乏明確主線或技術確認不足。技術狀態：{tech}"
+        entry = f"等待 MACD 翻正、站回 {pullback_high:.2f} 以上，或重新突破 {breakout:.2f} 後再評估。"
+        hold = f"若已持有，以小部位續抱，不主動加碼；防守觀察 {reduce_price:.2f}。"
+        reduce = f"若量縮跌破 {reduce_price:.2f} 或主線轉弱，可先出場等待。"
+        invalidation = f"跌破 {stop_price:.2f} 且沒有明確主線，持續不列入主攻。"
     else:
         swing_view = f"{stock.display_name} 目前不符合波段操作條件，資金效率不佳。"
-        entry = "暫不建立新部位。"
-        hold = "若已有部位，僅保留核心或等待反彈調節。"
-        reduce = "若跌破支撐或市場風險升高，優先減碼。"
-        invalidation = "需重新站回月線並出現 MACD 改善，才可重新評估。"
-        risk = f"主要風險：趨勢未確認或下檔風險高於上檔機會。技術狀態：{tech}"
+        entry = f"暫不建立新部位；至少需重新站回 {pullback_high:.2f} 並突破 {breakout:.2f} 才重新評估。"
+        hold = f"若已有部位，僅保留核心或等待反彈至 {pullback_high:.2f}～{breakout:.2f} 區間調節。"
+        reduce = f"若跌破 {reduce_price:.2f} 或反彈無量，優先減碼。"
+        invalidation = f"需重新站回 {breakout:.2f} 並出現 MACD 改善，才可解除減碼觀點。"
+    risk = f"主要風險：市場風格切換、利率變數、短線過熱或技術轉弱。技術狀態：{profile.technical_summary}。{volume_note}"
     return swing_view, entry, hold, reduce, invalidation, risk
 
 
-def build_decision_cards(news_items: list[NewsItem], stocks: list[StockProfile], profile: dict[str, Any]) -> list[DecisionCard]:
+def build_decision_cards(news_items: list[NewsItem], stocks: list[StockMeta], profiles: dict[str, TechnicalProfile], profile_config: dict[str, Any], institutional_flows: dict[str, InstitutionalFlowProfile] | None = None) -> list[DecisionCard]:
     cards: list[DecisionCard] = []
-
     for stock in stocks:
-        signal_score, signal_evidence = _signal_score(stock, news_items)
-        technical_score, tech_evidence = _technical_score(stock)
-        base = 40
-        profile_bonus = 4 if profile.get("style") == "swing_trading" and stock.macd_hist > stock.macd_hist_prev else 0
-        risk_penalty = round(stock.risk * 0.16)
-        raw_score = base + signal_score + technical_score + profile_bonus - risk_penalty
-        radar_score = max(1, min(94, round(raw_score)))
-        decision = _decision(radar_score, stock.risk)
-        evidence = _dedupe_evidence(signal_evidence + tech_evidence)
-        confidence = max(45, min(93, round(54 + len(evidence) * 5.5 + stock.trend * 0.18 - stock.risk * 0.2)))
-        conviction = _conviction(radar_score, confidence, stock.risk)
-        swing_view, entry, hold, reduce, invalidation, risk = _manager_language(stock, radar_score, decision)
-        breakdown = ScoreBreakdown(
-            base=base,
-            news_signal=signal_score,
-            technical=technical_score,
-            profile_bonus=profile_bonus,
-            risk_penalty=risk_penalty,
-            final_score=radar_score,
-        )
+        technical = profiles[stock.symbol]
+        flow = (institutional_flows or {}).get(stock.symbol)
+        news_score, news_evidence = _news_score(stock, news_items)
+        technical_score, technical_evidence = _technical_component(technical)
+        institutional_score, institutional_evidence = _institutional_component(flow)
+        base = 42 + min(6, stock.base_priority // 2)
+        profile_bonus = 4 if profile_config.get("style") == "swing_trading" and technical.macd_hist > technical.macd_hist_prev else 0
+        price_quality = 4 if technical.price_source.startswith("Yahoo Finance") else -4
+        risk_penalty = round(technical.risk_score * 0.16)
+        raw = base + news_score + technical_score + institutional_score + profile_bonus + price_quality - risk_penalty
+        radar_score = max(1, min(94, round(raw)))
+        decision = _decision(radar_score, technical.risk_score)
+        evidence = _dedupe_evidence(news_evidence + technical_evidence + institutional_evidence)
+        flow_quality_bonus = 5 if flow and flow.source.startswith("TWSE") else -2 if flow else -4
+        confidence = max(45, min(94, round(50 + len(evidence) * 4.1 + technical.trend_score * 0.2 - technical.risk_score * 0.16 + (5 if technical.price_source.startswith("Yahoo Finance") else -6) + flow_quality_bonus)))
+        conviction = _conviction(radar_score, confidence, technical.risk_score)
+        levels = _price_levels(technical)
+        volume_note = _volume_ratio_note(technical.volume_ratio)
+        swing_view, entry, hold, reduce, invalidation, risk = _manager_language(stock, technical, decision, levels, volume_note)
+        breakdown = ScoreBreakdown(base, news_score, technical_score, institutional_score, profile_bonus, price_quality, risk_penalty, radar_score)
         cards.append(
             DecisionCard(
                 symbol=stock.symbol,
@@ -246,6 +272,9 @@ def build_decision_cards(news_items: list[NewsItem], stocks: list[StockProfile],
                 decision=decision,
                 confidence=confidence,
                 conviction=conviction,
+                latest_close=technical.latest_close,
+                change_pct=technical.change_pct,
+                price_source=technical.price_source,
                 swing_view=swing_view,
                 entry_condition=entry,
                 hold_condition=hold,
@@ -253,138 +282,331 @@ def build_decision_cards(news_items: list[NewsItem], stocks: list[StockProfile],
                 invalidation_condition=invalidation,
                 risk_note=risk,
                 position_guidance=_position_guidance(decision, conviction),
+                breakout_price=levels["breakout"],
+                pullback_low=levels["pullback_low"],
+                pullback_high=levels["pullback_high"],
+                reduce_price=levels["reduce"],
+                stop_loss_price=levels["stop"],
+                volume_ratio_note=volume_note,
+                institutional_summary=flow.summary if flow else "尚未取得法人籌碼資料。",
+                institutional_source=flow.source if flow else "N/A",
                 score_breakdown=breakdown,
+                institutional_flow=flow.as_dict() if flow else {},
                 evidence=evidence,
             )
         )
-
     return sorted(cards, key=lambda item: (item.radar_score, item.confidence), reverse=True)
 
 
-def market_view(cards: list[DecisionCard], news_items: list[NewsItem]) -> tuple[str, int, str]:
+def _market_view(cards: list[DecisionCard], news_items: list[NewsItem]) -> str:
+    top_avg = sum(card.radar_score for card in cards[:5]) / max(1, len(cards[:5]))
     positive = sum(1 for item in news_items if item.impact == "positive")
     negative = sum(1 for item in news_items if item.impact == "negative")
-    buy_or_watch = sum(1 for card in cards if card.decision in {"波段買進", "波段觀察"})
-    confidence = max(50, min(92, round(56 + positive * 5 - negative * 5 + buy_or_watch * 1.1)))
-    if confidence >= 82:
-        return "🟢 偏多，適合精選波段標的", confidence, "主線明確，但仍以拉回承接與分批布局為主。"
-    if confidence >= 68:
-        return "🟡 中性偏多，等待確認", confidence, "可觀察 MACD 翻正與均線轉強標的，避免追高。"
-    return "⚪ 保守觀望", confidence, "市場訊號不夠一致，先控管部位。"
+    if top_avg >= 76 and positive >= negative:
+        return "🟢 偏多"
+    if top_avg >= 66:
+        return "🟡 中性偏多"
+    if negative > positive + 1:
+        return "🟠 中性偏保守"
+    return "⚪ 中性"
 
 
-def _build_pm_brief(cards: list[DecisionCard], news_items: list[NewsItem], news_source: str, confidence: int) -> PMBrief:
+def _ai_confidence(cards: list[DecisionCard], news_items: list[NewsItem], profiles: dict[str, TechnicalProfile]) -> int:
+    avg_conf = sum(card.confidence for card in cards[:5]) / max(1, len(cards[:5]))
+    live_prices = sum(1 for profile in profiles.values() if profile.price_source.startswith("Yahoo Finance"))
+    live_bonus = min(8, live_prices)
+    news_bonus = min(6, len(news_items) // 2)
+    return max(45, min(94, round(avg_conf * 0.74 + live_bonus + news_bonus)))
+
+
+def _build_pm_brief(cards: list[DecisionCard], news_items: list[NewsItem], profiles: dict[str, TechnicalProfile], institutional_flows: dict[str, InstitutionalFlowProfile], news_source: str, market_view: str, confidence: int, user_watchlist_count: int, portfolio_count: int) -> PMBrief:
     buys = [card for card in cards if card.decision == "波段買進"]
     watches = [card for card in cards if card.decision == "波段觀察"]
-    avoids = [card for card in cards if card.decision == "減碼/避開"]
-    positives = sum(1 for item in news_items if item.impact == "positive")
-    negatives = sum(1 for item in news_items if item.impact == "negative")
-    top = buys[:2] + watches[: max(0, 3 - len(buys[:2]))]
-    if buys:
-        headline = f"今日主策略：聚焦 {buys[0].sector} 主線，但用拉回承接取代追高。"
-        strategy = "偏多操作，但以波段分批布局為主；先挑高信念標的，不擴大到弱勢股。"
-        capital = "建議新資金投入 30% 到 45%，保留現金等待盤中回測；單一個股不超過計畫資金 15%。"
-    elif watches:
-        headline = "今日主策略：訊號偏多但未完全確認，優先建立觀察清單。"
-        strategy = "以小部位試單或等待突破確認為主，不做重倉追價。"
-        capital = "建議新資金投入 10% 到 25%，以技術轉強股為主，保留大部分現金。"
-    else:
-        headline = "今日主策略：市場缺乏高信念標的，保守等待。"
-        strategy = "不急於進場，先保護資金效率與下檔風險。"
-        capital = "建議新資金投入 0% 到 10%，以觀察為主。"
+    sells = [card for card in cards if card.decision == "減碼/避開"]
+    live_prices = sum(1 for profile in profiles.values() if profile.price_source.startswith("Yahoo Finance"))
+    fallback_prices = len(profiles) - live_prices
+    price_dates = sorted({profile.latest_date for profile in profiles.values() if profile.latest_date})
+    price_latest_date_min = price_dates[0] if price_dates else "N/A"
+    price_latest_date_max = price_dates[-1] if price_dates else "N/A"
+    positive = sum(1 for item in news_items if item.impact == "positive")
+    negative = sum(1 for item in news_items if item.impact == "negative")
+    institutional_official = sum(1 for flow in institutional_flows.values() if flow.source.startswith("TWSE"))
+    institutional_fallback = len(institutional_flows) - institutional_official
 
-    top_actions = [f"{card.display_name}：{card.decision}；{card.position_guidance}" for card in top[:3]] or ["今日沒有高信念波段買進標的。"]
-    avoid_actions = [f"{card.display_name}：{card.risk_note}" for card in avoids[:3]] or ["沒有明確需要主動避開的核心標的，但仍避免追高。"]
-    risk_controls = [
-        "任何標的若跌破月線且 MACD 轉弱，先降部位而不是加碼攤平。",
-        "開盤急拉不追；只在拉回支撐且量能健康時分批布局。",
-        "若總經新聞轉鷹或美股科技股轉弱，當日新部位降低一半。",
+    if buys:
+        headline = f"今日主策略：以 {buys[0].display_name} 等高信念標的作為波段主攻，仍採分批進場。"
+        strategy = "資金優先集中在同時具備主線題材與技術改善的個股；若開盤急拉，等待回測均線或量縮止穩。"
+        allocation = "建議股票曝險 50%～65%，單一股票不超過個人風險上限，保留 35%～50% 現金等待拉回。"
+        recommendation_pool = buys[:5]
+    elif watches:
+        headline = "今日主策略：市場有機會但訊號未完全一致，以觀察與小部位試單為主。"
+        strategy = "等待 MACD、均線與量能進一步確認；不在沒有支撐的位置追價。"
+        allocation = "建議股票曝險 35%～50%，現金維持 50% 以上。"
+        recommendation_pool = watches[:5]
+    else:
+        headline = "今日主策略：市場缺乏高信念標的，先保護資金效率。"
+        strategy = "不強迫交易，等待更明確的價格與新聞催化。"
+        allocation = "建議股票曝險 20%～35%，以防禦與現金為主。"
+        recommendation_pool = cards[:5]
+
+    recommended_stocks = [
+        {
+            "symbol": card.symbol,
+            "name": card.name,
+            "display_name": card.display_name,
+            "decision": card.decision,
+            "radar_score": card.radar_score,
+            "confidence": card.confidence,
+            "breakout_price": card.breakout_price,
+            "pullback_low": card.pullback_low,
+            "pullback_high": card.pullback_high,
+            "reason": f"{card.conviction}｜Radar {card.radar_score}｜突破 {card.breakout_price:.2f} 或拉回 {card.pullback_low:.2f}～{card.pullback_high:.2f} 再處理。",
+        }
+        for card in recommendation_pool
     ]
-    data_quality = {
+    if recommended_stocks:
+        names = "、".join(item["display_name"] for item in recommended_stocks[:3])
+        strategy += f" 今日推薦優先觀察：{names}。"
+
+    top_actions = [
+        f"{card.display_name}：突破 {card.breakout_price:.2f} 可追蹤；拉回 {card.pullback_low:.2f}～{card.pullback_high:.2f} 量縮止穩可分批；跌破 {card.reduce_price:.2f} 先降曝險。法人籌碼：{card.institutional_summary}"
+        for card in cards[:3]
+    ]
+    avoid_actions = [
+        f"避免追高：{card.display_name} 若未突破 {card.breakout_price:.2f} 且量能比低於 1.00，不做追價；跌破 {card.reduce_price:.2f} 優先減碼。"
+        for card in cards if card.confidence < 62 or card.decision == "減碼/避開"
+    ][:3]
+    if not avoid_actions:
+        avoid_actions = ["避免開盤急拉追價；所有波段進場都需等待支撐、突破價與量能確認。"]
+
+    risk_controls = [
+        "單一股票不超過預設部位上限，避免 AI 主線過度集中。",
+        "若 Fed、利率或美股科技股轉弱，需降低高估值科技曝險。",
+        "若個股跌破減碼價且 MACD 轉弱，先降低部位，不與趨勢對作。",
+    ]
+    quality = {
         "news_source": news_source,
         "news_items": len(news_items),
-        "positive_signals": positives,
-        "negative_signals": negatives,
+        "positive_signals": positive,
+        "negative_signals": negative,
+        "price_live_count": live_prices,
+        "price_fallback_count": fallback_prices,
         "confidence": confidence,
-        "limitation": "目前新聞與技術資料仍屬 MVP；正式交易前需再確認即時價格、成交量與法人籌碼。",
+        "user_watchlist_count": user_watchlist_count,
+        "portfolio_count": portfolio_count,
+        "institutional_official_count": institutional_official,
+        "institutional_fallback_count": institutional_fallback,
+        "institutional_source": "TWSE T86 三大法人（若官方端點不可用則啟用 fallback flow model）",
+        "institutional_frequency": "每次重新產生 Radar 時，嘗試抓取 TWSE 最新可得交易日三大法人買賣超；若尚未公布或抓取失敗，改以量價推估並降低信心。",
+        "price_frequency": "每次執行 CLI 或按下『重新抓取最新資料』都會重新抓取 Yahoo Finance 日線資料；這不是逐筆即時報價，但會以抓取當下可取得的最新日線收盤資料重新計算。",
+        "news_frequency": "RSS 於每次重新產生 Radar 時更新，非付費即時新聞終端。",
+        "price_latest_date_min": price_latest_date_min,
+        "price_latest_date_max": price_latest_date_max,
+        "decision_scope": "目前以抓取當下最新可得日線價格、技術指標、RSS 新聞影響鏈、三大法人籌碼、AI 產業鏈股票池、使用者觀察與持股為主要維度；尚未納入逐筆即時成交、財報估值模型與券商研究報告。",
+        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v1.7.1 新增 Fast Dashboard Hotfix：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
     }
-    return PMBrief(
-        headline=headline,
-        strategy=strategy,
-        capital_allocation=capital,
-        top_actions=top_actions,
-        avoid_actions=avoid_actions,
-        risk_controls=risk_controls,
-        data_quality=data_quality,
-    )
+    return PMBrief(headline, strategy, allocation, recommended_stocks, top_actions, avoid_actions, risk_controls, quality)
 
 
-def _evidence_to_dict(evidence: Evidence) -> dict[str, Any]:
+
+
+def _profit_target_price(base: float, pct: float) -> float:
+    return _round_price(base * (1 + pct / 100))
+
+
+def _is_actionable_setup(card: DecisionCard) -> bool:
+    close = float(card.latest_close)
+    if close <= 0:
+        return False
+    in_pullback_zone = card.pullback_low <= close <= card.pullback_high
+    near_breakout = 0 <= (card.breakout_price - close) / close <= 0.035
+    healthy_breakout_hold = card.breakout_price <= close <= card.breakout_price * 1.06
+    return in_pullback_zone or near_breakout or healthy_breakout_hold
+
+
+def _teacher_grade(card: DecisionCard) -> str:
+    # Teacher Buy List focuses on executable swing setups.
+    # A means "today is actionable under a concrete price condition".
+    # High-score names that are far away from both pullback zone and breakout
+    # should be B, not A, because the teacher would wait instead of forcing buy.
+    actionable = _is_actionable_setup(card)
+    if card.decision in {"波段買進", "波段觀察"} and card.radar_score >= 78 and card.confidence >= 74 and actionable:
+        return "A"
+    if card.decision in {"波段買進", "波段觀察"} and card.radar_score >= 68 and card.confidence >= 62:
+        return "B"
+    if card.radar_score >= 58 and card.decision != "減碼/避開":
+        return "C"
+    return "D"
+
+
+def _teacher_action_type(card: DecisionCard) -> str:
+    if card.decision == "減碼/避開":
+        return "避開 / 反彈減碼"
+    if card.decision == "等待":
+        return "等待轉強"
+    if card.latest_close >= card.breakout_price:
+        return "突破後續抱觀察"
+    if card.latest_close >= card.pullback_low and card.latest_close <= card.pullback_high:
+        return "拉回買進"
+    if card.latest_close < card.pullback_low:
+        return "轉強買"
+    return "突破買 / 拉回買"
+
+
+def _primary_reasons(card: DecisionCard) -> list[str]:
+    reasons: list[str] = []
+    positive = [item for item in card.evidence if item.direction == "positive"]
+    neutral = [item for item in card.evidence if item.direction == "neutral"]
+    source = positive[:4] + neutral[:2]
+    for evidence in source[:5]:
+        reasons.append(f"{evidence.label}：{evidence.explanation}")
+    if not reasons:
+        reasons.append("目前證據不足，不列入主攻名單。")
+    return reasons
+
+
+def _teacher_item(card: DecisionCard, rank: int) -> dict[str, Any]:
+    grade = _teacher_grade(card)
+    action_type = _teacher_action_type(card)
+    first_profit = _profit_target_price(max(card.latest_close, card.breakout_price), 4.2)
+    second_profit = _profit_target_price(max(card.latest_close, card.breakout_price), 7.8)
+    if grade == "A":
+        recommendation = "具備今日可操作條件，可依價格區間分批執行，不追高。"
+    elif grade == "B":
+        recommendation = "接近可操作，等待突破價或拉回區間確認後再出手。"
+    elif grade == "C":
+        recommendation = "暫列觀察，不急著買，等待技術或量能更明確。"
+    else:
+        recommendation = "不列入今日買進名單；若已有部位，反彈優先調節。"
+
     return {
-        "label": evidence.label,
-        "direction": evidence.direction,
-        "weight": evidence.weight,
-        "explanation": evidence.explanation,
-    }
-
-
-def _card_to_dict(card: DecisionCard) -> dict[str, Any]:
-    return {
+        "rank": rank,
         "symbol": card.symbol,
         "name": card.name,
-        "sector": card.sector,
         "display_name": card.display_name,
-        "radar_score": card.radar_score,
+        "grade": grade,
+        "action_type": action_type,
         "decision": card.decision,
+        "radar_score": card.radar_score,
         "confidence": card.confidence,
-        "conviction": card.conviction,
-        "swing_view": card.swing_view,
+        "latest_close": card.latest_close,
+        "change_pct": card.change_pct,
+        "recommendation": recommendation,
+        "suggested_entry_zone": f"{card.pullback_low:.2f}～{card.pullback_high:.2f}",
+        "breakout_trigger": card.breakout_price,
+        "invalidation_price": card.stop_loss_price,
+        "risk_reduce_price": card.reduce_price,
+        "first_profit_take": first_profit,
+        "second_profit_take": second_profit,
+        "volume_condition": card.volume_ratio_note,
+        "manager_note": card.swing_view,
         "entry_condition": card.entry_condition,
         "hold_condition": card.hold_condition,
         "reduce_condition": card.reduce_condition,
         "invalidation_condition": card.invalidation_condition,
-        "risk_note": card.risk_note,
-        "position_guidance": card.position_guidance,
-        "score_breakdown": card.score_breakdown.as_dict(),
-        "evidence": [_evidence_to_dict(item) for item in card.evidence],
+        "do_not_chase_reason": f"若開盤直接跳空超過突破價 {card.breakout_price:.2f} 且量能無法延續，等待回測 {card.pullback_low:.2f}～{card.pullback_high:.2f}，不追高。",
+        "reasons": _primary_reasons(card),
     }
 
 
-def _pm_brief_to_dict(brief: PMBrief) -> dict[str, Any]:
+def build_teacher_buy_list(cards: list[DecisionCard], portfolio_analysis: list[dict[str, Any]]) -> dict[str, Any]:
+    teacher_items = [_teacher_item(card, idx) for idx, card in enumerate(cards, 1)]
+    ready = [item for item in teacher_items if item["grade"] == "A"][:6]
+    wait_breakout = [item for item in teacher_items if item["grade"] == "B" and "突破" in item["action_type"]][:8]
+    pullback_watch = [item for item in teacher_items if item["grade"] in {"A", "B"} and "拉回" in item["action_type"]][:8]
+    observe = [item for item in teacher_items if item["grade"] == "C"][:8]
+    avoid = [item for item in teacher_items if item["grade"] == "D"][:8]
+
+    portfolio_actions: list[dict[str, Any]] = []
+    for row in portfolio_analysis:
+        action = row.get("action", "")
+        portfolio_actions.append(
+            {
+                "symbol": row.get("symbol"),
+                "display_name": row.get("display_name"),
+                "decision": row.get("decision"),
+                "radar_score": row.get("radar_score"),
+                "latest_close": row.get("latest_close"),
+                "avg_cost": row.get("avg_cost"),
+                "pnl_pct": row.get("pnl_pct"),
+                "action": action,
+            }
+        )
+
+    if ready:
+        headline = f"今日可買進名單 {len(ready)} 檔，以 {ready[0]['display_name']} 作為第一優先。"
+        summary = "今日有可操作標的，但仍以波段價格紀律執行：拉回買、不追高、跌破失效價立即降風險。"
+    elif wait_breakout or pullback_watch:
+        headline = "今日沒有高信念直接買進標的，等待突破或拉回確認。"
+        summary = "市場仍有機會，但價格尚未到老師會出手的位置，先列觀察名單。"
+    else:
+        headline = "今日不強迫交易，先保護資金。"
+        summary = "缺乏可操作條件，等待技術訊號與市場主線更明確。"
+
     return {
-        "headline": brief.headline,
-        "strategy": brief.strategy,
-        "capital_allocation": brief.capital_allocation,
-        "top_actions": brief.top_actions,
-        "avoid_actions": brief.avoid_actions,
-        "risk_controls": brief.risk_controls,
-        "data_quality": brief.data_quality,
+        "headline": headline,
+        "summary": summary,
+        "ready_to_buy": ready,
+        "wait_breakout": wait_breakout,
+        "pullback_watch": pullback_watch,
+        "observe_only": observe,
+        "avoid_or_reduce": avoid,
+        "portfolio_actions": portfolio_actions,
+        "grading_rule": {
+            "A": "可以行動：具備波段可操作條件，但必須照價格區間執行。",
+            "B": "接近可買：等待突破價或拉回區間確認。",
+            "C": "只觀察：訊號不足，不主動買進。",
+            "D": "避免：不碰或既有部位反彈調節。",
+        },
     }
 
 
-def build_dashboard_payload(news_items: list[NewsItem], cards: list[DecisionCard], stocks: list[StockProfile], profile: dict[str, Any], news_source: str) -> dict[str, Any]:
-    view, confidence, summary = market_view(cards, news_items)
-    macd_candidates = rank_macd_turn_candidates(stocks, limit=10)
-    brief = _build_pm_brief(cards, news_items, news_source, confidence)
+def run_decision_pipeline(news_limit: int = 12, price_days: int = 160) -> dict[str, Any]:
+    news_items, news_source = fetch_rss_news(limit=news_limit)
+    stocks = load_stock_universe()
+    investor_profile = load_investor_profile()
+    technical_profiles: dict[str, TechnicalProfile] = {}
+    for stock in stocks:
+        bars, price_source = load_price_bars(stock, days=price_days)
+        technical_profiles[stock.symbol] = evaluate_technical(stock, bars, price_source)
+
+    institutional_flows = load_institutional_flows(stocks, technical_profiles)
+    cards = build_decision_cards(news_items, stocks, technical_profiles, investor_profile, institutional_flows)
+    macd_candidates = rank_macd_turn_candidates(stocks, technical_profiles, limit=10)
+    market_view = _market_view(cards, news_items)
+    confidence = _ai_confidence(cards, news_items, technical_profiles)
+    user_watchlist = load_user_watchlist()
+    portfolio = load_portfolio()
+    portfolio_analysis = build_portfolio_analysis(portfolio, cards, technical_profiles)
+    portfolio_coach = build_portfolio_coach(portfolio_analysis)
+    pm_brief = _build_pm_brief(cards, news_items, technical_profiles, institutional_flows, news_source, market_view, confidence, len(user_watchlist), len(portfolio))
+    teacher_buy_list = build_teacher_buy_list(cards, portfolio_analysis)
+
     payload = {
-        "version": "1.0.0",
-        "stage": "Investment Manager Release",
-        "news_source": news_source,
-        "market_view": view,
+        "version": VERSION,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "market_view": market_view,
         "ai_confidence": confidence,
-        "market_summary": summary,
-        "investor_profile": profile,
-        "pm_brief": _pm_brief_to_dict(brief),
-        "news": [item.__dict__ for item in news_items],
-        "decision_cards": [_card_to_dict(card) for card in cards],
-        "macd_candidates": [candidate.__dict__ for candidate in macd_candidates],
+        "news_source": news_source,
+        "investor_profile": investor_profile,
+        "user_watchlist": user_watchlist,
+        "portfolio": portfolio,
+        "portfolio_analysis": portfolio_analysis,
+        "portfolio_coach": portfolio_coach,
+        "pm_brief": pm_brief.as_dict(),
+        "teacher_buy_list": teacher_buy_list,
+        "decision_cards": [card.as_dict() for card in cards],
+        "macd_candidates": [candidate.as_dict() for candidate in macd_candidates],
+        "news_items": [item.as_dict() for item in news_items],
+        "technical_profiles": {symbol: profile.as_dict() for symbol, profile in technical_profiles.items()},
+        "institutional_flows": {symbol: flow.as_dict() for symbol, flow in institutional_flows.items()},
+        "stock_index": {stock.symbol: {"symbol": stock.symbol, "name": stock.name, "display_name": stock.display_name, "sector": stock.sector} for stock in stocks},
     }
     return payload
 
 
-def save_dashboard_payload(payload: dict[str, Any]) -> Path:
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
-    path = output_dir / "dashboard_data.json"
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return path
+def save_dashboard_payload(payload: dict[str, Any], path: str | Path = "output/dashboard_data.json") -> Path:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return output_path

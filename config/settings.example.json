@@ -1,13 +1,6 @@
 {
-  "mode": "beta",
-  "language": "zh-TW",
-  "default_market": "TW",
-  "price_data": {
-    "provider": "yahoo_chart_api_with_fallback",
-    "range": "6mo",
-    "interval": "1d"
-  },
-  "dashboard": {
-    "port": 8501
-  }
+  "news_limit": 12,
+  "price_days": 260,
+  "dashboard_refresh_seconds": 600,
+  "default_market": "TW"
 }
