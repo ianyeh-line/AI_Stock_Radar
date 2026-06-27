@@ -1,65 +1,19 @@
 # ROADMAP
 
-## Product North Star
+## v0.3.0
+- Product-ready Daily Radar MVP。
+- Mock data decision pipeline。
 
-Enable a Taiwan stock investor to complete a high-confidence daily decision in 3 minutes every morning.
+## v0.4.0
+- 接入真實新聞 RSS / 公開資料來源。
+- 將 mock news 替換為可更新資料來源。
 
-## Sprint 1: Foundation
+## v0.5.0
+- 加入 Radar scoring 權重設定。
+- 加入 watchlist config。
 
-Goal: Establish the maintainable product workspace, architecture, documentation standards, and initial scoring model.
+## v0.6.0
+- 加入技術面資料與簡易趨勢判斷。
 
-Deliverables:
-
-- Repository structure
-- README
-- CHANGELOG
-- ROADMAP
-- Sprint 1 document
-- Release Notes 0.1.0-alpha
-- System architecture document
-- Product vision document
-- ADR template
-
-## Sprint 2: Data Ingestion
-
-Goal: Build the first version of the data ingestion framework.
-
-Scope:
-
-- News source interface
-- Market data interface
-- Cache strategy
-- Data normalization model
-
-## Sprint 3: Analysis Engines
-
-Goal: Build initial analysis engines.
-
-Scope:
-
-- News impact engine
-- Technical trend engine
-- Macro event tagging
-- Stock-level impact mapping
-
-## Sprint 4: Radar Scoring
-
-Goal: Build explainable Radar Score v1.
-
-Scope:
-
-- Score formula
-- Confidence level
-- Reason codes
-- Daily ranking output
-
-## Sprint 5: Daily Report
-
-Goal: Generate a 3-minute daily decision report.
-
-Scope:
-
-- Morning market brief
-- Watchlist ranking
-- Action recommendation
-- Risk reminders
+## v1.0.0
+- 每日盤前可用的 AI Stock Radar Platform。
