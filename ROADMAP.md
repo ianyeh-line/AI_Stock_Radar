@@ -1,24 +1,46 @@
-# Roadmap
+# ROADMAP
 
-## v0.4.0 - RSS Product Release
-
-目標：接入第一個真實新聞來源，讓產品開始分析真實世界資訊。
+## v0.5.0 - Explainable Decision Cards
 
 Status: Delivered
 
-## v0.5.0 - Better Daily Decision
+- Decision Cards
+- Evidence chain
+- Action recommendation
+- Risk alert
 
-目標：改善 Radar Score 與 Decision 邏輯。
-
-Planned:
-- 增加台股 Watchlist 設定檔。
-- 將 Knowledge Layer 改成可由 JSON 管理。
-- 增加 Buy / Watch / Wait / Sell 更清楚的規則。
-- Daily Report 改成更像產品首頁，而不是技術報告。
-
-## v0.6.0 - Market Data Layer
+## v0.6.0 - Better Real News Intelligence
 
 Planned:
-- 加入主要指數資料。
-- 加入台股價格或技術面初版。
-- 產出更明確的進出場提醒。
+
+- Add visible news list in report
+- Add source breakdown
+- Improve classification quality
+- Add Taiwan-specific news feeds
+
+## v0.7.0 - Technical Radar
+
+Planned:
+
+- MA trend
+- RSI
+- MACD
+- Volume signal
+
+## v0.8.0 - Daily Dashboard
+
+Planned:
+
+- HTML report
+- One-click local dashboard
+- Better 3-minute UX
+
+## v1.0.0 - Morning Decision MVP
+
+Goal:
+
+- Daily 3-minute Taiwan-stock decision workflow
+- Real news
+- Decision cards
+- Technical confirmation
+- Explainable score

@@ -1,23 +1,29 @@
 [
   {
-    "title": "NVIDIA and AI infrastructure demand remain key focus for global technology investors",
-    "source": "fallback",
-    "link": "",
-    "summary": "AI infrastructure spending remains the strongest technology market theme.",
-    "published": ""
+    "source": "Fallback",
+    "title": "NVIDIA AI infrastructure demand remains the key market driver",
+    "summary": "AI GPU and AI server demand remain central to semiconductor sentiment.",
+    "signal": "AI Infrastructure",
+    "sentiment": "positive",
+    "tickers": ["2330", "2382", "3231", "6669"],
+    "industries": ["AI Server", "Semiconductor", "CoWoS"]
   },
   {
-    "title": "Semiconductor sentiment improves as investors watch AI server supply chain",
-    "source": "fallback",
-    "link": "",
-    "summary": "Semiconductor and AI server related names remain in focus.",
-    "published": ""
+    "source": "Fallback",
+    "title": "Semiconductor sector sentiment is positive but valuation risk is rising",
+    "summary": "Semiconductor momentum is supportive, but short-term chasing risk is elevated.",
+    "signal": "Semiconductor Momentum",
+    "sentiment": "mixed",
+    "tickers": ["2330", "2449", "2454"],
+    "industries": ["Semiconductor"]
   },
   {
-    "title": "Investors remain cautious ahead of Federal Reserve comments and inflation data",
-    "source": "fallback",
-    "link": "",
-    "summary": "Macro uncertainty may pressure high valuation growth stocks.",
-    "published": ""
+    "source": "Fallback",
+    "title": "Macro investors remain cautious ahead of Fed commentary",
+    "summary": "Higher-rate concerns may pressure high-valuation growth stocks.",
+    "signal": "Macro Risk",
+    "sentiment": "negative",
+    "tickers": ["2330", "2382", "3231", "6669", "2449"],
+    "industries": ["Growth Stocks", "High Valuation Tech"]
   }
 ]

@@ -1,105 +1,123 @@
-"""Decision engine: news -> signals -> radar decisions."""
+"""Explainable decision engine for AI Stock Radar."""
 
-from radar.knowledge.stock_map import NEGATIVE_KEYWORDS, POSITIVE_KEYWORDS, STOCK_KNOWLEDGE
-from radar.models.domain import DailyDecision, NewsItem, StockRadar
+from radar.knowledge.stock_map import WATCHLIST
+from radar.models.domain import DailyDecision, DecisionCard, Evidence, NewsItem
 
+VERSION = "0.5.0"
 
-def _text_blob(item: NewsItem) -> str:
-    return f"{item.title} {item.summary}".lower()
-
-
-def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
-    return [keyword for keyword in keywords if keyword.lower() in text]
+POSITIVE_SIGNALS = {"AI Infrastructure", "Semiconductor Momentum"}
+NEGATIVE_SIGNALS = {"Macro Risk"}
 
 
-def _sentiment_score(news_items: list[NewsItem]) -> tuple[int, int]:
-    positive = 0
-    negative = 0
+def _evidence_from_news(ticker: str, news_items: list[NewsItem]) -> list[Evidence]:
+    evidence: list[Evidence] = []
     for item in news_items:
-        text = _text_blob(item)
-        positive += len(_keyword_hits(text, POSITIVE_KEYWORDS))
-        negative += len(_keyword_hits(text, NEGATIVE_KEYWORDS))
-    return positive, negative
+        if ticker not in item.tickers:
+            continue
+
+        if item.sentiment == "positive":
+            score = 8 if item.signal == "AI Infrastructure" else 6
+            tone = "positive"
+            reason = f"{item.signal} 對該股主題具支撐：{item.title[:80]}"
+        elif item.sentiment == "negative":
+            score = -7
+            tone = "negative"
+            reason = f"{item.signal} 增加短線不確定性：{item.title[:80]}"
+        else:
+            score = 1
+            tone = "neutral"
+            reason = f"訊號混合，需觀察後續確認：{item.title[:80]}"
+
+        evidence.append(Evidence(label=item.signal, score=score, tone=tone, reason=reason, source=item.source))
+
+    return evidence
 
 
-def _decision_from_score(score: int) -> str:
-    if score >= 82:
-        return "🟢 Buy"
-    if score >= 72:
-        return "🟡 Watch"
+def _add_theme_evidence(ticker: str, evidence: list[Evidence]) -> None:
+    themes = WATCHLIST[ticker]["themes"]
+    labels = {item.label for item in evidence}
+    if "AI Infrastructure" in labels and "AI Server" in themes:
+        evidence.append(Evidence("Theme Fit", 6, "positive", "該股與 AI Server / AI Infrastructure 主線高度相關"))
+    if "Semiconductor Momentum" in labels and "Semiconductor" in themes:
+        evidence.append(Evidence("Theme Fit", 5, "positive", "半導體族群氣氛有利於該股評價支撐"))
+    if not evidence:
+        evidence.append(Evidence("No Strong Signal", -4, "negative", "今日新聞主線與該股關聯度不足"))
+
+
+def _decision(score: int, confidence: int) -> tuple[str, str]:
+    if score >= 80 and confidence >= 78:
+        return "🟢 Buy", "可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。"
+    if score >= 68:
+        return "🟡 Watch", "具備機會但仍需確認；等待突破或回測支撐後再行動。"
     if score >= 55:
-        return "⚪ Wait"
-    return "🔴 Sell"
+        return "⚪ Wait", "暫無足夠優勢，不建議追價；保持觀望。"
+    return "🔴 Sell", "風險高於機會；若已持有可評估減碼或停損。"
 
 
-def build_decision(news_items: list[NewsItem], live_news: bool) -> DailyDecision:
-    positive_count, negative_count = _sentiment_score(news_items)
-    stock_scores: list[StockRadar] = []
+def build_decision(news_source: str, news_items: list[NewsItem]) -> DailyDecision:
+    cards: list[DecisionCard] = []
 
-    for symbol, profile in STOCK_KNOWLEDGE.items():
-        evidence: list[str] = []
-        risk: list[str] = []
-        score = 45
+    for ticker, profile in WATCHLIST.items():
+        evidence = _evidence_from_news(ticker, news_items)
+        _add_theme_evidence(ticker, evidence)
 
-        for item in news_items:
-            text = _text_blob(item)
-            hits = _keyword_hits(text, profile["keywords"])
-            if hits:
-                score += min(12, 4 * len(hits))
-                evidence.append(f"{item.title}（命中：{', '.join(hits[:3])}）")
+        score = profile["base_score"] + sum(item.score for item in evidence)
+        score = max(0, min(100, score))
 
-            negative_hits = _keyword_hits(text, NEGATIVE_KEYWORDS)
-            if negative_hits:
-                score -= min(6, 2 * len(negative_hits))
-                risk.append(f"{item.title}（風險：{', '.join(negative_hits[:2])}）")
+        positive_count = sum(1 for item in evidence if item.tone == "positive")
+        negative_count = sum(1 for item in evidence if item.tone == "negative")
+        confidence = 58 + positive_count * 7 + negative_count * 4
+        confidence = max(45, min(96, confidence))
 
-        if not evidence:
-            evidence.append("今日真實新聞中未出現高度直接訊號，暫以保守評估處理。")
+        decision, action = _decision(score, confidence)
+        top_positive = [item.label for item in evidence if item.tone == "positive"][:2]
+        top_negative = [item.label for item in evidence if item.tone == "negative"][:2]
+        reason = "、".join(top_positive + top_negative) or "今日缺乏明確主線"
 
-        score = max(20, min(96, score))
-        confidence = max(50, min(94, 58 + len(evidence) * 7 - len(risk) * 3))
-        stock_scores.append(
-            StockRadar(
-                symbol=symbol,
+        cards.append(
+            DecisionCard(
+                ticker=ticker,
                 name=profile["name"],
-                score=score,
-                decision=_decision_from_score(score),
+                radar_score=score,
+                decision=decision,
                 confidence=confidence,
-                evidence=evidence[:3],
-                risks=risk[:2],
+                action=action,
+                reason=reason,
+                evidence=evidence,
             )
         )
 
-    top_stocks = sorted(stock_scores, key=lambda x: (x.score, x.confidence), reverse=True)[:5]
-    market_confidence = max(55, min(92, 72 + positive_count * 2 - negative_count))
+    cards.sort(key=lambda card: (card.radar_score, card.confidence), reverse=True)
+    top_cards = cards[:5]
 
-    if positive_count >= negative_count + 2:
+    avg_score = round(sum(card.radar_score for card in top_cards) / len(top_cards))
+    avg_confidence = round(sum(card.confidence for card in top_cards) / len(top_cards))
+
+    if avg_score >= 75:
         market_view = "🟢 偏多"
-    elif negative_count > positive_count:
+    elif avg_score >= 60:
+        market_view = "🟡 中性偏多"
+    elif avg_score >= 50:
         market_view = "🟡 中性偏保守"
     else:
-        market_view = "⚪ 中性"
+        market_view = "🔴 偏空"
 
-    market_signals = [
-        f"資料來源：{'RSS 真實新聞' if live_news else 'Fallback 新聞（RSS 暫時不可用）'}",
-        f"正向訊號：{positive_count}",
-        f"風險訊號：{negative_count}",
-        "AI / 半導體 / AI Server 仍為第一版知識圖譜主軸。",
-    ]
+    risk_alerts = []
+    macro_count = sum(1 for item in news_items if item.signal == "Macro Risk")
+    if macro_count:
+        risk_alerts.append(f"總經風險訊號 {macro_count} 則：若 Fed / 利率訊息偏鷹，高估值科技股可能承壓。")
+    risk_alerts.append("若開盤急拉，避免追高；優先等待量能確認與回測支撐。")
 
-    risks = [
-        "RSS 標題分析仍屬 v0.4 初版，尚未接入全文與即時報價。",
-        "Fed、通膨與高估值科技股波動仍是今日主要風險。",
-    ]
-
-    action = "優先檢查 Top 5 是否與盤中量價同步；若開盤急拉，等待回測後再行動。"
+    best = top_cards[0]
+    today_action = f"今日優先關注 {best.ticker} {best.name}。{best.action}"
 
     return DailyDecision(
+        version=VERSION,
         market_view=market_view,
-        confidence=market_confidence,
-        top_stocks=top_stocks,
-        market_signals=market_signals,
-        risks=risks,
-        action=action,
-        news_items=news_items,
+        ai_confidence=avg_confidence,
+        news_source=news_source,
+        news_count=len(news_items),
+        cards=top_cards,
+        risk_alerts=risk_alerts,
+        today_action=today_action,
     )

@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 PYTHONPATH=src python3 -m radar.cli run

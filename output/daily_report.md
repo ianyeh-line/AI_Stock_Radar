@@ -1,88 +1,187 @@
 # AI Stock Radar Daily Report
 
-Generated: 2026-06-27 09:28
+Date: 2026-06-27
+Version: v0.5.0
 
 ## Today's Radar
 
-- Market View: 🟡 中性偏保守
-- AI Confidence: 71%
-- Action: 優先檢查 Top 5 是否與盤中量價同步；若開盤急拉，等待回測後再行動。
+- Market View: **🟢 偏多**
+- AI Confidence: **88%**
+- News Source: **RSS Live**
+- News Analyzed: **12**
+
+## Today's Action
+
+今日優先關注 2330 台積電。可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。
 
 ## Radar Top 5
 
-| Rank | Stock | Radar Score | Decision | Confidence |
-|---:|---|---:|---|---:|
-| 1 | 2330 台積電 | 51 | 🔴 Sell | 69% |
-| 2 | 2449 京元電子 | 51 | 🔴 Sell | 69% |
-| 3 | 2382 廣達 | 47 | 🔴 Sell | 62% |
-| 4 | 3231 緯創 | 47 | 🔴 Sell | 62% |
-| 5 | 6669 緯穎 | 43 | 🔴 Sell | 62% |
+| Rank | Stock | Radar Score | Decision | Confidence | Key Reason |
+|---:|---|---:|---|---:|---|
+| 1 | 2330 台積電 | 100 | 🟢 Buy | 96% | AI Infrastructure、AI Infrastructure |
+| 2 | 2382 廣達 | 100 | 🟢 Buy | 96% | AI Infrastructure、AI Infrastructure |
+| 3 | 3231 緯創 | 100 | 🟢 Buy | 96% | AI Infrastructure、AI Infrastructure |
+| 4 | 6669 緯穎 | 100 | 🟢 Buy | 96% | AI Infrastructure、AI Infrastructure |
+| 5 | 2449 京元電子 | 61 | ⚪ Wait | 58% | 今日缺乏明確主線 |
 
-## Evidence by Stock
+## Decision Cards
+
+---
 
 ### 2330 台積電
 
-Evidence:
-- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it（命中：ai）
-- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
+**Radar Score:** 100  
+**Decision:** 🟢 Buy  
+**Confidence:** 96%
 
-Risks:
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+#### Why
 
-### 2449 京元電子
+AI Infrastructure、AI Infrastructure
 
-Evidence:
-- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it（命中：ai）
-- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
+#### Evidence
 
-Risks:
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：More Layoffs, Acquisitions, and SpaceX Becomes AI Company _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：AMD’s stock buybacks explained: History, balance & outlook _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Meet the Highest-Yielding Stock in the S&P 500. Does Its 10.2% Yield Make It a N _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Weekly Wrap: Bitcoin Nears Two-Year Low _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Harmony Gold Mining Stock Plummeted by Almost 12% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：After Issuing Its First Stock Split in 2020, Tesla Took Just 2 Years to Issue It _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Eli Lilly Stock Jumped to a New All-Time High Today _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why X-Energy Stock Collapsed 19.2% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：U.S. strikes Iran after Trump accuses Tehran of ceasefire violation in Strait of _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump admin allows Anthropic to release Mythos AI model to some companies, gover _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump eases pressure on Fed Chairman Kevin Warsh as inflation tops 4% _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Oracle stock has worst week since 2001 dot-com bust as AI financing concerns esc _[US Top News and Analysis]_
+- 🟢 **Theme Fit (+6)**: 該股與 AI Server / AI Infrastructure 主線高度相關 _[system]_
+
+#### Action
+
+可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。
+
+---
 
 ### 2382 廣達
 
-Evidence:
-- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
+**Radar Score:** 100  
+**Decision:** 🟢 Buy  
+**Confidence:** 96%
 
-Risks:
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+#### Why
+
+AI Infrastructure、AI Infrastructure
+
+#### Evidence
+
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：More Layoffs, Acquisitions, and SpaceX Becomes AI Company _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：AMD’s stock buybacks explained: History, balance & outlook _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Meet the Highest-Yielding Stock in the S&P 500. Does Its 10.2% Yield Make It a N _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Weekly Wrap: Bitcoin Nears Two-Year Low _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Harmony Gold Mining Stock Plummeted by Almost 12% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：After Issuing Its First Stock Split in 2020, Tesla Took Just 2 Years to Issue It _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Eli Lilly Stock Jumped to a New All-Time High Today _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why X-Energy Stock Collapsed 19.2% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：U.S. strikes Iran after Trump accuses Tehran of ceasefire violation in Strait of _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump admin allows Anthropic to release Mythos AI model to some companies, gover _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump eases pressure on Fed Chairman Kevin Warsh as inflation tops 4% _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Oracle stock has worst week since 2001 dot-com bust as AI financing concerns esc _[US Top News and Analysis]_
+- 🟢 **Theme Fit (+6)**: 該股與 AI Server / AI Infrastructure 主線高度相關 _[system]_
+
+#### Action
+
+可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。
+
+---
 
 ### 3231 緯創
 
-Evidence:
-- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
+**Radar Score:** 100  
+**Decision:** 🟢 Buy  
+**Confidence:** 96%
 
-Risks:
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+#### Why
+
+AI Infrastructure、AI Infrastructure
+
+#### Evidence
+
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：More Layoffs, Acquisitions, and SpaceX Becomes AI Company _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：AMD’s stock buybacks explained: History, balance & outlook _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Meet the Highest-Yielding Stock in the S&P 500. Does Its 10.2% Yield Make It a N _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Weekly Wrap: Bitcoin Nears Two-Year Low _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Harmony Gold Mining Stock Plummeted by Almost 12% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：After Issuing Its First Stock Split in 2020, Tesla Took Just 2 Years to Issue It _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Eli Lilly Stock Jumped to a New All-Time High Today _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why X-Energy Stock Collapsed 19.2% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：U.S. strikes Iran after Trump accuses Tehran of ceasefire violation in Strait of _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump admin allows Anthropic to release Mythos AI model to some companies, gover _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump eases pressure on Fed Chairman Kevin Warsh as inflation tops 4% _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Oracle stock has worst week since 2001 dot-com bust as AI financing concerns esc _[US Top News and Analysis]_
+- 🟢 **Theme Fit (+6)**: 該股與 AI Server / AI Infrastructure 主線高度相關 _[system]_
+
+#### Action
+
+可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。
+
+---
 
 ### 6669 緯穎
 
-Evidence:
-- 今日真實新聞中未出現高度直接訊號，暫以保守評估處理。
+**Radar Score:** 100  
+**Decision:** 🟢 Buy  
+**Confidence:** 96%
 
-Risks:
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+#### Why
 
-## Market Signals
+AI Infrastructure、AI Infrastructure
 
-- 資料來源：RSS 真實新聞
-- 正向訊號：0
-- 風險訊號：1
-- AI / 半導體 / AI Server 仍為第一版知識圖譜主軸。
+#### Evidence
+
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：More Layoffs, Acquisitions, and SpaceX Becomes AI Company _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：AMD’s stock buybacks explained: History, balance & outlook _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Meet the Highest-Yielding Stock in the S&P 500. Does Its 10.2% Yield Make It a N _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Weekly Wrap: Bitcoin Nears Two-Year Low _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Harmony Gold Mining Stock Plummeted by Almost 12% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：After Issuing Its First Stock Split in 2020, Tesla Took Just 2 Years to Issue It _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Eli Lilly Stock Jumped to a New All-Time High Today _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why X-Energy Stock Collapsed 19.2% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：U.S. strikes Iran after Trump accuses Tehran of ceasefire violation in Strait of _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump admin allows Anthropic to release Mythos AI model to some companies, gover _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Trump eases pressure on Fed Chairman Kevin Warsh as inflation tops 4% _[US Top News and Analysis]_
+- 🟢 **AI Infrastructure (+8)**: AI Infrastructure 對該股主題具支撐：Oracle stock has worst week since 2001 dot-com bust as AI financing concerns esc _[US Top News and Analysis]_
+- 🟢 **Theme Fit (+6)**: 該股與 AI Server / AI Infrastructure 主線高度相關 _[system]_
+
+#### Action
+
+可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。
+
+---
+
+### 2449 京元電子
+
+**Radar Score:** 61  
+**Decision:** ⚪ Wait  
+**Confidence:** 58%
+
+#### Why
+
+今日缺乏明確主線
+
+#### Evidence
+
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Weekly Wrap: Bitcoin Nears Two-Year Low _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Harmony Gold Mining Stock Plummeted by Almost 12% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：After Issuing Its First Stock Split in 2020, Tesla Took Just 2 Years to Issue It _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why Eli Lilly Stock Jumped to a New All-Time High Today _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+- 🟡 **Market Noise (+1)**: 訊號混合，需觀察後續確認：Why X-Energy Stock Collapsed 19.2% This Week _[Yahoo! Finance: TSM NVDA AMD SMH News]_
+
+#### Action
+
+暫無足夠優勢，不建議追價；保持觀望。
 
 ## Risk Alert
 
-- RSS 標題分析仍屬 v0.4 初版，尚未接入全文與即時報價。
-- Fed、通膨與高估值科技股波動仍是今日主要風險。
+- ⚠️ 若開盤急拉，避免追高；優先等待量能確認與回測支撐。
 
-## Source News
+## Product Note
 
-- 1 Rare Dividend Stock Built to Survive Any Recession (Yahoo Finance)
-- Palantir Hits New 52-Week Low. Is Meme Magic Gone? Wedbush: Oversold. (Yahoo Finance)
-- Blackberry Stock Just Scored a New 'Buy' Rating. Here's Why. (Yahoo Finance)
-- Upgrade review (2026): A leading fintech that offers high yields and few fees (Yahoo Finance)
-- Sunrun Just Landed a Massive Tesla Deal. This Energy Stock Is Finally Getting a Major Catalyst. (Yahoo Finance)
-- Japan Is an Investing Giant for Mom and Pop. It Just Needs to Convince Them. (Yahoo Finance)
-- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it (Yahoo Finance)
-- 3 Reasons Contrarians Should Target MP Materials Stock (Yahoo Finance)
-- Marriott Bonvoy Brilliant American Express card: A premium card with tons of added benefits (Yahoo Finance)
-- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve (Yahoo Finance)
+v0.5.0 focuses on Explainable Decision Cards. Scores are rule-based and intended for workflow validation, not investment advice.

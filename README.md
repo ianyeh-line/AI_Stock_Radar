@@ -1,28 +1,50 @@
 # AI Stock Radar
 
-AI Stock Radar 是一個以「每天早上 3 分鐘完成台股 AI 決策」為目標的投資決策產品。
+AI Stock Radar is a Taiwan-stock decision intelligence product designed to help investors complete a 3-minute morning decision workflow.
 
-## v0.4.0 新增
+## Current Release
 
-- 接入第一版 RSS 真實新聞來源。
-- 建立 News -> Knowledge -> Decision -> Report 的可執行流程。
-- 加入 `.gitignore`，避免 `__pycache__`、`.DS_Store`、每日報告輸出被提交。
-- 產出 `output/daily_report.md` 作為每日驗收報告。
+**v0.5.0 Product Release**
 
-## 執行
+Focus: Explainable Decision Cards.
+
+This version converts RSS/news signals into stock-level Decision Cards with:
+
+- Radar Score
+- Decision: Buy / Watch / Wait / Sell
+- Confidence
+- Evidence chain
+- Action recommendation
+- Risk alert
+
+## Run
 
 ```bash
 PYTHONPATH=src python3 -m radar.cli run
 ```
 
-## 預期輸出
+Output:
 
 ```text
-🚀 AI Stock Radar v0.4.0
-News Source: RSS Live
-Market View: 🟢 偏多
-AI Confidence: xx%
-Report generated: output/daily_report.md
+output/daily_report.md
 ```
 
-若 RSS 暫時無法連線，系統會自動使用 fallback news，確保產品仍可執行。
+## Product Flow
+
+```text
+RSS / Fallback News
+        ↓
+Signal Classification
+        ↓
+Stock Knowledge Map
+        ↓
+Decision Engine
+        ↓
+Decision Cards
+        ↓
+Markdown Daily Report
+```
+
+## Release Principle
+
+Every release must be executable, reviewable, and product-oriented.
