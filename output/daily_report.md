@@ -1,95 +1,88 @@
 # AI Stock Radar Daily Report
 
-Date: 2026-06-27
+Generated: 2026-06-27 09:28
 
 ## Today's Radar
 
-- Market View: 🟢 偏多
-- AI Confidence: 88%
-- Key Message: AI Infrastructure 是今日最重要主線，半導體與 AI Server 供應鏈優先於航運與非主線族群。
+- Market View: 🟡 中性偏保守
+- AI Confidence: 71%
+- Action: 優先檢查 Top 5 是否與盤中量價同步；若開盤急拉，等待回測後再行動。
 
 ## Radar Top 5
 
-| Rank | Stock | Score | Decision | Confidence | Action |
-|---:|---|---:|---|---:|---|
-| 1 | 2330 台積電 | 83 | 🟡 Watch | 87% | 2330 台積電 有主題支撐，但需要等待技術面或量能確認。 |
-| 2 | 2382 廣達 | 69 | ⚪ Wait | 64% | 2382 廣達 今日沒有明確優勢，暫不主動追價。 |
-| 3 | 2449 京元電子 | 69 | ⚪ Wait | 64% | 2449 京元電子 今日沒有明確優勢，暫不主動追價。 |
-| 4 | 3231 緯創 | 60 | ⚪ Wait | 64% | 3231 緯創 今日沒有明確優勢，暫不主動追價。 |
-| 5 | 6669 緯穎 | 60 | ⚪ Wait | 64% | 6669 緯穎 今日沒有明確優勢，暫不主動追價。 |
+| Rank | Stock | Radar Score | Decision | Confidence |
+|---:|---|---:|---|---:|
+| 1 | 2330 台積電 | 51 | 🔴 Sell | 69% |
+| 2 | 2449 京元電子 | 51 | 🔴 Sell | 69% |
+| 3 | 2382 廣達 | 47 | 🔴 Sell | 62% |
+| 4 | 3231 緯創 | 47 | 🔴 Sell | 62% |
+| 5 | 6669 緯穎 | 43 | 🔴 Sell | 62% |
 
 ## Evidence by Stock
 
-### 1. 2330 台積電
+### 2330 台積電
 
-- AI Infrastructure: AI GPU demand continues to support Taiwan semiconductor and AI server supply chain names.
-- Semiconductor Momentum: The rebound in semiconductor sentiment supports leading Taiwan technology names.
-- Risk: 風險可控
+Evidence:
+- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it（命中：ai）
+- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
 
-### 2. 2382 廣達
+Risks:
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
 
-- AI Infrastructure: AI GPU demand continues to support Taiwan semiconductor and AI server supply chain names.
-- Risk: 風險可控
+### 2449 京元電子
 
-### 3. 2449 京元電子
+Evidence:
+- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it（命中：ai）
+- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
 
-- Semiconductor Momentum: The rebound in semiconductor sentiment supports leading Taiwan technology names.
-- Risk: 風險可控
+Risks:
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
 
-### 4. 3231 緯創
+### 2382 廣達
 
-- AI Infrastructure: AI GPU demand continues to support Taiwan semiconductor and AI server supply chain names.
-- Risk - Macro Risk: Hawkish Fed language may pressure high valuation growth and technology stocks.
-- Risk: Hawkish Fed language may pressure high valuation growth and technology stocks.
+Evidence:
+- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
 
-### 5. 6669 緯穎
+Risks:
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
 
-- AI Infrastructure: AI GPU demand continues to support Taiwan semiconductor and AI server supply chain names.
-- Risk - Macro Risk: Hawkish Fed language may pressure high valuation growth and technology stocks.
-- Risk: Hawkish Fed language may pressure high valuation growth and technology stocks.
+### 3231 緯創
+
+Evidence:
+- Nvidia Stock Slips Below $200. Competition Fears Are Growing.（命中：nvidia）
+
+Risks:
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
+
+### 6669 緯穎
+
+Evidence:
+- 今日真實新聞中未出現高度直接訊號，暫以保守評估處理。
+
+Risks:
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve（風險：rate）
 
 ## Market Signals
 
-### ✅ NVIDIA and AI infrastructure demand remain strong
-
-- Source: Mock Market Brief
-- Signal: AI Infrastructure
-- Impact: positive
-- So What: AI GPU demand continues to support Taiwan semiconductor and AI server supply chain names.
-- Affected Stocks: 2330 台積電、3231 緯創、6669 緯穎、2382 廣達
-
-### ✅ Semiconductor sentiment improves after SOX rebound
-
-- Source: Mock Market Brief
-- Signal: Semiconductor Momentum
-- Impact: positive
-- So What: The rebound in semiconductor sentiment supports leading Taiwan technology names.
-- Affected Stocks: 2330 台積電、2454 聯發科、2449 京元電子
-
-### ⚠️ Fed comments remain a risk for high valuation technology stocks
-
-- Source: Mock Macro Brief
-- Signal: Macro Risk
-- Impact: negative
-- So What: Hawkish Fed language may pressure high valuation growth and technology stocks.
-- Affected Stocks: 6669 緯穎、3231 緯創、2454 聯發科
-
-### ℹ️ Shipping is not the primary market theme today
-
-- Source: Mock Sector Brief
-- Signal: Theme Rotation
-- Impact: neutral
-- So What: Market focus remains on AI and semiconductor names, reducing attention on shipping.
-- Affected Stocks: 2603 長榮
-
-## Today's Action
-
-- 今日優先觀察 2330 台積電、3231 緯創、2382 廣達。
-- 高分股只在拉回且量能穩定時分批布局。
-- 非主線族群暫不主動追價。
+- 資料來源：RSS 真實新聞
+- 正向訊號：0
+- 風險訊號：1
+- AI / 半導體 / AI Server 仍為第一版知識圖譜主軸。
 
 ## Risk Alert
 
-- Fed 發言若偏鷹，可能壓抑高估值科技股。
-- 若開盤急拉，避免追高，等待回測支撐。
-- 目前仍為 MVP mock data，尚未接入即時市場資料。
+- RSS 標題分析仍屬 v0.4 初版，尚未接入全文與即時報價。
+- Fed、通膨與高估值科技股波動仍是今日主要風險。
+
+## Source News
+
+- 1 Rare Dividend Stock Built to Survive Any Recession (Yahoo Finance)
+- Palantir Hits New 52-Week Low. Is Meme Magic Gone? Wedbush: Oversold. (Yahoo Finance)
+- Blackberry Stock Just Scored a New 'Buy' Rating. Here's Why. (Yahoo Finance)
+- Upgrade review (2026): A leading fintech that offers high yields and few fees (Yahoo Finance)
+- Sunrun Just Landed a Massive Tesla Deal. This Energy Stock Is Finally Getting a Major Catalyst. (Yahoo Finance)
+- Japan Is an Investing Giant for Mom and Pop. It Just Needs to Convince Them. (Yahoo Finance)
+- Utah man says he can’t get refund from Apple because AI calls the shots now — protect your wealth before bots grab it (Yahoo Finance)
+- 3 Reasons Contrarians Should Target MP Materials Stock (Yahoo Finance)
+- Marriott Bonvoy Brilliant American Express card: A premium card with tons of added benefits (Yahoo Finance)
+- CryptoQuant Says Strategy Should Pause Bitcoin Buys and Rebuild Cash Reserve (Yahoo Finance)

@@ -1,37 +1,34 @@
 """Domain models for AI Stock Radar."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class NewsItem:
     title: str
     source: str
-    signal: str
-    impact: str
-    summary: str
-    industries: list[str]
-    affected_stocks: list[str]
+    link: str = ""
+    summary: str = ""
+    published: str = ""
 
 
 @dataclass(frozen=True)
-class RadarCard:
-    rank: int
-    stock: str
+class StockRadar:
+    symbol: str
+    name: str
     score: int
     decision: str
     confidence: int
-    evidence: list[str]
-    risk: str
-    action: str
+    evidence: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class DailyDecision:
     market_view: str
     confidence: int
-    key_message: str
-    top_cards: list[RadarCard]
+    top_stocks: list[StockRadar]
+    market_signals: list[str]
     risks: list[str]
-    actions: list[str]
+    action: str
     news_items: list[NewsItem]

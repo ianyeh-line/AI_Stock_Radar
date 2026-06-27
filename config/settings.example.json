@@ -1,5 +1,9 @@
 {
-  "market": "TW",
-  "report_language": "zh-TW",
-  "data_mode": "mock"
+  "rss_feeds": [
+    "https://finance.yahoo.com/news/rssindex",
+    "https://feeds.marketwatch.com/marketwatch/topstories/",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+  ],
+  "max_news_items": 12,
+  "report_language": "zh-TW"
 }

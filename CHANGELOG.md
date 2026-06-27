@@ -1,19 +1,19 @@
-# CHANGELOG
+# Changelog
 
-## v0.3.0 - Product Release
+## v0.4.0 - RSS Product Release
 
 ### Added
-- 新增 Product-ready Daily Radar 報告。
-- 新增 Decision Engine。
-- 新增 Radar Top 5 排名。
-- 新增 Evidence by Stock。
-- 新增 Today's Action 與 Risk Alert。
-- 新增 mock news data source。
-- 新增 Markdown report renderer。
+- 第一版 RSS 真實新聞來源。
+- Fallback news 機制，避免網路或 RSS 失效時無法產生報告。
+- Keyword-based Knowledge Layer。
+- Decision Engine：將新聞轉換為股票 Radar 排名。
+- Markdown Report Generator。
+- `.gitignore` 清理 Python 與 macOS 暫存檔。
 
 ### Changed
-- 從單純 report generator 升級為 News → Decision → Radar → Report pipeline。
+- CLI 顯示版本號、新聞來源、Market View、Top 5 與報告路徑。
+- Daily Report 加入 Source News 與 Evidence by Stock。
 
-### Known Limitations
-- 仍使用 mock data。
-- 尚未接入真實市場資料與 LLM API。
+### Removed
+- 不再提交每日產生的 `output/daily_report.md`。
+- 不再提交 `__pycache__` 與 `.DS_Store`。

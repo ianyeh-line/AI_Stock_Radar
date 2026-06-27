@@ -1,105 +1,105 @@
-"""Decision engine for AI Stock Radar MVP."""
+"""Decision engine: news -> signals -> radar decisions."""
 
-from radar.knowledge.stock_map import WATCHLIST
-from radar.models.domain import DailyDecision, NewsItem, RadarCard
+from radar.knowledge.stock_map import NEGATIVE_KEYWORDS, POSITIVE_KEYWORDS, STOCK_KNOWLEDGE
+from radar.models.domain import DailyDecision, NewsItem, StockRadar
 
 
-def _score_stock(stock: str, news_items: list[NewsItem]) -> tuple[int, int, list[str], str]:
-    score = 55
-    evidence: list[str] = []
-    risk = "風險可控"
+def _text_blob(item: NewsItem) -> str:
+    return f"{item.title} {item.summary}".lower()
 
+
+def _keyword_hits(text: str, keywords: list[str]) -> list[str]:
+    return [keyword for keyword in keywords if keyword.lower() in text]
+
+
+def _sentiment_score(news_items: list[NewsItem]) -> tuple[int, int]:
+    positive = 0
+    negative = 0
     for item in news_items:
-        if stock not in item.affected_stocks:
-            continue
-
-        if item.impact == "positive":
-            score += 14
-            evidence.append(f"{item.signal}: {item.summary}")
-        elif item.impact == "negative":
-            score -= 9
-            risk = item.summary
-            evidence.append(f"Risk - {item.signal}: {item.summary}")
-        else:
-            evidence.append(f"Neutral - {item.signal}: {item.summary}")
-
-    score = max(0, min(score, 98))
-    confidence = max(55, min(96, score + 4 if len(evidence) >= 2 else score - 5))
-    return score, confidence, evidence, risk
+        text = _text_blob(item)
+        positive += len(_keyword_hits(text, POSITIVE_KEYWORDS))
+        negative += len(_keyword_hits(text, NEGATIVE_KEYWORDS))
+    return positive, negative
 
 
-def _decision(score: int) -> str:
-    if score >= 85:
+def _decision_from_score(score: int) -> str:
+    if score >= 82:
         return "🟢 Buy"
-    if score >= 70:
+    if score >= 72:
         return "🟡 Watch"
-    if score >= 50:
+    if score >= 55:
         return "⚪ Wait"
     return "🔴 Sell"
 
 
-def _action(stock: str, decision: str) -> str:
-    if "Buy" in decision:
-        return f"{stock} 可列入今日優先觀察，等待盤中拉回且量能穩定時分批布局。"
-    if "Watch" in decision:
-        return f"{stock} 有主題支撐，但需要等待技術面或量能確認。"
-    if "Sell" in decision:
-        return f"{stock} 風險升高，若已持有應評估減碼或出場。"
-    return f"{stock} 今日沒有明確優勢，暫不主動追價。"
+def build_decision(news_items: list[NewsItem], live_news: bool) -> DailyDecision:
+    positive_count, negative_count = _sentiment_score(news_items)
+    stock_scores: list[StockRadar] = []
 
+    for symbol, profile in STOCK_KNOWLEDGE.items():
+        evidence: list[str] = []
+        risk: list[str] = []
+        score = 45
 
-def build_daily_decision(news_items: list[NewsItem]) -> DailyDecision:
-    cards: list[RadarCard] = []
-    for stock in WATCHLIST:
-        score, confidence, evidence, risk = _score_stock(stock, news_items)
-        decision = _decision(score)
-        cards.append(
-            RadarCard(
-                rank=0,
-                stock=stock,
+        for item in news_items:
+            text = _text_blob(item)
+            hits = _keyword_hits(text, profile["keywords"])
+            if hits:
+                score += min(12, 4 * len(hits))
+                evidence.append(f"{item.title}（命中：{', '.join(hits[:3])}）")
+
+            negative_hits = _keyword_hits(text, NEGATIVE_KEYWORDS)
+            if negative_hits:
+                score -= min(6, 2 * len(negative_hits))
+                risk.append(f"{item.title}（風險：{', '.join(negative_hits[:2])}）")
+
+        if not evidence:
+            evidence.append("今日真實新聞中未出現高度直接訊號，暫以保守評估處理。")
+
+        score = max(20, min(96, score))
+        confidence = max(50, min(94, 58 + len(evidence) * 7 - len(risk) * 3))
+        stock_scores.append(
+            StockRadar(
+                symbol=symbol,
+                name=profile["name"],
                 score=score,
-                decision=decision,
+                decision=_decision_from_score(score),
                 confidence=confidence,
-                evidence=evidence or ["今日缺乏直接催化訊號。"],
-                risk=risk,
-                action=_action(stock, decision),
+                evidence=evidence[:3],
+                risks=risk[:2],
             )
         )
 
-    cards.sort(key=lambda item: item.score, reverse=True)
-    ranked_cards = [
-        RadarCard(
-            rank=index + 1,
-            stock=card.stock,
-            score=card.score,
-            decision=card.decision,
-            confidence=card.confidence,
-            evidence=card.evidence,
-            risk=card.risk,
-            action=card.action,
-        )
-        for index, card in enumerate(cards)
+    top_stocks = sorted(stock_scores, key=lambda x: (x.score, x.confidence), reverse=True)[:5]
+    market_confidence = max(55, min(92, 72 + positive_count * 2 - negative_count))
+
+    if positive_count >= negative_count + 2:
+        market_view = "🟢 偏多"
+    elif negative_count > positive_count:
+        market_view = "🟡 中性偏保守"
+    else:
+        market_view = "⚪ 中性"
+
+    market_signals = [
+        f"資料來源：{'RSS 真實新聞' if live_news else 'Fallback 新聞（RSS 暫時不可用）'}",
+        f"正向訊號：{positive_count}",
+        f"風險訊號：{negative_count}",
+        "AI / 半導體 / AI Server 仍為第一版知識圖譜主軸。",
     ]
 
-    positive_count = sum(1 for item in news_items if item.impact == "positive")
-    negative_count = sum(1 for item in news_items if item.impact == "negative")
-    market_view = "🟢 偏多" if positive_count > negative_count else "🟡 中性偏謹慎"
-    confidence = 88 if positive_count > negative_count else 68
+    risks = [
+        "RSS 標題分析仍屬 v0.4 初版，尚未接入全文與即時報價。",
+        "Fed、通膨與高估值科技股波動仍是今日主要風險。",
+    ]
+
+    action = "優先檢查 Top 5 是否與盤中量價同步；若開盤急拉，等待回測後再行動。"
 
     return DailyDecision(
         market_view=market_view,
-        confidence=confidence,
-        key_message="AI Infrastructure 是今日最重要主線，半導體與 AI Server 供應鏈優先於航運與非主線族群。",
-        top_cards=ranked_cards[:5],
-        risks=[
-            "Fed 發言若偏鷹，可能壓抑高估值科技股。",
-            "若開盤急拉，避免追高，等待回測支撐。",
-            "目前仍為 MVP mock data，尚未接入即時市場資料。",
-        ],
-        actions=[
-            "今日優先觀察 2330 台積電、3231 緯創、2382 廣達。",
-            "高分股只在拉回且量能穩定時分批布局。",
-            "非主線族群暫不主動追價。",
-        ],
+        confidence=market_confidence,
+        top_stocks=top_stocks,
+        market_signals=market_signals,
+        risks=risks,
+        action=action,
         news_items=news_items,
     )

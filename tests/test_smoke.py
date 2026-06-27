@@ -1,11 +1,11 @@
-from radar.datasource.mock_news import load_news
-from radar.engine.decision import build_daily_decision
-from radar.report.markdown import render_report
+from radar.datasource.rss_news import load_fallback_news
+from radar.engine.decision import build_decision
+from radar.report.markdown import build_markdown
 
 
-def test_pipeline_smoke():
-    news = load_news()
-    decision = build_daily_decision(news)
-    report = render_report(decision)
+def test_smoke_report_builds():
+    news = load_fallback_news()
+    decision = build_decision(news, live_news=False)
+    report = build_markdown(decision)
     assert "AI Stock Radar Daily Report" in report
-    assert decision.top_cards
+    assert decision.top_stocks
