@@ -1,30 +1,18 @@
-# Decision Engine Architecture
+# Decision Engine
 
-## Flow
+The Decision Engine converts news signals into explainable stock-level decision cards.
+
+Pipeline:
 
 ```text
-NewsItem
-  ↓
-Signal
-  ↓
-Evidence
-  ↓
-Stock Knowledge Map
-  ↓
-Radar Score
-  ↓
-Decision Card
+RSS News
+  -> Signal Classification
+  -> Stock Mapping
+  -> Evidence Deduplication
+  -> Radar Score
+  -> Decision
+  -> Confidence
+  -> Report / Dashboard
 ```
 
-## Core Concept
-
-A Radar Score is not enough. Each decision must include:
-
-- Evidence
-- Confidence
-- Action
-- Risk
-
-## Current Status
-
-v0.5.0 uses rule-based scoring for product validation. Future versions will add better data sources and technical indicators.
+Radar Score is intentionally bounded and conservative. A score of 100 should be rare and should require multiple independent positive evidence sources with limited risk.

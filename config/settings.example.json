@@ -1,5 +1,4 @@
 {
   "report_output": "output/daily_report.md",
-  "max_news_items": 12,
-  "watchlist": ["2330", "2382", "3231", "6669", "2449", "2454", "2603"]
+  "top_n": 5
 }

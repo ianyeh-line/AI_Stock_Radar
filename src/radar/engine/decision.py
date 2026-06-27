@@ -1,123 +1,261 @@
-"""Explainable decision engine for AI Stock Radar."""
+"""Decision OS v1 for AI Stock Radar.
 
+v0.8.0 combines:
+- News Radar
+- Technical Radar
+- Risk Radar
+
+The output is an explainable Decision Card, not a raw ranking.
+"""
+
+from __future__ import annotations
+
+from radar.engine.technical import build_technical_snapshot
 from radar.knowledge.stock_map import WATCHLIST
 from radar.models.domain import DailyDecision, DecisionCard, Evidence, NewsItem
 
-VERSION = "0.5.0"
-
-POSITIVE_SIGNALS = {"AI Infrastructure", "Semiconductor Momentum"}
-NEGATIVE_SIGNALS = {"Macro Risk"}
+VERSION = "0.8.0"
+BASE_NEWS_SCORE = 50
 
 
-def _evidence_from_news(ticker: str, news_items: list[NewsItem]) -> list[Evidence]:
+def _dedupe_evidence(evidence: list[Evidence]) -> list[Evidence]:
+    seen: set[tuple[str, str, str]] = set()
+    deduped: list[Evidence] = []
+    for item in evidence:
+        key = (item.category, item.signal, item.title_zh[:80])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _news_score_for_item(ticker: str, item: NewsItem) -> int:
+    profile = WATCHLIST[ticker]
+    weight = profile["themes"].get(item.signal, 0.70)
+
+    if item.sentiment == "positive":
+        base = 7
+    elif item.sentiment == "negative":
+        base = -7
+    else:
+        base = 1
+
+    return round(base * weight)
+
+
+def _news_evidence(ticker: str, news_items: list[NewsItem]) -> list[Evidence]:
+    profile = WATCHLIST[ticker]
     evidence: list[Evidence] = []
     for item in news_items:
         if ticker not in item.tickers:
             continue
-
-        if item.sentiment == "positive":
-            score = 8 if item.signal == "AI Infrastructure" else 6
+        score = _news_score_for_item(ticker, item)
+        if score > 0:
             tone = "positive"
-            reason = f"{item.signal} 對該股主題具支撐：{item.title[:80]}"
-        elif item.sentiment == "negative":
-            score = -7
+            reason = f"{item.signal_zh}支撐 {profile['name']}：{item.title_zh[:90]}"
+        elif score < 0:
             tone = "negative"
-            reason = f"{item.signal} 增加短線不確定性：{item.title[:80]}"
+            reason = f"{item.signal_zh}提高短線風險：{item.title_zh[:90]}"
         else:
-            score = 1
             tone = "neutral"
-            reason = f"訊號混合，需觀察後續確認：{item.title[:80]}"
+            reason = f"{item.signal_zh}仍需確認：{item.title_zh[:90]}"
 
-        evidence.append(Evidence(label=item.signal, score=score, tone=tone, reason=reason, source=item.source))
+        evidence.append(
+            Evidence(
+                category="新聞",
+                signal=item.signal,
+                signal_zh=item.signal_zh,
+                tone=tone,
+                score=score,
+                source=item.source,
+                reason=reason,
+                title=item.title,
+                title_zh=item.title_zh,
+            )
+        )
+    return _dedupe_evidence(evidence)
 
-    return evidence
+
+def _technical_evidence(ticker: str) -> tuple[list[Evidence], int, object]:
+    technical = build_technical_snapshot(ticker)
+    if technical.score >= 70:
+        tone = "positive"
+        score = 8
+    elif technical.score >= 55:
+        tone = "neutral"
+        score = 2
+    else:
+        tone = "negative"
+        score = -8
+
+    evidence = [
+        Evidence(
+            category="技術",
+            signal="Technical Radar",
+            signal_zh="技術面",
+            tone=tone,
+            score=score,
+            source=technical.data_source,
+            reason=f"技術面 {technical.trend}：{technical.signal}；收盤 {technical.price}，MA20 {technical.ma20}，RSI {technical.rsi14}",
+            title="Technical Snapshot",
+            title_zh="技術線圖快照",
+        )
+    ]
+    return evidence, technical.score, technical
 
 
-def _add_theme_evidence(ticker: str, evidence: list[Evidence]) -> None:
-    themes = WATCHLIST[ticker]["themes"]
-    labels = {item.label for item in evidence}
-    if "AI Infrastructure" in labels and "AI Server" in themes:
-        evidence.append(Evidence("Theme Fit", 6, "positive", "該股與 AI Server / AI Infrastructure 主線高度相關"))
-    if "Semiconductor Momentum" in labels and "Semiconductor" in themes:
-        evidence.append(Evidence("Theme Fit", 5, "positive", "半導體族群氣氛有利於該股評價支撐"))
-    if not evidence:
-        evidence.append(Evidence("No Strong Signal", -4, "negative", "今日新聞主線與該股關聯度不足"))
+def _news_score(evidence: list[Evidence]) -> int:
+    positive = [ev for ev in evidence if ev.score > 0]
+    negative = [ev for ev in evidence if ev.score < 0]
+    unique_signals = {ev.signal for ev in positive}
+    raw = BASE_NEWS_SCORE + sum(ev.score for ev in evidence)
+    raw += min(8, len(unique_signals) * 2)
+    raw -= min(8, len(negative) * 2)
+    if not positive:
+        raw = min(raw, 52)
+    return max(30, min(90, round(raw)))
 
 
-def _decision(score: int, confidence: int) -> tuple[str, str]:
-    if score >= 80 and confidence >= 78:
-        return "🟢 Buy", "可列為今日優先標的；若盤中拉回且量能穩定，可分批布局。"
-    if score >= 68:
-        return "🟡 Watch", "具備機會但仍需確認；等待突破或回測支撐後再行動。"
-    if score >= 55:
-        return "⚪ Wait", "暫無足夠優勢，不建議追價；保持觀望。"
-    return "🔴 Sell", "風險高於機會；若已持有可評估減碼或停損。"
+def _risk_score(news_items: list[NewsItem], ticker: str, technical_score: int) -> int:
+    macro_risks = [item for item in news_items if item.signal == "Macro Risk" and ticker in item.tickers]
+    score = 82
+    score -= min(22, len(macro_risks) * 8)
+    if technical_score < 50:
+        score -= 12
+    elif technical_score > 75:
+        score += 4
+    return max(35, min(92, score))
+
+
+def _decision_from_score(score: int) -> tuple[str, str]:
+    if score >= 78:
+        return "🟢 買進", "Buy"
+    if score >= 66:
+        return "🟡 觀察", "Watch"
+    if score >= 54:
+        return "⚪ 等待", "Wait"
+    return "🔴 賣出", "Sell"
+
+
+def _build_action(stance: str, technical_score: int) -> tuple[str, str, str]:
+    if stance == "Buy":
+        return (
+            "列入今日優先清單；只在拉回且量能未失控時分批布局，避免開盤急拉追高。",
+            "進場條件：價格維持在 MA20 之上，且同族群至少 2 檔同步強勢。",
+            "風險：若美股期貨、半導體或個股技術線圖轉弱，降低進場比例。",
+        )
+    if stance == "Watch":
+        return (
+            "主線具備支撐但尚未形成高勝率進場點，先觀察突破或回測確認。",
+            "進場條件：站上關鍵均線、量能放大且新聞主線未反轉。",
+            "風險：若只有新聞支撐但技術面未確認，容易形成短線假突破。",
+        )
+    if stance == "Wait":
+        return (
+            "今日不是最優先標的；等待更明確的新聞催化或技術轉強。",
+            "進場條件：Radar Score 回升到 66 以上，且技術面至少轉為中性偏多。",
+            "風險：資金可能集中於其他主線，等待期間有機會成本。",
+        )
+    return (
+        "風險大於機會；若已有部位，應檢查停損、減碼或降低曝險條件。",
+        "重新評估條件：負面新聞消退，且價格重新站回 MA20 或 MA60。",
+        "風險：若忽視負面訊號，可能擴大短線回撤。",
+    )
+
+
+def _card_reason(news_evidence: list[Evidence], technical_score: int, risk_score: int) -> str:
+    positives = [ev.signal_zh for ev in news_evidence if ev.score > 0]
+    negatives = [ev.signal_zh for ev in news_evidence if ev.score < 0]
+    parts: list[str] = []
+    if positives:
+        parts.append("、".join(dict.fromkeys(positives[:2])))
+    if technical_score >= 70:
+        parts.append("技術面確認")
+    elif technical_score < 55:
+        parts.append("技術面偏弱")
+    if negatives or risk_score < 65:
+        parts.append("需控管總經風險")
+    if not parts:
+        parts.append("今日缺乏明確主線")
+    return "；".join(parts)
+
+
+def _build_card(ticker: str, news_items: list[NewsItem]) -> DecisionCard:
+    profile = WATCHLIST[ticker]
+    news_evidence = _news_evidence(ticker, news_items)
+    tech_evidence, technical_score, technical = _technical_evidence(ticker)
+
+    news_score = _news_score(news_evidence)
+    risk_score = _risk_score(news_items, ticker, technical_score)
+    radar_score = round(news_score * 0.45 + technical_score * 0.35 + risk_score * 0.20)
+    radar_score = max(30, min(92, radar_score))
+
+    decision, stance = _decision_from_score(radar_score)
+    confidence = round(48 + abs(radar_score - 50) * 0.55 + len(news_evidence) * 3)
+    confidence = max(50, min(94, confidence))
+    reason = _card_reason(news_evidence, technical_score, risk_score)
+    action, position_rule, risk_note = _build_action(stance, technical_score)
+
+    evidence = _dedupe_evidence(news_evidence + tech_evidence)
+    return DecisionCard(
+        ticker=ticker,
+        name=profile["name"],
+        radar_score=radar_score,
+        news_score=news_score,
+        technical_score=technical_score,
+        risk_score=risk_score,
+        decision=decision,
+        confidence=confidence,
+        reason=reason,
+        action=action,
+        stance=stance,
+        position_rule=position_rule,
+        risk_note=risk_note,
+        technical=technical,
+        evidence=evidence,
+    )
 
 
 def build_decision(news_source: str, news_items: list[NewsItem]) -> DailyDecision:
-    cards: list[DecisionCard] = []
-
-    for ticker, profile in WATCHLIST.items():
-        evidence = _evidence_from_news(ticker, news_items)
-        _add_theme_evidence(ticker, evidence)
-
-        score = profile["base_score"] + sum(item.score for item in evidence)
-        score = max(0, min(100, score))
-
-        positive_count = sum(1 for item in evidence if item.tone == "positive")
-        negative_count = sum(1 for item in evidence if item.tone == "negative")
-        confidence = 58 + positive_count * 7 + negative_count * 4
-        confidence = max(45, min(96, confidence))
-
-        decision, action = _decision(score, confidence)
-        top_positive = [item.label for item in evidence if item.tone == "positive"][:2]
-        top_negative = [item.label for item in evidence if item.tone == "negative"][:2]
-        reason = "、".join(top_positive + top_negative) or "今日缺乏明確主線"
-
-        cards.append(
-            DecisionCard(
-                ticker=ticker,
-                name=profile["name"],
-                radar_score=score,
-                decision=decision,
-                confidence=confidence,
-                action=action,
-                reason=reason,
-                evidence=evidence,
-            )
-        )
-
+    cards = [_build_card(ticker, news_items) for ticker in WATCHLIST]
     cards.sort(key=lambda card: (card.radar_score, card.confidence), reverse=True)
-    top_cards = cards[:5]
+    top_cards = cards[:9]
 
-    avg_score = round(sum(card.radar_score for card in top_cards) / len(top_cards))
-    avg_confidence = round(sum(card.confidence for card in top_cards) / len(top_cards))
+    top5 = top_cards[:5]
+    avg_score = round(sum(card.radar_score for card in top5) / len(top5))
+    avg_confidence = round(sum(card.confidence for card in top5) / len(top5))
+    negative_count = sum(1 for item in news_items if item.sentiment == "negative")
+    buy_count = sum(1 for card in top5 if card.stance == "Buy")
 
-    if avg_score >= 75:
+    if avg_score >= 74 and buy_count >= 2 and negative_count <= 2:
         market_view = "🟢 偏多"
-    elif avg_score >= 60:
+        today_action = "今日主線偏向 AI 與半導體，但以 Decision Card 高分標的為主，不做全面追價。"
+    elif avg_score >= 63:
         market_view = "🟡 中性偏多"
-    elif avg_score >= 50:
+        today_action = "市場有主線但仍有雜訊，優先觀察技術面已確認的個股。"
+    elif avg_score >= 52:
         market_view = "🟡 中性偏保守"
+        today_action = "訊號分歧，降低追價意願，等待新聞與技術面同步確認。"
     else:
         market_view = "🔴 偏空"
+        today_action = "風險高於機會，優先控管部位，暫不主動追多。"
 
     risk_alerts = []
-    macro_count = sum(1 for item in news_items if item.signal == "Macro Risk")
-    if macro_count:
-        risk_alerts.append(f"總經風險訊號 {macro_count} 則：若 Fed / 利率訊息偏鷹，高估值科技股可能承壓。")
-    risk_alerts.append("若開盤急拉，避免追高；優先等待量能確認與回測支撐。")
-
-    best = top_cards[0]
-    today_action = f"今日優先關注 {best.ticker} {best.name}。{best.action}"
+    if negative_count:
+        risk_alerts.append("總經、利率或政策相關新聞仍可能壓抑高估值科技股。")
+    risk_alerts.append("v0.8.0 已加入技術線圖與 Technical Radar，但尚未接入外資籌碼與基本面。")
+    risk_alerts.append("若個股 Decision 為買進，但 RSI 過熱或開盤急拉，仍應等待拉回確認。")
 
     return DailyDecision(
         version=VERSION,
-        market_view=market_view,
-        ai_confidence=avg_confidence,
         news_source=news_source,
         news_count=len(news_items),
-        cards=top_cards,
-        risk_alerts=risk_alerts,
+        market_view=market_view,
+        ai_confidence=avg_confidence,
         today_action=today_action,
+        risk_alerts=risk_alerts,
+        cards=top_cards,
+        news_items=news_items,
+        product_note="Stage 4: Decision OS v1 combines Chinese news, technical chart, risk context and actionable Decision Cards.",
     )
