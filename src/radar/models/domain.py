@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
+
+Impact = Literal["positive", "negative", "neutral"]
+Decision = Literal["波段買進", "波段觀察", "等待", "減碼/避開"]
 
 
 @dataclass(frozen=True)
@@ -10,77 +14,70 @@ class NewsItem:
     source: str
     title: str
     title_zh: str
-    summary: str
     summary_zh: str
     signal: str
-    signal_zh: str
-    sentiment: str
-    tickers: list[str]
+    impact: Impact
     industries: list[str]
-    url: str = ""
-    sentiment_zh: str = ""
+    affected_stocks: list[str]
 
 
 @dataclass(frozen=True)
+class StockProfile:
+    symbol: str
+    name: str
+    sector: str
+    theme: list[str]
+    macd_hist_prev: float
+    macd_hist: float
+    dif: float
+    dea: float
+    rsi: float
+    trend: int
+    risk: int
+    ma_state: str
+    pm_view: str
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.symbol} {self.name}"
+
+
+@dataclass
 class Evidence:
-    category: str
-    signal: str
-    signal_zh: str
-    tone: str
-    score: int
-    source: str
-    reason: str
-    title: str = ""
-    title_zh: str = ""
+    label: str
+    direction: Impact
+    weight: int
+    explanation: str
 
 
-@dataclass(frozen=True)
-class TechnicalSnapshot:
-    ticker: str
-    name: str
-    price: float
-    ma5: float
-    ma20: float
-    ma60: float
-    rsi14: float
-    volume: int
-    trend: str
-    signal: str
-    score: int
-    confidence: int
-    data_source: str
-    chart_note: str
-    history: list[dict[str, float | int | str]] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
+@dataclass
 class DecisionCard:
-    ticker: str
+    symbol: str
     name: str
+    sector: str
     radar_score: int
-    news_score: int
-    technical_score: int
-    risk_score: int
-    decision: str
+    decision: Decision
     confidence: int
-    reason: str
-    action: str
-    stance: str
-    position_rule: str
+    swing_view: str
+    entry_condition: str
+    hold_condition: str
+    reduce_condition: str
     risk_note: str
-    technical: TechnicalSnapshot
     evidence: list[Evidence] = field(default_factory=list)
 
+    @property
+    def display_name(self) -> str:
+        return f"{self.symbol} {self.name}"
+
 
 @dataclass(frozen=True)
-class DailyDecision:
-    version: str
-    news_source: str
-    news_count: int
-    market_view: str
-    ai_confidence: int
-    today_action: str
-    risk_alerts: list[str]
-    cards: list[DecisionCard]
-    news_items: list[NewsItem]
-    product_note: str = ""
+class MacdCandidate:
+    symbol: str
+    name: str
+    sector: str
+    score: int
+    hist_prev: float
+    hist_current: float
+    rsi: float
+    trend: int
+    reason: str

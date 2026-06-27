@@ -2,80 +2,68 @@
 
 AI Stock Radar 是一個以「每天早上 3 分鐘完成台股 AI 決策」為目標的投資決策產品。
 
-本版是 **v0.8.0 Stage 4 Product Release**，重點是把產品從「Dashboard」升級為第一版 **Decision OS**：
+本版本為 **v0.9.0 Stage 5 Product Release**，重點從「通用 Radar」升級為「波段操作型 AI 投資經理人」。
 
-```text
-中文新聞
-  ↓
-市場訊號
-  ↓
-Knowledge Map
-  ↓
-新聞證據鏈
-  ↓
-技術面 Radar
-  ↓
-風險控管
-  ↓
-Decision Card
-  ↓
-中文 Dashboard + 每日報告
-```
+## v0.9.0 新增重點
 
-## 本版重點
+- 介面全中文。
+- 新增投資人偏好：以 **2–8 週波段操作** 為核心。
+- 新增個股完整技術線圖：K 線、MA20/60/120、布林通道、成交量、MACD、RSI。
+- 新增 **AI 選出 MACD 即將翻正的十檔股票**。
+- 新增專業投資經理人風格的個股評價：波段進場條件、續抱條件、減碼條件與風險。
+- 所有 Dashboard 主要個股區塊皆提供「查看技術線圖」互動入口。
 
-- 介面全面中文化。
-- 新聞在產品頁面以中文呈現。
-- 新增個股技術線圖頁面。
-- 所有提到個股的位置都提供「線圖」按鈕，可切換到個股技術線圖。
-- 新增 Technical Radar：價格、20 日均線、60 日均線、RSI、技術分數。
-- Decision Card 分數拆解為：新聞分數、技術分數、風險分數。
-- CLI 與 Streamlit Dashboard 均可執行。
+## 快速執行
 
-## 執行 CLI
+在專案根目錄執行：
 
 ```bash
 PYTHONPATH=src python3 -m radar.cli run
 ```
 
-成功後會產生：
+會產出：
 
 ```text
 output/daily_report.md
 output/dashboard_data.json
 ```
 
-## 啟動 Dashboard
+## 開啟 Dashboard
+
+第一次使用請先安裝依賴：
 
 ```bash
 python3 -m pip install -r requirements.txt
+```
+
+啟動頁面：
+
+```bash
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-瀏覽器打開：
+瀏覽器開啟：
 
 ```text
 http://localhost:8501
 ```
 
-## 驗收重點
+## 產品定位
 
-1. 頁面是否全中文。
-2. 新聞是否以中文決策語言呈現。
-3. 點擊任一個股的「線圖」按鈕後，是否可在「個股技術線圖」頁看到該股線圖。
-4. Decision Card 是否顯示新聞分數、技術分數、風險分數。
-5. 是否能在 3 分鐘內知道今日應該買進、觀察、等待或賣出哪些股票。
+AI Stock Radar 不是技術分析展示網站，而是 Decision OS：
 
-## Git Commit
-
-驗收成功後：
-
-```bash
-git add .
-git commit -m "Release v0.8.0 Stage 4 Decision OS"
-git push
+```text
+市場資料 → 訊號 → 證據 → Radar → 決策 → 行動
 ```
 
-## 免責聲明
+本版本的決策基準為波段操作，而非當沖或長期存股。
 
-AI Stock Radar 是投資決策支援工具，不是投資建議或保證獲利系統。所有輸出僅供研究與決策輔助使用。
+## Release 驗收
+
+本版驗收重點：
+
+1. Dashboard 是否有產品感，而不是工程頁面。
+2. 介面是否全中文。
+3. 個股是否能點擊查看技術線圖。
+4. MACD 即將翻正十檔是否清楚可讀。
+5. AI 評價是否像專業投資經理人，而非單純買賣訊號。

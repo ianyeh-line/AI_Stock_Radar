@@ -1,0 +1,11 @@
+{
+  "cash_pct": 40,
+  "positions": [
+    {
+      "code": "2330",
+      "name": "台積電",
+      "cost": 0,
+      "weight_pct": 0
+    }
+  ]
+}

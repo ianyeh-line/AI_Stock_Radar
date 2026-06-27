@@ -1,4 +1,13 @@
 {
-  "report_output": "output/daily_report.md",
-  "top_n": 5
+  "mode": "beta",
+  "language": "zh-TW",
+  "default_market": "TW",
+  "price_data": {
+    "provider": "yahoo_chart_api_with_fallback",
+    "range": "6mo",
+    "interval": "1d"
+  },
+  "dashboard": {
+    "port": 8501
+  }
 }

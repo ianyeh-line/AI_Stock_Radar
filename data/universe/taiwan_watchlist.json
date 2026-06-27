@@ -1,0 +1,357 @@
+[
+  {
+    "symbol": "2330",
+    "name": "台積電",
+    "sector": "半導體",
+    "theme": [
+      "AI Infrastructure",
+      "CoWoS",
+      "Semiconductor"
+    ],
+    "macd_hist_prev": -0.42,
+    "macd_hist": -0.08,
+    "dif": 0.22,
+    "dea": 0.3,
+    "rsi": 57,
+    "trend": 78,
+    "risk": 24,
+    "ma_state": "站上月線與季線",
+    "pm_view": "AI 與先進製程核心資產，適合以拉回承接取代追高。"
+  },
+  {
+    "symbol": "2382",
+    "name": "廣達",
+    "sector": "AI Server",
+    "theme": [
+      "AI Server",
+      "NVIDIA Supply Chain"
+    ],
+    "macd_hist_prev": -0.55,
+    "macd_hist": -0.12,
+    "dif": 0.18,
+    "dea": 0.3,
+    "rsi": 61,
+    "trend": 74,
+    "risk": 34,
+    "ma_state": "站上月線，接近前高壓力",
+    "pm_view": "AI Server 主線明確，但漲幅後需等回測支撐。"
+  },
+  {
+    "symbol": "3231",
+    "name": "緯創",
+    "sector": "AI Server",
+    "theme": [
+      "AI Server",
+      "NVIDIA Supply Chain"
+    ],
+    "macd_hist_prev": -0.62,
+    "macd_hist": -0.18,
+    "dif": 0.1,
+    "dea": 0.28,
+    "rsi": 59,
+    "trend": 70,
+    "risk": 38,
+    "ma_state": "月線附近整理",
+    "pm_view": "波段動能仍在，但需要量能重新放大確認。"
+  },
+  {
+    "symbol": "6669",
+    "name": "緯穎",
+    "sector": "AI Server",
+    "theme": [
+      "AI Server",
+      "Cloud CapEx"
+    ],
+    "macd_hist_prev": -0.48,
+    "macd_hist": -0.15,
+    "dif": 0.12,
+    "dea": 0.27,
+    "rsi": 63,
+    "trend": 72,
+    "risk": 42,
+    "ma_state": "短線偏強，季線支撐仍在",
+    "pm_view": "高價股波動大，適合分批而非一次重押。"
+  },
+  {
+    "symbol": "2449",
+    "name": "京元電子",
+    "sector": "半導體測試",
+    "theme": [
+      "Semiconductor",
+      "AI Chip Testing"
+    ],
+    "macd_hist_prev": -0.35,
+    "macd_hist": -0.04,
+    "dif": 0.16,
+    "dea": 0.2,
+    "rsi": 55,
+    "trend": 68,
+    "risk": 28,
+    "ma_state": "均線糾結後轉強",
+    "pm_view": "若測試需求新聞延續，具備補漲條件。"
+  },
+  {
+    "symbol": "2454",
+    "name": "聯發科",
+    "sector": "IC設計",
+    "theme": [
+      "Semiconductor",
+      "Edge AI"
+    ],
+    "macd_hist_prev": -0.38,
+    "macd_hist": -0.09,
+    "dif": 0.09,
+    "dea": 0.18,
+    "rsi": 54,
+    "trend": 65,
+    "risk": 30,
+    "ma_state": "月線附近震盪",
+    "pm_view": "基本面穩健，但波段動能需等待催化。"
+  },
+  {
+    "symbol": "2308",
+    "name": "台達電",
+    "sector": "電源與散熱",
+    "theme": [
+      "Power",
+      "AI Data Center"
+    ],
+    "macd_hist_prev": -0.31,
+    "macd_hist": -0.05,
+    "dif": 0.14,
+    "dea": 0.19,
+    "rsi": 58,
+    "trend": 71,
+    "risk": 26,
+    "ma_state": "多頭排列初步形成",
+    "pm_view": "資料中心電源與散熱需求支撐中期趨勢。"
+  },
+  {
+    "symbol": "3017",
+    "name": "奇鋐",
+    "sector": "散熱",
+    "theme": [
+      "Thermal",
+      "AI Server"
+    ],
+    "macd_hist_prev": -0.44,
+    "macd_hist": -0.2,
+    "dif": 0.02,
+    "dea": 0.22,
+    "rsi": 66,
+    "trend": 76,
+    "risk": 45,
+    "ma_state": "強勢但短線偏熱",
+    "pm_view": "產業趨勢佳，但 RSI 偏高時不適合追價。"
+  },
+  {
+    "symbol": "3661",
+    "name": "世芯-KY",
+    "sector": "ASIC",
+    "theme": [
+      "ASIC",
+      "AI Chip"
+    ],
+    "macd_hist_prev": -0.71,
+    "macd_hist": -0.33,
+    "dif": -0.05,
+    "dea": 0.28,
+    "rsi": 52,
+    "trend": 62,
+    "risk": 50,
+    "ma_state": "反彈初期，尚未完全轉強",
+    "pm_view": "高波動 ASIC 指標股，適合小部位觀察。"
+  },
+  {
+    "symbol": "2356",
+    "name": "英業達",
+    "sector": "AI Server",
+    "theme": [
+      "AI Server"
+    ],
+    "macd_hist_prev": -0.28,
+    "macd_hist": -0.03,
+    "dif": 0.08,
+    "dea": 0.11,
+    "rsi": 53,
+    "trend": 60,
+    "risk": 31,
+    "ma_state": "低位階整理轉強",
+    "pm_view": "若 AI Server 題材擴散，具備落後補漲空間。"
+  },
+  {
+    "symbol": "8299",
+    "name": "群聯",
+    "sector": "儲存",
+    "theme": [
+      "Storage",
+      "Edge AI"
+    ],
+    "macd_hist_prev": -0.26,
+    "macd_hist": 0.02,
+    "dif": 0.13,
+    "dea": 0.11,
+    "rsi": 56,
+    "trend": 63,
+    "risk": 33,
+    "ma_state": "MACD 初步翻正",
+    "pm_view": "已翻正但需觀察量能是否跟上。"
+  },
+  {
+    "symbol": "2603",
+    "name": "長榮",
+    "sector": "航運",
+    "theme": [
+      "Shipping"
+    ],
+    "macd_hist_prev": -0.18,
+    "macd_hist": -0.1,
+    "dif": -0.03,
+    "dea": 0.07,
+    "rsi": 49,
+    "trend": 48,
+    "risk": 37,
+    "ma_state": "均線偏整理",
+    "pm_view": "非今日主線，除非運價訊號轉強，否則不優先。"
+  },
+  {
+    "symbol": "0050",
+    "name": "元大台灣50",
+    "sector": "ETF",
+    "theme": [
+      "Taiwan Large Cap"
+    ],
+    "macd_hist_prev": -0.12,
+    "macd_hist": -0.02,
+    "dif": 0.05,
+    "dea": 0.07,
+    "rsi": 54,
+    "trend": 58,
+    "risk": 18,
+    "ma_state": "貼近月線偏穩",
+    "pm_view": "適合作為核心配置，不作為高彈性波段標的。"
+  },
+  {
+    "symbol": "00878",
+    "name": "國泰永續高股息",
+    "sector": "ETF",
+    "theme": [
+      "Dividend ETF"
+    ],
+    "macd_hist_prev": -0.1,
+    "macd_hist": -0.05,
+    "dif": 0.02,
+    "dea": 0.07,
+    "rsi": 51,
+    "trend": 52,
+    "risk": 16,
+    "ma_state": "區間整理",
+    "pm_view": "防禦配置，與 AI 主線關聯較低。"
+  },
+  {
+    "symbol": "00919",
+    "name": "群益台灣精選高息",
+    "sector": "ETF",
+    "theme": [
+      "Dividend ETF"
+    ],
+    "macd_hist_prev": -0.09,
+    "macd_hist": -0.01,
+    "dif": 0.04,
+    "dea": 0.05,
+    "rsi": 52,
+    "trend": 54,
+    "risk": 17,
+    "ma_state": "溫和整理",
+    "pm_view": "適合穩健配置，不是短線主攻標的。"
+  },
+  {
+    "symbol": "8046",
+    "name": "南電",
+    "sector": "ABF載板",
+    "theme": [
+      "PCB",
+      "AI Server"
+    ],
+    "macd_hist_prev": -0.33,
+    "macd_hist": -0.06,
+    "dif": 0.07,
+    "dea": 0.13,
+    "rsi": 53,
+    "trend": 59,
+    "risk": 35,
+    "ma_state": "嘗試轉強",
+    "pm_view": "AI Server 若擴散至 PCB，可列入轉強觀察。"
+  },
+  {
+    "symbol": "3037",
+    "name": "欣興",
+    "sector": "PCB",
+    "theme": [
+      "PCB",
+      "AI Server"
+    ],
+    "macd_hist_prev": -0.29,
+    "macd_hist": -0.07,
+    "dif": 0.04,
+    "dea": 0.11,
+    "rsi": 50,
+    "trend": 56,
+    "risk": 34,
+    "ma_state": "低檔整理",
+    "pm_view": "尚未轉強，但 MACD 收斂可觀察。"
+  },
+  {
+    "symbol": "5274",
+    "name": "信驊",
+    "sector": "IC設計",
+    "theme": [
+      "Server Management Chip"
+    ],
+    "macd_hist_prev": -0.41,
+    "macd_hist": -0.19,
+    "dif": 0.02,
+    "dea": 0.21,
+    "rsi": 60,
+    "trend": 66,
+    "risk": 48,
+    "ma_state": "高價股震盪",
+    "pm_view": "基本面優，但波段風險較高，需嚴控部位。"
+  },
+  {
+    "symbol": "2376",
+    "name": "技嘉",
+    "sector": "板卡/伺服器",
+    "theme": [
+      "AI Server",
+      "GPU Server"
+    ],
+    "macd_hist_prev": -0.4,
+    "macd_hist": -0.11,
+    "dif": 0.05,
+    "dea": 0.16,
+    "rsi": 57,
+    "trend": 67,
+    "risk": 39,
+    "ma_state": "月線轉強",
+    "pm_view": "GPU Server 題材延續時具備波段機會。"
+  },
+  {
+    "symbol": "2377",
+    "name": "微星",
+    "sector": "板卡/伺服器",
+    "theme": [
+      "GPU",
+      "AI PC"
+    ],
+    "macd_hist_prev": -0.22,
+    "macd_hist": -0.02,
+    "dif": 0.07,
+    "dea": 0.09,
+    "rsi": 54,
+    "trend": 57,
+    "risk": 32,
+    "ma_state": "整理後轉強機率提升",
+    "pm_view": "題材性較強，需搭配量能確認。"
+  }
+]

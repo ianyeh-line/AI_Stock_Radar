@@ -1,53 +1,60 @@
-# Roadmap
+# ROADMAP
 
-## Product Goal
+## Product North Star
 
 每天早上 3 分鐘完成台股 AI 決策。
 
-## Current Release
+## 已完成
 
-### v0.8.0 - Stage 4 Decision OS
+### v0.3.0
 
-完成：
+- 建立第一版可執行 Product Release。
 
-- 中文 Dashboard
-- 中文新聞呈現
-- Decision Card
-- 技術線圖
-- News + Technical + Risk 整合
+### v0.4.0
 
-## Next Releases
+- 接入 RSS 新聞來源。
 
-### v0.9.0 - Data Credibility Upgrade
+### v0.5.0
 
-目標：提升資料可信度與透明度。
+- 建立 Explainable Decision Cards。
 
-- 新聞來源統計
-- 每則新聞的來源、時間、連結
-- 技術資料來源標示
-- 資料失敗/備援模式清楚提示
-- Watchlist 可設定化
+### v0.6.0
 
-### v1.0.0 - Morning Decision MVP
+- 建立 Streamlit Dashboard。
 
-目標：第一版每天可用的 AI Stock Radar。
+### v0.7.0
 
-- 真實新聞 + 技術面 + 風險 + Watchlist
-- Top 10 Decision Cards
-- 3 分鐘中文盤前報告
-- 可每日重複執行
-- GitHub-ready production baseline
+- Dashboard UX 升級。
 
-### v1.1.0 - Money Flow Radar
+### v0.8.0
 
-- 外資買賣超
-- 投信買賣超
-- 主力籌碼
-- 籌碼分數
+- Stage 4：Decision OS v1。
 
-### v1.2.0 - Portfolio Mode
+### v0.9.0
 
-- 使用者持股
-- 成本價
-- 部位比例
-- 個人化 Buy / Hold / Sell
+- Stage 5：個人化與波段操作。
+- 新增 MACD 即將翻正十檔。
+- 新增完整技術線圖。
+- 新增專業投資經理人風格評價。
+
+## 下一階段：v1.0.0 Beta
+
+目標：成為每天早上真的可用的 AI Stock Radar Beta。
+
+### v1.0 需完成
+
+- 真實台股價格資料穩定接入。
+- 技術指標由真實資料計算。
+- 新聞來源品質分級。
+- Watchlist 自訂。
+- 持股與成本價輸入。
+- 每日盤前版報告與盤後檢討。
+- Radar Score 回測與校準。
+
+## 中期方向
+
+- Portfolio Intelligence。
+- Risk Engine。
+- Backtesting Engine。
+- LINE / Email 每日推播。
+- 多使用者 Watchlist。

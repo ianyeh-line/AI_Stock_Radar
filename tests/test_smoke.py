@@ -1,13 +1,15 @@
-from radar.datasource.rss_news import load_news
-from radar.engine.decision import build_decision
-from radar.report.markdown import render_markdown
+from radar.datasource.rss_news import fetch_rss_news
+from radar.engine.decision import build_decision_cards
+from radar.engine.personalization import load_investor_profile
+from radar.knowledge.stock_map import load_stock_universe
 
 
-def test_smoke_pipeline():
-    source, items = load_news()
-    decision = build_decision(source, items)
-    report = render_markdown(decision)
-    assert decision.version == "0.8.0"
-    assert decision.cards
-    assert "AI Stock Radar" in report
-    assert "技術線圖" in report
+def test_pipeline_smoke():
+    news, _ = fetch_rss_news(limit=3)
+    stocks = load_stock_universe()
+    profile = load_investor_profile()
+    cards = build_decision_cards(news, stocks, profile)
+    assert news
+    assert stocks
+    assert cards
+    assert cards[0].radar_score > 0

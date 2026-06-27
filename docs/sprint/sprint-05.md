@@ -1,18 +1,19 @@
-# Sprint 5 - Product Dashboard Upgrade
+# Sprint 5 - Personalization and Swing Trading
 
-## Goal
+## Sprint Goal
 
-Make AI Stock Radar visible and useful as a daily decision dashboard.
+讓 AI Stock Radar 開始具備個人化決策能力，並明確轉向波段操作產品定位。
 
-## Delivered
+## Deliverables
 
-- Dashboard hero section
-- Decision Card UI
-- Market Signal Map
-- Risk tab
-- Daily Report preview
-- Improved scoring logic
+- Investor Profile Engine。
+- Technical Radar upgrade。
+- MACD turn-positive ranking。
+- Swing trading manager style analysis。
+- Chinese Dashboard UX refinement。
 
-## Next Sprint
+## Product Decisions
 
-v0.8.0 should improve data credibility and source transparency.
+- 使用者不是要看更多資料，而是要看到專業判斷。
+- AI 推薦應以 2–8 週波段操作為核心，不做當沖導向。
+- 技術線圖必須服務決策，而不是作為獨立展示。

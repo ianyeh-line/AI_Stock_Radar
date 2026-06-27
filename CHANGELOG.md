@@ -1,26 +1,50 @@
-# Changelog
+# CHANGELOG
 
-## v0.8.0 - Stage 4 Decision OS
+## v0.9.0 - Stage 5 Product Release
 
 ### Added
 
-- 新增全中文 Dashboard 介面。
-- 新增中文新聞呈現層，RSS 新聞會轉為中文決策語言。
-- 新增 Technical Radar：價格、20 日均線、60 日均線、RSI、技術分數。
-- 新增個股技術線圖頁面。
-- 新增所有個股提及處的「線圖」按鈕，可快速切換查看技術線圖。
-- 新增 Decision Card 分數拆解：新聞分數、技術分數、風險分數。
-- 新增 Stage 4 Decision OS 架構文件。
+- 新增 Stage 5：個人化與波段操作決策層。
+- 新增 `config/investor_profile.json`，定義使用者投資風格為波段操作。
+- 新增 MACD 翻正候選股排序引擎。
+- 新增更完整的個股技術線圖：K 線、MA20、MA60、MA120、布林通道、成交量、MACD、RSI。
+- 新增 Dashboard 個股互動選擇與線圖檢視。
+- 新增投資經理人風格分析：進場條件、續抱條件、減碼條件、風險控管。
+- 新增 `output/dashboard_data.json`，提供 Dashboard 與後續 API 使用。
 
 ### Changed
 
-- Dashboard tab 全面中文化：今日總覽、新聞影響鏈、個股技術線圖、風險控管、每日報告。
-- Daily Report 改為中文格式。
-- CLI 輸出改為中文。
-- Decision Engine 從純新聞分數升級為 News + Technical + Risk 整合。
+- Dashboard 全面中文化。
+- Decision Card 從一般建議升級為波段操作建議。
+- Radar Score 調整為更重視趨勢、風險報酬比與技術確認。
+- MACD、RSI、MA 結構納入個股評價文字。
 
 ### Fixed
 
-- 避免 Decision Card 只因單一新聞主線而過度高分。
-- 新聞與 Evidence 顯示改為中文，降低閱讀成本。
-- Dashboard 不再只是一張表，而是可互動的決策頁。
+- 避免分數過度飽和造成全部 Buy。
+- 避免重複 Evidence 顯示。
+- 強化 `.gitignore`，避免 `__pycache__` 與每日輸出進入 Git。
+
+## v0.8.0 - Stage 4 Product Release
+
+- 新增中文 Dashboard。
+- 新增 Decision OS v1。
+- 新增技術線圖入口。
+
+## v0.7.0 - Dashboard UX Release
+
+- 新增 Dashboard 首頁。
+- 新增 Top Decision Cards。
+- 新增 Evidence Chain。
+
+## v0.6.0 - Dashboard Release
+
+- 新增 Streamlit Dashboard。
+
+## v0.5.0 - Explainable Decision Cards
+
+- 新增可解釋決策卡。
+
+## v0.4.0 - RSS Live News
+
+- 新增 RSS 真實新聞來源。

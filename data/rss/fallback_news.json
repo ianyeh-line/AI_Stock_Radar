@@ -1,74 +1,32 @@
 [
   {
-    "source": "Curated Baseline",
-    "title": "NVIDIA AI GPU demand remains the dominant global technology signal",
-    "title_zh": "輝達 AI GPU 需求仍是全球科技股最重要訊號，台灣半導體與 AI 伺服器供應鏈受惠",
-    "summary": "AI accelerator demand continues to support the Taiwan semiconductor and AI server supply chain.",
-    "summary_zh": "AI 判讀：AI 加速器需求延續，對台積電、廣達、緯創、緯穎與京元電子形成正向催化。",
+    "source": "Fallback",
+    "title": "NVIDIA AI GPU demand remains strong",
+    "title_zh": "NVIDIA AI GPU 需求維持強勁",
+    "summary_zh": "AI 基礎建設仍是市場最清楚的成長主線，台灣半導體、AI Server、散熱與測試供應鏈具備較高關聯度。",
     "signal": "AI Infrastructure",
-    "sentiment": "positive",
-    "tickers": ["2330", "2382", "3231", "6669", "2449"],
-    "industries": ["AI Infrastructure", "Semiconductor", "AI Server"],
-    "url": ""
+    "impact": "positive",
+    "industries": ["半導體", "AI Server", "CoWoS", "散熱"],
+    "affected_stocks": ["2330 台積電", "2382 廣達", "3231 緯創", "6669 緯穎", "3017 奇鋐"]
   },
   {
-    "source": "Curated Baseline",
-    "title": "Cloud capex remains focused on AI server deployment",
-    "title_zh": "雲端資本支出持續聚焦 AI 伺服器部署，伺服器 ODM 與電源散熱供應鏈受關注",
-    "summary": "Hyperscaler spending supports server ODMs, power solutions and thermal management names.",
-    "summary_zh": "AI 判讀：雲端大型客戶仍投入 AI 伺服器，廣達、緯創、緯穎、台達電具較高關聯度。",
-    "signal": "AI Server",
-    "sentiment": "positive",
-    "tickers": ["2382", "3231", "6669", "2308"],
-    "industries": ["AI Server", "Cloud Capex"],
-    "url": ""
-  },
-  {
-    "source": "Curated Baseline",
-    "title": "CoWoS capacity remains a structural bottleneck for AI chips",
-    "title_zh": "CoWoS 產能仍是 AI 晶片供應瓶頸，台積電 AI 營收能見度受到支撐",
-    "summary": "Advanced packaging demand supports TSMC's AI revenue visibility.",
-    "summary_zh": "AI 判讀：先進封裝需求維持高檔，台積電是最直接受影響個股。",
-    "signal": "CoWoS",
-    "sentiment": "positive",
-    "tickers": ["2330"],
-    "industries": ["CoWoS", "Advanced Packaging"],
-    "url": ""
-  },
-  {
-    "source": "Curated Baseline",
-    "title": "Semiconductor sentiment improves with stronger chip demand",
-    "title_zh": "晶片需求改善帶動半導體氣氛回升，但選股仍需聚焦主線與技術面確認",
-    "summary": "Global chip momentum supports Taiwan semiconductor names, although selectivity is needed.",
-    "summary_zh": "AI 判讀：半導體動能偏正向，台積電、聯發科、京元電子、群聯受影響。",
+    "source": "Fallback",
+    "title": "Semiconductor sentiment improves as SOX holds high level",
+    "title_zh": "費半維持高檔，半導體情緒改善",
+    "summary_zh": "半導體族群仍維持偏多氣氛，但短線漲多股需等待拉回，波段操作以趨勢確認與風險報酬比為主。",
     "signal": "Semiconductor Momentum",
-    "sentiment": "positive",
-    "tickers": ["2330", "2454", "2449", "8299"],
-    "industries": ["Semiconductor"],
-    "url": ""
+    "impact": "positive",
+    "industries": ["半導體", "IC設計", "測試"],
+    "affected_stocks": ["2330 台積電", "2454 聯發科", "2449 京元電子"]
   },
   {
-    "source": "Curated Baseline",
-    "title": "Investors remain cautious before Fed and inflation commentary",
-    "title_zh": "Fed 與通膨評論前市場維持謹慎，高估值科技股短線風險升高",
-    "summary": "Higher rate expectations can pressure high-valuation technology names.",
-    "summary_zh": "AI 判讀：利率與通膨雜訊會壓抑科技股評價，AI 與半導體族群需避免追高。",
+    "source": "Fallback",
+    "title": "Investors remain cautious ahead of Fed comments",
+    "title_zh": "Fed 談話前市場轉趨謹慎",
+    "summary_zh": "若利率預期轉鷹，高估值科技股可能面臨估值壓力；波段操作需降低追高，等待支撐回測。",
     "signal": "Macro Risk",
-    "sentiment": "negative",
-    "tickers": ["2330", "2382", "3231", "6669", "2454", "8299"],
-    "industries": ["Macro Risk", "High Valuation Tech"],
-    "url": ""
-  },
-  {
-    "source": "Curated Baseline",
-    "title": "Container shipping rates show selective improvement",
-    "title_zh": "貨櫃航運運價出現選擇性改善，長榮可觀察但不是今日科技主線",
-    "summary": "Freight rate improvement may support shipping watchlist names but is not today's main technology signal.",
-    "summary_zh": "AI 判讀：運價改善對長榮偏正向，但今日盤面主線仍以 AI 與半導體為主。",
-    "signal": "Shipping",
-    "sentiment": "positive",
-    "tickers": ["2603"],
-    "industries": ["Shipping", "Freight Rate"],
-    "url": ""
+    "impact": "negative",
+    "industries": ["高估值科技", "AI 概念股"],
+    "affected_stocks": ["6669 緯穎", "3017 奇鋐", "3661 世芯-KY"]
   }
 ]
