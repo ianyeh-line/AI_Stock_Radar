@@ -1,8 +1,8 @@
 # AI Stock Radar Roadmap
 
-## Current Release: v2.3.0 Web Beta Ready
+## Current Release: v2.3.1 Streamlit Deploy Hotfix
 
-目標：讓 AI Stock Radar 可用網址分享給朋友測試，不再需要朋友下載檔案與安裝環境。
+目標：修正 Streamlit Cloud 部署錯誤，讓 AI Stock Radar Web Beta 可正常安裝 Python dependencies 並完成上線。
 
 ## Completed
 
@@ -15,6 +15,7 @@
 - Stock Master
 - 使用者資料持久化
 - Web Beta Guest Mode
+- Streamlit Cloud dependency installation hotfix
 
 ## Next: v2.4.0 Web Feedback Loop
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.3.1 - Streamlit Deploy Hotfix
+
+### Fixed
+
+- 移除 `packages.txt`，避免 Streamlit Cloud 使用 `apt-get` 時把註解文字誤當成 Linux 套件名稱。
+- 修正 Web Beta 首次部署卡在 `Error installing requirements` 的問題。
+- 保留 `requirements.txt` 作為唯一 Python dependency 來源。
+
+### Changed
+
+- Streamlit Cloud 不再嘗試安裝額外 apt packages，因目前產品只需要 Python packages。
+
 ## v2.3.0 - Web Beta Ready
 
 ### Added
