@@ -9,7 +9,7 @@ def payload():
 
 
 def test_pipeline_generates_payload(payload):
-    assert payload["version"] == "2.2.2"
+    assert payload["version"] == "2.2.3"
     assert payload["decision_cards"]
     assert "macd_candidates" in payload
     if payload["macd_candidates"]:
@@ -147,3 +147,12 @@ def test_price_context_entry_language_does_not_say_stand_back_to_lower_support()
     _, entry, *_ = _manager_language(stock, profile, "減碼/避開", levels, "量能比 1.00：測試")
     assert "現價 1015.00 已高於支撐區" in entry
     assert "重新站回 915.00" not in entry
+
+
+def test_user_data_uses_persistent_home_directory():
+    from radar.engine.user_space import get_user_data_status
+
+    status = get_user_data_status()
+    assert ".ai_stock_radar" in status["portfolio_path"]
+    assert ".ai_stock_radar" in status["watchlist_path"]
+    assert status["legacy_portfolio_path"] == "config/portfolio.json"

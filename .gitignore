@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Runtime outputs
+output/*
+!output/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
+
+# Local config and personal data
+.env
+config/settings.json
+config/user_profile.json
+config/user_watchlist.json
+config/portfolio.json
+
+*.pyc
+output/daily_report.md
+output/dashboard_data.json

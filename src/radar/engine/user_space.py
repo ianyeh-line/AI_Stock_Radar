@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Optional
 
 from radar.models.domain import DecisionCard, StockMeta, TechnicalProfile
 
-USER_WATCHLIST_PATH = Path("config/user_watchlist.json")
-PORTFOLIO_PATH = Path("config/portfolio.json")
+# User data must survive release upgrades.
+#
+# Earlier releases stored personal watchlist and portfolio under config/. That
+# folder is part of the app release, so a manual overwrite could delete user
+# records. v2.2.3 moves personal data to the user's home directory and migrates
+# old config/*.json files automatically on first run.
+USER_DATA_DIR = Path(os.environ.get("AI_STOCK_RADAR_USER_DATA_DIR", str(Path.home() / ".ai_stock_radar")))
+LEGACY_USER_WATCHLIST_PATH = Path("config/user_watchlist.json")
+LEGACY_PORTFOLIO_PATH = Path("config/portfolio.json")
+USER_WATCHLIST_PATH = USER_DATA_DIR / "user_watchlist.json"
+PORTFOLIO_PATH = USER_DATA_DIR / "portfolio.json"
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -26,6 +37,35 @@ def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def _migrate_json_if_needed(target_path: Path, legacy_path: Path, default: Any) -> Any:
+    """Read user JSON from persistent storage and migrate legacy config data.
+
+    Personal watchlist and portfolio are product data, not release files. This
+    helper protects them across version upgrades by preferring ~/.ai_stock_radar
+    and importing the old config/*.json file once if it exists.
+    """
+    if target_path.exists():
+        return _read_json(target_path, default)
+
+    if legacy_path.exists():
+        legacy_data = _read_json(legacy_path, default)
+        _write_json(target_path, legacy_data)
+        return legacy_data
+
+    _write_json(target_path, default)
+    return default
+
+
+def get_user_data_status() -> dict[str, str]:
+    """Return user-data storage paths for dashboard diagnostics."""
+    return {
+        "user_data_dir": str(USER_DATA_DIR),
+        "portfolio_path": str(PORTFOLIO_PATH),
+        "watchlist_path": str(USER_WATCHLIST_PATH),
+        "legacy_portfolio_path": str(LEGACY_PORTFOLIO_PATH),
+        "legacy_watchlist_path": str(LEGACY_USER_WATCHLIST_PATH),
+    }
 
 def normalize_symbol(text: str) -> str:
     cleaned = text.strip().upper().replace(" ", "")
@@ -57,7 +97,7 @@ def make_custom_stock(symbol: str, name: Optional[str] = None) -> StockMeta:
 
 
 def load_user_watchlist() -> list[dict[str, Any]]:
-    data = _read_json(USER_WATCHLIST_PATH, [])
+    data = _migrate_json_if_needed(USER_WATCHLIST_PATH, LEGACY_USER_WATCHLIST_PATH, [])
     if not isinstance(data, list):
         return []
     return data
@@ -90,7 +130,7 @@ def remove_user_watchlist_item(symbol: str) -> None:
 
 
 def load_portfolio() -> list[dict[str, Any]]:
-    data = _read_json(PORTFOLIO_PATH, [])
+    data = _migrate_json_if_needed(PORTFOLIO_PATH, LEGACY_PORTFOLIO_PATH, [])
     if not isinstance(data, list):
         return []
     cleaned: list[dict[str, Any]] = []

@@ -17,6 +17,7 @@ from radar.engine.decision import run_decision_pipeline, save_dashboard_payload
 from radar.engine.user_space import (
     add_or_update_holding,
     add_user_watchlist_item,
+    get_user_data_status,
     load_portfolio,
     load_user_watchlist,
     remove_holding,
@@ -89,7 +90,7 @@ def load_payload() -> dict[str, Any]:
 def refresh_product(target_section: str | None = None) -> None:
     if target_section:
         st.session_state["pending_section"] = target_section
-    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.2.2 已改為快取優先、並行抓取，並修正現價已高於支撐時的進場語句邏輯..."):
+    with st.spinner("正在重新抓取最新價格、新聞與法人資料。v2.2.3 已加入個人資料永久保存，不會因版本覆蓋遺失持股與觀察清單..."):
         try:
             payload = run_pipeline()
             st.session_state["last_refresh_message"] = (
@@ -679,6 +680,8 @@ def render_add_portfolio_form(payload: dict[str, Any], location: str) -> None:
 def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.header("個人工作區")
     st.sidebar.caption("可用股號或股票名稱新增觀察與持股。")
+    user_data = get_user_data_status()
+    st.sidebar.caption(f"個人資料會保留在：{user_data['user_data_dir']}")
 
     with st.sidebar.expander("新增指定觀察個股", expanded=True):
         render_add_watchlist_form(payload, "sidebar")
@@ -696,6 +699,12 @@ def render_sidebar_workspace(payload: dict[str, Any]) -> None:
     st.sidebar.divider()
     with st.sidebar.expander("新增/更新持股", expanded=False):
         render_add_portfolio_form(payload, "sidebar")
+
+    st.sidebar.divider()
+    st.sidebar.subheader("個人資料保存")
+    user_data = get_user_data_status()
+    st.sidebar.caption("持股與觀察清單已改存於 Mac 使用者資料夾，更新版本時不需要重新輸入。")
+    st.sidebar.code(user_data.get("user_data_dir", ""), language="text")
 
     st.sidebar.divider()
     st.sidebar.subheader("資料即時性")
@@ -989,7 +998,7 @@ elif selected_section == "法人籌碼 Radar":
 
 elif selected_section == "MACD 觀察名單":
     st.header("AI 選出 MACD 觀察名單")
-    st.caption("已區分：即將翻正、剛翻正、已翻正延續。v2.2.2 已排除 fallback 與日期落後資料，並修正價格位置語句，避免現價已高於支撐卻仍寫「需站回支撐」。")
+    st.caption("已區分：即將翻正、剛翻正、已翻正延續。v2.2.3 延續 fallback/日期落後排除，並加入個人持股與觀察清單永久保存。")
     rows = []
     for item in payload["macd_candidates"]:
         rows.append(

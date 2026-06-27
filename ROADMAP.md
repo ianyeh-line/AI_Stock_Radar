@@ -1,20 +1,19 @@
-# ROADMAP
+# Roadmap
 
-## Current: v2.2.2 Action Logic Hotfix
+## Current: v2.2.3 User Data Persistence Hotfix
 
-- 修正價格位置語句防呆。
-- 個股建議會根據現價相對支撐區與突破價產生不同建議。
-- 保留 v2.2.1 快取與並行抓取效能修正。
-- 保留 v2.2.0 MACD 新鮮度與個人持股分析修正。
+Goal: Make personal investor data durable across product releases.
 
-## Next: v2.3.0
+- Store personal portfolio and watchlist outside the repository.
+- Automatically migrate older `config/*.json` personal files.
+- Add safe release upgrade script.
+- Keep v2.2.2 price-aware action logic and v2.2.1 refresh performance fixes.
 
-- 強化持股總教練：產業集中度、現金比例與持股汰弱留強。
-- 將每檔股票的建議拆成「今日可做 / 等拉回 / 等突破 / 只續抱 / 減碼」。
-- 加入推薦審計紀錄：每天保存推薦、價格與後續表現。
+## Next: v2.3.0 Portfolio Trust Upgrade
 
-## Later
+Planned:
 
-- Automated daily run.
-- Performance tracking of past recommendations.
-- Strategy mode: 穩健波段 / 積極波段 / 防守型.
+- Improve portfolio coach output after adding holdings.
+- Add per-holding data freshness indicator.
+- Add portfolio-level risk concentration and cash allocation suggestions.
+- Add manual refresh button specific to portfolio holdings only.

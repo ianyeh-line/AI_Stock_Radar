@@ -20,7 +20,7 @@ from radar.engine.technical import evaluate_technical, rank_macd_turn_candidates
 from radar.knowledge.stock_map import load_stock_universe
 from radar.models.domain import DecisionCard, Evidence, NewsItem, PMBrief, ScoreBreakdown, StockMeta, TechnicalProfile
 
-VERSION = "2.2.2"
+VERSION = "2.2.3"
 
 
 def _dedupe_evidence(items: list[Evidence]) -> list[Evidence]:
@@ -468,12 +468,12 @@ def _build_pm_brief(cards: list[DecisionCard], news_items: list[NewsItem], profi
         "institutional_fallback_count": institutional_fallback,
         "institutional_source": "TWSE T86 三大法人（若官方端點不可用則啟用 fallback flow model）",
         "institutional_frequency": "每次重新產生 Radar 時，嘗試抓取 TWSE 最新可得交易日三大法人買賣超；若尚未公布或抓取失敗，改以量價推估並降低信心。",
-        "price_frequency": "使用 Yahoo Finance 最新可得日線資料；v2.2.2 採同日快取優先、並行抓取與價格位置語句修正，按『重新抓取最新資料』會更新缺失/過期資料，不是逐筆即時報價。",
+        "price_frequency": "使用 Yahoo Finance 最新可得日線資料；v2.2.3 採同日快取優先、並行抓取、價格位置語句修正與個人資料永久保存，按『重新抓取最新資料』會更新缺失/過期資料，不是逐筆即時報價。",
         "news_frequency": "RSS 於每次重新產生 Radar 時更新，非付費即時新聞終端。",
         "price_latest_date_min": price_latest_date_min,
         "price_latest_date_max": price_latest_date_max,
         "decision_scope": "目前以抓取當下最新可得日線價格、技術指標、RSS 新聞影響鏈、三大法人籌碼、AI 產業鏈股票池、使用者觀察與持股為主要維度；尚未納入逐筆即時成交、財報估值模型與券商研究報告。",
-        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v2.1.0 新增 Phase 5 MVP：資料可信度、防呆、輕量回測與持股總教練：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；v2.2.2 使用同日價格快取、並行抓取與價格位置邏輯修正，避免重新抓取長時間卡住與進場語句不合邏輯；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
+        "limitation": "目前不是逐筆即時交易系統；價格以執行當下抓取到的日線資料為準，新聞以 RSS 來源更新，法人籌碼以 TWSE 最新可得交易日或 fallback 推估為準。v2.1.0 新增 Phase 5 MVP：資料可信度、防呆、輕量回測與持股總教練：頁面預設讀取已產生的 dashboard_data.json，只有按下重新抓取才會重新拉資料；v2.2.3 使用同日價格快取、並行抓取、價格位置邏輯修正與個人資料永久保存，避免重新抓取長時間卡住與進場語句不合邏輯；仍屬決策輔助，不是保證報酬的投資指令。若資料源失敗會啟用 fallback，信心指數會下修。",
     }
     return PMBrief(headline, strategy, allocation, recommended_stocks, top_actions, avoid_actions, risk_controls, quality)
 
@@ -713,7 +713,7 @@ def build_ai_teacher_brief(cards: list[DecisionCard], teacher_buy_list: dict[str
 def _load_technical_profiles_parallel(stocks: list[StockMeta], price_days: int) -> dict[str, TechnicalProfile]:
     """Load technical profiles concurrently.
 
-    v2.2.2 keeps the Streamlit refresh hotfix by avoiding sequential 100-stock
+    v2.2.3 keeps the Streamlit refresh hotfix and adds persistent user data by avoiding sequential 100-stock
     downloads. Each symbol uses cache-first Yahoo loading, and network failures
     are converted to fallback/cached profiles without blocking the entire page.
     """
