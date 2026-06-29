@@ -1,11 +1,13 @@
-from radar.teacher.decision import run_teacher_pipeline
-from radar.data.stock_master import resolve_stock
+from radar.teacher.decision import run_teacher_pipeline, build_decision_card
+from radar.data.stock_master import resolve_stock, register_custom_stock, StockInfo
+from radar.core.indicators import macd
 
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.0.2"
+    assert payload["version"] == "3.1.0"
     assert "buy_list" in payload
+    assert "macd_zero_axis_list" in payload
 
 
 def test_stock_master_huatong():
@@ -28,3 +30,22 @@ def test_stock_master_generalplus():
 
 def test_custom_fallback_keeps_supplied_name():
     assert resolve_stock("9999 測試股").name == "測試股"
+
+
+def test_unknown_numeric_is_allowed_for_dynamic_fetch():
+    stock = resolve_stock("7777")
+    assert stock.symbol == "7777"
+    assert stock.name.startswith("待識別")
+
+
+def test_register_custom_stock_name_lookup():
+    register_custom_stock(StockInfo("8888", "測試自動新增", "TW", "自動新增"))
+    assert resolve_stock("測試自動新增").symbol == "8888"
+    assert resolve_stock("8888").name == "測試自動新增"
+
+
+def test_macd_zero_axis_field_exists():
+    values = [100 - i * 0.2 for i in range(80, 40, -1)] + [92 + i * 0.8 for i in range(40)]
+    m = macd(values)
+    assert "zero_axis_status" in m
+    assert "zero_axis_score" in m

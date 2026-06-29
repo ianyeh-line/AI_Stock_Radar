@@ -265,3 +265,109 @@ def ai_universe() -> list[StockInfo]:
         "2376", "2377", "2345", "3034", "3661", "3443", "5274", "6239", "6230", "3653",
     ]
     return [STOCKS[s] for s in core_symbols if s in STOCKS]
+
+# v3.1.0 dynamic stock support -------------------------------------------------
+# Keep these definitions at the end so they override the earlier v3.0.x resolver.
+import json
+from pathlib import Path
+
+CUSTOM_STOCK_PATH = Path.home() / ".ai_stock_radar" / "custom_stocks.json"
+
+
+def _load_custom_stock_map() -> dict[str, StockInfo]:
+    if not CUSTOM_STOCK_PATH.exists():
+        return {}
+    try:
+        rows = json.loads(CUSTOM_STOCK_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    out: dict[str, StockInfo] = {}
+    for row in rows:
+        symbol = str(row.get("symbol", "")).strip()
+        name = str(row.get("name", "")).strip()
+        market = str(row.get("market", "TW")).strip() or "TW"
+        theme = str(row.get("theme", "自動新增")).strip() or "自動新增"
+        if re.fullmatch(r"\d{4}", symbol) and name:
+            out[symbol] = StockInfo(symbol=symbol, name=name, market=market, theme=theme)
+    return out
+
+
+def _save_custom_stock_map(data: dict[str, StockInfo]) -> None:
+    CUSTOM_STOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"symbol": s.symbol, "name": s.name, "market": s.market, "theme": s.theme}
+        for s in sorted(data.values(), key=lambda x: x.symbol)
+    ]
+    CUSTOM_STOCK_PATH.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def register_custom_stock(stock: StockInfo) -> StockInfo:
+    """Persist user/discovered stock metadata outside the repository.
+
+    This prevents release upgrades from deleting user-added stocks.
+    """
+    if stock.symbol in STOCKS:
+        return STOCKS[stock.symbol]
+    data = _load_custom_stock_map()
+    existing = data.get(stock.symbol)
+    if existing and not existing.name.startswith(("待識別", "自訂個股")):
+        return existing
+    data[stock.symbol] = stock
+    _save_custom_stock_map(data)
+    return stock
+
+
+def _custom_name_to_symbol() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for symbol, stock in _load_custom_stock_map().items():
+        mapping[_normalize_name(stock.name)] = symbol
+        mapping[_normalize_name(stock.label)] = symbol
+    return mapping
+
+
+def resolve_stock(text: str) -> StockInfo:  # type: ignore[no-redef]
+    """Resolve input text to StockInfo.
+
+    Supports:
+    - Built-in stock master: 2330 / 台積電 / 2330 台積電
+    - User-added custom stocks stored in ~/.ai_stock_radar/custom_stocks.json
+    - Unknown numeric Taiwan stocks: creates a dynamic stock candidate so price
+      data can be fetched automatically and then registered with a better name
+      if Yahoo returns one.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("請輸入股號或股票名稱")
+
+    symbol = _extract_symbol(raw)
+    supplied_name = re.sub(r"\d{4}", "", raw).strip().replace(" ", "").replace("　", "") if symbol else ""
+
+    if symbol and symbol in STOCKS:
+        return STOCKS[symbol]
+
+    custom = _load_custom_stock_map()
+    if symbol and symbol in custom:
+        return custom[symbol]
+
+    normalized = _normalize_name(raw)
+    custom_names = _custom_name_to_symbol()
+    if normalized in custom_names:
+        return custom[custom_names[normalized]]
+
+    if normalized in NAME_TO_SYMBOL:
+        return STOCKS[NAME_TO_SYMBOL[normalized]]
+
+    for name_key, code in {**NAME_TO_SYMBOL, **custom_names}.items():
+        if normalized and (normalized in name_key or name_key in normalized):
+            return STOCKS.get(code) or custom[code]
+
+    if symbol:
+        # For unknown codes, do not block the user. Create a candidate; market_data
+        # will try .TW and .TWO, then update the label if Yahoo returns metadata.
+        name = supplied_name or f"待識別{symbol}"
+        stock = StockInfo(symbol, name, "TW", "自動新增")
+        if supplied_name:
+            register_custom_stock(stock)
+        return stock
+
+    raise ValueError(f"找不到個股：{text}。清單外個股請輸入股號，或輸入『股號 股票名稱』。")

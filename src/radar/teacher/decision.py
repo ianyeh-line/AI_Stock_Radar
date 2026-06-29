@@ -6,8 +6,11 @@ from datetime import datetime
 
 from radar.core.indicators import analyze_prices
 from radar.core.market_data import fetch_price_series
-from radar.data.stock_master import StockInfo, ai_universe, resolve_stock
+from radar.data.stock_master import StockInfo, ai_universe, register_custom_stock, resolve_stock
 from radar.data.user_store import load_portfolio, load_watchlist
+
+
+GENERIC_NAME_PREFIXES = ("待識別", "自訂個股")
 
 
 def trading_status(now: datetime | None = None) -> dict:
@@ -26,27 +29,49 @@ def trading_status(now: datetime | None = None) -> dict:
     return {"date": now.date().isoformat(), "weekday": "一二三四五六日"[weekday], "session": session, "is_trade_day": is_trade_day}
 
 
+def _stock_with_discovered_name(stock: StockInfo, prices: dict) -> StockInfo:
+    discovered_name = str(prices.get("name") or stock.name).strip()
+    market = str(prices.get("market") or stock.market or "TW")
+    if stock.name.startswith(GENERIC_NAME_PREFIXES) and discovered_name and not discovered_name.startswith(GENERIC_NAME_PREFIXES):
+        updated = StockInfo(stock.symbol, discovered_name, market, stock.theme or "自動新增")
+        return register_custom_stock(updated)
+    if stock.market != market and stock.theme == "自動新增":
+        updated = StockInfo(stock.symbol, stock.name, market, stock.theme)
+        return register_custom_stock(updated)
+    return stock
+
+
 def _score(stock: StockInfo, tech: dict) -> tuple[int, list[str]]:
     score = 50
     reasons = []
     close = tech["close"]
     ma20 = tech.get("ma20")
     ma60 = tech.get("ma60")
-    macd_status = tech["macd"]["status"]
+    macd_info = tech["macd"]
+    macd_status = macd_info["hist_status"]
+    zero_axis_status = macd_info.get("zero_axis_status", "")
     rsi = tech.get("rsi") or 50
     vr = tech.get("volume_ratio") or 1
     if ma20 and close > ma20:
         score += 10; reasons.append("股價站上 MA20")
     if ma60 and close > ma60:
         score += 8; reasons.append("股價站上 MA60")
-    if macd_status in {"剛翻正", "已翻正延續"}:
-        score += 12; reasons.append(f"MACD {macd_status}")
+    if zero_axis_status == "即將從0軸翻正":
+        score += 14; reasons.append("MACD 即將從 0 軸翻正，波段轉強機率提高")
+    elif zero_axis_status == "剛從0軸翻正":
+        score += 16; reasons.append("MACD 剛從 0 軸翻正，趨勢正式轉強")
+    elif zero_axis_status == "0軸上方延續":
+        score += 10; reasons.append("MACD 站在 0 軸上方延續")
+    elif macd_status in {"剛翻正", "已翻正延續"}:
+        score += 8; reasons.append(f"MACD 柱狀體 {macd_status}")
     elif macd_status == "即將翻正":
-        score += 8; reasons.append("MACD 即將翻正")
+        score += 5; reasons.append("MACD 柱狀體即將翻正")
     if 45 <= rsi <= 70:
         score += 8; reasons.append(f"RSI {rsi}，位階合理")
     elif rsi > 78:
         score -= 10; reasons.append(f"RSI {rsi} 偏熱，不追高")
+    elif rsi < 30:
+        score -= 3; reasons.append(f"RSI {rsi} 偏弱，需等待止跌確認")
     if vr and 1.05 <= vr <= 1.8:
         score += 8; reasons.append(f"量能比 {vr}，量能溫和放大")
     elif vr and vr > 2.2:
@@ -91,6 +116,7 @@ def _action_text(label: str, tech: dict) -> str:
 
 def build_decision_card(stock: StockInfo) -> dict:
     prices = fetch_price_series(stock)
+    stock = _stock_with_discovered_name(stock, prices)
     tech = analyze_prices(prices)
     score, reasons = _score(stock, tech)
     label, setup, grade = _decision(score, tech)
@@ -101,6 +127,7 @@ def build_decision_card(stock: StockInfo) -> dict:
         "label": stock.label,
         "theme": stock.theme,
         "price_source": prices["source"],
+        "data_quality": prices.get("data_quality", "unknown"),
         "latest_date": prices["latest_date"],
         "prices": prices["prices"],
         "tech": tech,
@@ -149,16 +176,29 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
     return {"rows": rows, "total_cost": round(total_cost, 0), "total_value": round(total_value, 0), "total_pnl": round(total_pnl, 0), "total_pnl_pct": round(total_pnl_pct, 2), "summary": summary}
 
 
+def _macd_zero_axis_candidates(cards: list[dict]) -> list[dict]:
+    def rank(card: dict) -> tuple[int, int]:
+        status = card["tech"]["macd"].get("zero_axis_status", "")
+        priority = {
+            "即將從0軸翻正": 0,
+            "剛從0軸翻正": 1,
+            "0軸下方改善": 2,
+            "0軸上方延續": 3,
+        }.get(status, 9)
+        return (priority, -card["score"])
+    return sorted(cards, key=rank)[:10]
+
+
 def run_teacher_pipeline() -> dict:
     universe = ai_universe()
     cards = [build_decision_card(stock) for stock in universe]
-    cards.sort(key=lambda x: (x["grade"], -x["score"]))
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
     cards.sort(key=lambda x: (grade_order.get(x["grade"], 9), -x["score"]))
     buy = [c for c in cards if c["grade"] == "A"][:5]
     wait = [c for c in cards if c["grade"] == "B"][:8]
     avoid = [c for c in cards if c["grade"] == "D"][:8]
-    macd = sorted(cards, key=lambda x: (0 if x["tech"]["macd"]["status"] in {"即將翻正", "剛翻正"} else 1, -x["score"]))[:10]
+    macd = sorted(cards, key=lambda x: (0 if x["tech"]["macd"]["hist_status"] in {"即將翻正", "剛翻正"} else 1, -x["score"]))[:10]
+    macd_zero = _macd_zero_axis_candidates(cards)
     cards_by_symbol = {c["symbol"]: c for c in cards}
     watch_items = []
     for item in load_watchlist():
@@ -168,14 +208,15 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     return {
-        "version": "3.0.2",
+        "version": "3.1.0",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "今天先找可執行買點，不追情緒單；只買到價標的，沒有到價就等待。",
+        "teacher_summary": "今天先找可執行買點，不追情緒單；0 軸 MACD 轉強股只列為優先觀察，不等於無條件買進。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
         "macd_list": macd,
+        "macd_zero_axis_list": macd_zero,
         "watchlist_analysis": watch_items,
         "portfolio_coach": _portfolio_coach(cards_by_symbol),
         "all_cards": cards,

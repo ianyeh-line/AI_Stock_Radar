@@ -13,4 +13,4 @@ rsync -av --delete \
   --exclude 'config/portfolio.json' \
   --exclude 'config/user_watchlist.json' \
   "$RELEASE_DIR/" "$TARGET/"
-echo "AI Stock Radar v3.0.2 已升級到 $TARGET"
+echo "AI Stock Radar v3.1.0 已升級到 $TARGET"

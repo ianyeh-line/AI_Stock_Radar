@@ -1,4 +1,4 @@
-"""Technical indicators."""
+"""Technical indicators for AI Stock Radar."""
 
 from __future__ import annotations
 
@@ -37,23 +37,84 @@ def rsi(values: list[float], period: int = 14) -> float | None:
 
 
 def macd(values: list[float]) -> dict:
-    if len(values) < 35:
-        return {"macd": 0.0, "signal": 0.0, "hist": 0.0, "status": "資料不足"}
+    """Return MACD status.
+
+    Two signals are tracked separately:
+    1. hist_status: DIF minus signal line is turning positive.
+    2. zero_axis_status: DIF/MACD line is approaching or crossing the zero axis.
+
+    The zero-axis signal is often more useful for swing trading because it means
+    the medium-term trend is moving from below-zero weakness toward positive trend.
+    """
+    if len(values) < 40:
+        return {
+            "macd": 0.0,
+            "signal": 0.0,
+            "hist": 0.0,
+            "prev_macd": 0.0,
+            "prev_hist": 0.0,
+            "status": "資料不足",
+            "hist_status": "資料不足",
+            "zero_axis_status": "資料不足",
+            "zero_axis_score": 0,
+        }
     ema12 = ema_series(values, 12)
     ema26 = ema_series(values, 26)
     macd_line = [a - b for a, b in zip(ema12[-len(ema26):], ema26)]
     signal_line = ema_series(macd_line, 9)
-    hist = macd_line[-1] - signal_line[-1]
-    prev_hist = macd_line[-2] - signal_line[-2]
-    if hist > 0 and prev_hist <= 0:
-        status = "剛翻正"
-    elif hist > 0:
-        status = "已翻正延續"
-    elif hist < 0 and hist > prev_hist:
-        status = "即將翻正"
+    hist_series = [m - s for m, s in zip(macd_line[-len(signal_line):], signal_line)]
+
+    cur_macd = macd_line[-1]
+    prev_macd = macd_line[-2]
+    macd_5 = macd_line[-5] if len(macd_line) >= 5 else macd_line[0]
+    cur_signal = signal_line[-1]
+    cur_hist = hist_series[-1]
+    prev_hist = hist_series[-2]
+    close = values[-1] or 1.0
+
+    if cur_hist > 0 and prev_hist <= 0:
+        hist_status = "剛翻正"
+    elif cur_hist > 0:
+        hist_status = "已翻正延續"
+    elif cur_hist < 0 and cur_hist > prev_hist:
+        hist_status = "即將翻正"
     else:
-        status = "偏弱"
-    return {"macd": round(macd_line[-1], 4), "signal": round(signal_line[-1], 4), "hist": round(hist, 4), "status": status}
+        hist_status = "偏弱"
+
+    # A zero-axis cross is more meaningful than a simple histogram turn.
+    # Use MACD as percentage of close so high-priced and low-priced stocks are comparable.
+    macd_pct = cur_macd / close if close else 0
+    prev_pct = prev_macd / close if close else 0
+    rising_5d = cur_macd > prev_macd > macd_5
+    near_zero = -0.006 <= macd_pct < 0
+
+    if cur_macd > 0 and prev_macd <= 0:
+        zero_axis_status = "剛從0軸翻正"
+        zero_axis_score = 100
+    elif cur_macd > 0 and cur_macd > prev_macd:
+        zero_axis_status = "0軸上方延續"
+        zero_axis_score = 80
+    elif near_zero and rising_5d:
+        zero_axis_status = "即將從0軸翻正"
+        zero_axis_score = 95
+    elif cur_macd < 0 and cur_macd > prev_macd:
+        zero_axis_status = "0軸下方改善"
+        zero_axis_score = 60
+    else:
+        zero_axis_status = "0軸下方偏弱"
+        zero_axis_score = 20
+
+    return {
+        "macd": round(cur_macd, 4),
+        "signal": round(cur_signal, 4),
+        "hist": round(cur_hist, 4),
+        "prev_macd": round(prev_macd, 4),
+        "prev_hist": round(prev_hist, 4),
+        "status": hist_status,
+        "hist_status": hist_status,
+        "zero_axis_status": zero_axis_status,
+        "zero_axis_score": zero_axis_score,
+    }
 
 
 def volume_ratio(volumes: list[int], window: int = 20) -> float | None:

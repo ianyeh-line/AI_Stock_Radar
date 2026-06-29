@@ -18,7 +18,7 @@ def save_outputs(payload: dict) -> None:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.0 股市老師盤前決策",
+        "# AI Stock Radar 3.1 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}",
@@ -35,12 +35,17 @@ def build_markdown(payload: dict) -> str:
         lines += [
             f"### {c['label']}｜{c['setup']}｜分數 {c['score']}｜信心 {c['confidence']}%",
             f"- 最新價：{t['close']}（{t['change_pct']}%）｜資料日：{c['latest_date']}｜來源：{c['price_source']}",
+            f"- 0軸 MACD：{t['macd'].get('zero_axis_status')}",
             f"- 建議：{c['action']}",
             f"- 失效：{c['risk']}",
             f"- 理由：{'、'.join(c['reasons'][:5])}",
             "",
         ]
-    lines += ["## 等待突破 / 拉回名單"]
+    lines += ["## MACD 即將從 0 軸翻正觀察名單"]
+    for c in payload.get("macd_zero_axis_list", [])[:10]:
+        t = c["tech"]
+        lines.append(f"- {c['label']}：{t['macd'].get('zero_axis_status')}｜MACD {t['macd']['macd']}｜最新價 {t['close']}｜{c['decision']}")
+    lines += ["", "## 等待突破 / 拉回名單"]
     for c in payload["wait_list"][:5]:
         lines.append(f"- {c['label']}：{c['action']}")
     lines += ["", "## 避免名單"]

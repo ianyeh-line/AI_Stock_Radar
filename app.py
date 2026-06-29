@@ -18,7 +18,7 @@ from radar.data.stock_master import resolve_stock, ai_universe
 from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist, save_watchlist
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.0", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.1", page_icon="🚀", layout="wide")
 
 
 def load_payload():
@@ -72,15 +72,16 @@ def render_chart(card, key):
 
 def add_watchlist_ui():
     st.subheader("新增指定觀察個股")
-    text = st.text_input("輸入股號或名稱", placeholder="例如：2313 或 華通", key="watch_input")
+    text = st.text_input("輸入股號或名稱", placeholder="例如：2313、華通，清單外請輸入股號或「股號 股票名稱」", key="watch_input")
     if st.button("加入觀察清單"):
         try:
             stock = resolve_stock(text)
+            card = build_decision_card(stock)
             items = load_watchlist()
-            if not any(i.get("symbol") == stock.symbol for i in items):
-                items.append({"symbol": stock.symbol, "name": stock.name})
+            if not any(i.get("symbol") == card["symbol"] for i in items):
+                items.append({"symbol": card["symbol"], "name": card["name"]})
                 save_watchlist(items)
-            st.success(f"已加入 {stock.label}")
+            st.success(f"已加入 {card['label']}")
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
@@ -88,23 +89,24 @@ def add_watchlist_ui():
 
 def add_portfolio_ui():
     st.subheader("新增個人持股")
-    text = st.text_input("股號或名稱", placeholder="例如：2327 或 國巨", key="portfolio_symbol")
+    text = st.text_input("股號或名稱", placeholder="例如：2327、國巨，清單外請輸入股號或「股號 股票名稱」", key="portfolio_symbol")
     col1, col2 = st.columns(2)
     shares = col1.number_input("股數", min_value=0.0, step=100.0, value=0.0)
     cost = col2.number_input("成本", min_value=0.0, step=1.0, value=0.0)
     if st.button("加入 / 更新持股"):
         try:
             stock = resolve_stock(text)
-            items = [i for i in load_portfolio() if i.get("symbol") != stock.symbol]
-            items.append({"symbol": stock.symbol, "name": stock.name, "shares": shares, "cost": cost})
+            card = build_decision_card(stock)
+            items = [i for i in load_portfolio() if i.get("symbol") != card["symbol"]]
+            items.append({"symbol": card["symbol"], "name": card["name"], "shares": shares, "cost": cost})
             save_portfolio(items)
-            st.success(f"已儲存 {stock.label}")
+            st.success(f"已儲存 {card['label']}")
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
 
 
-st.title("🚀 AI Stock Radar 3.0｜股市老師盤前決策")
+st.title("🚀 AI Stock Radar 3.1｜股市老師盤前決策")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -123,7 +125,7 @@ k2.metric("今日可買", len(payload["buy_list"]))
 k3.metric("等待突破", len(payload["wait_list"]))
 k4.metric("避免名單", len(payload["avoid_list"]))
 
-tabs = st.tabs(["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "每日報告"])
+tabs = st.tabs(["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "個股線圖", "每日報告"])
 
 with tabs[0]:
     st.header("今日可買進名單")
@@ -179,12 +181,20 @@ with tabs[4]:
         st.write(f"**{card['label']}**｜{t['macd']['status']}｜Hist {t['macd']['hist']}｜最新價 {t['close']}｜RSI {t['rsi']}")
 
 with tabs[5]:
+    st.header("MACD 即將從 0 軸翻正")
+    st.caption("這個名單優先找 MACD 線接近或剛站上 0 軸的股票；這比單純柱狀體翻正更適合波段觀察。")
+    for card in payload.get("macd_zero_axis_list", [])[:10]:
+        t = card["tech"]
+        st.write(f"**{card['label']}**｜{t['macd'].get('zero_axis_status')}｜MACD {t['macd']['macd']}｜最新價 {t['close']}｜{card['decision']}｜{card['action']}")
+
+with tabs[6]:
     st.header("個股技術線圖")
-    choices = {card["label"]: card for card in payload["all_cards"][:30]}
+    dynamic_cards = payload["all_cards"][:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
+    choices = {card["label"]: card for card in dynamic_cards}
     selected = st.selectbox("選擇個股", list(choices.keys()))
     render_chart(choices[selected], key=f"chart-{choices[selected]['symbol']}")
 
-with tabs[6]:
+with tabs[7]:
     path = Path("output/daily_report.md")
     if path.exists():
         st.markdown(path.read_text(encoding="utf-8"))
