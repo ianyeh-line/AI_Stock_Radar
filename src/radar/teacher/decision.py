@@ -168,7 +168,7 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     return {
-        "version": "3.0.0",
+        "version": "3.0.1",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "今天先找可執行買點，不追情緒單；只買到價標的，沒有到價就等待。",

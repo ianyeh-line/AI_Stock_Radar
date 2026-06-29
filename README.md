@@ -1,36 +1,20 @@
-# AI Stock Radar 3.0
+# AI Stock Radar v3.0.1
 
-AI Stock Radar 3.0 is a simplified AI stock teacher dashboard for Taiwan stock swing-trading decisions.
+AI Stock Radar is an AI 股市老師盤前決策工具.
 
-Core purpose:
-
-> Help investors reduce decision time by showing what to buy, what to wait for, what to avoid, and how to manage existing holdings.
-
-## Run locally
+## Run CLI
 
 ```bash
 PYTHONPATH=src python3 -m radar.cli run
+```
+
+## Run Dashboard
+
+```bash
 python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## Outputs
+## v3.0.1 Hotfix
 
-```text
-output/dashboard_data.json
-output/daily_report.md
-```
-
-## Key features
-
-- AI stock teacher homepage
-- Buy / Wait / Avoid lists
-- Portfolio coach
-- Stock master name resolution
-- User data persistence under `~/.ai_stock_radar/`
-- Streamlit Cloud compatible
-- Beta Access mode for web friends: email + access code
-
-## Disclaimer
-
-This tool is for decision support and research only. It is not investment advice, and it does not guarantee returns.
+This release restores the expanded Taiwan Stock Master so user-entered holdings like `南亞科` / `2408` resolve correctly instead of being treated as unknown custom stocks.

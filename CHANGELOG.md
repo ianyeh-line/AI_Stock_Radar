@@ -1,20 +1,16 @@
 # CHANGELOG
 
-## v3.0.0 - AI Stock Teacher Product Reset
-
-### Added
-- Rebuilt product around the stock teacher workflow.
-- Added a simplified homepage focused on actionable decisions.
-- Added stock master resolution for common Taiwan stocks.
-- Added persistent local user data storage.
-- Added web beta compatible access mode.
-- Added daily report and dashboard payload generation.
-
-### Changed
-- Reduced UI complexity and removed excessive tab-first design.
-- Consolidated decision cards, manager briefing, and report into one decision workspace.
-- Reframed recommendations as swing-trading decision support.
+## v3.0.1
 
 ### Fixed
-- Avoided stale cache commit by default.
-- Improved action wording with price-position aware logic.
+
+- Restored expanded Taiwan Stock Master.
+- Fixed `南亞科` / `2408` resolution in watchlist and portfolio analysis.
+- Added regression tests to prevent stock identity regressions.
+- Cleaned generated `__pycache__` and output artifacts from release package.
+
+## v3.0.0
+
+### Added
+
+- Product reset to AI 股市老師盤前決策 experience.
