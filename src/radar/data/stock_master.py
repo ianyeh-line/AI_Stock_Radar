@@ -281,8 +281,17 @@ def _load_custom_stock_map() -> dict[str, StockInfo]:
         rows = json.loads(CUSTOM_STOCK_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    # Older dev builds may have saved either a list of rows or a dict keyed by symbol.
+    if isinstance(rows, dict):
+        iterable = rows.values()
+    elif isinstance(rows, list):
+        iterable = rows
+    else:
+        return {}
     out: dict[str, StockInfo] = {}
-    for row in rows:
+    for row in iterable:
+        if not isinstance(row, dict):
+            continue
         symbol = str(row.get("symbol", "")).strip()
         name = str(row.get("name", "")).strip()
         market = str(row.get("market", "TW")).strip() or "TW"

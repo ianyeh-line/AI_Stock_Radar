@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.1.0"
+    assert payload["version"] == "3.2.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -49,3 +49,17 @@ def test_macd_zero_axis_field_exists():
     m = macd(values)
     assert "zero_axis_status" in m
     assert "zero_axis_score" in m
+
+
+def test_positive_macd_never_labelled_below_zero():
+    # Rising then mild pullback: MACD/DIF stays above zero but may decline.
+    values = [50 + i * 2 for i in range(80)] + [210, 208, 207, 206, 205]
+    m = macd(values)
+    if m["macd"] > 0:
+        assert "下方" not in m["zero_axis_status"]
+
+
+def test_data_trust_exists_on_decision_card():
+    card = build_decision_card(resolve_stock("2330"))
+    assert "data_trust" in card
+    assert "status" in card["data_trust"]

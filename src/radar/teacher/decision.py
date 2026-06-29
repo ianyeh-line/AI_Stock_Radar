@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, date
 
 from radar.core.indicators import analyze_prices
 from radar.core.market_data import fetch_price_series
@@ -62,9 +62,9 @@ def _score(stock: StockInfo, tech: dict) -> tuple[int, list[str]]:
         score += 16; reasons.append("MACD 剛從 0 軸翻正，趨勢正式轉強")
     elif zero_axis_status == "0軸上方延續":
         score += 10; reasons.append("MACD 站在 0 軸上方延續")
-    elif macd_status in {"剛翻正", "已翻正延續"}:
-        score += 8; reasons.append(f"MACD 柱狀體 {macd_status}")
-    elif macd_status == "即將翻正":
+    elif macd_status in {"柱狀體剛翻正", "柱狀體已翻正延續"}:
+        score += 8; reasons.append(f"MACD {macd_status}")
+    elif macd_status == "柱狀體即將翻正":
         score += 5; reasons.append("MACD 柱狀體即將翻正")
     if 45 <= rsi <= 70:
         score += 8; reasons.append(f"RSI {rsi}，位階合理")
@@ -79,6 +79,43 @@ def _score(stock: StockInfo, tech: dict) -> tuple[int, list[str]]:
     if stock.theme in {"AI伺服器", "半導體", "PCB", "散熱", "封測", "IC設計"}:
         score += 6; reasons.append(f"屬於 {stock.theme} 主題，具產業關注度")
     return max(0, min(100, score)), reasons
+
+
+def _data_trust(prices: dict, sample_size: int) -> dict:
+    """Evaluate whether this stock can receive actionable recommendations.
+
+    v3.2.0 focuses on data trust instead of backtesting. If the latest price
+    series is fallback/stale/too short, the stock is still analyzable but cannot
+    be promoted to A-grade buy.
+    """
+    latest_date = str(prices.get("latest_date") or "")
+    source = str(prices.get("source") or "unknown")
+    quality = str(prices.get("data_quality") or "unknown")
+    warnings: list[str] = []
+
+    if source != "Yahoo Finance" or quality != "live_daily":
+        warnings.append("價格資料不是 Yahoo Finance 最新日線，僅供觀察")
+    try:
+        age_days = (date.today() - date.fromisoformat(latest_date)).days
+    except Exception:
+        age_days = 999
+        warnings.append("無法判斷資料日期")
+    if age_days > 7:
+        warnings.append(f"價格資料距今 {age_days} 天，禁止列為 A 級買進")
+    if sample_size < 60:
+        warnings.append("日線樣本不足 60 根，技術指標可信度不足")
+
+    actionable = not warnings
+    status = "可作為操作參考" if actionable else "資料不足，僅能觀察"
+    return {
+        "status": status,
+        "actionable": actionable,
+        "latest_date": latest_date,
+        "source": source,
+        "quality": quality,
+        "age_days": age_days,
+        "warnings": warnings,
+    }
 
 
 def _decision(score: int, tech: dict) -> tuple[str, str, str]:
@@ -119,8 +156,20 @@ def build_decision_card(stock: StockInfo) -> dict:
     stock = _stock_with_discovered_name(stock, prices)
     tech = analyze_prices(prices)
     score, reasons = _score(stock, tech)
+    trust = _data_trust(prices, len(prices.get("prices", [])))
+
+    # Data guardrails: do not allow actionable A-grade recommendation when
+    # price data is fallback, stale, or too short. This protects the user from
+    # wrong recommendation caused by old/invalid data.
+    if not trust["actionable"]:
+        score = min(score, 64)
+        reasons = trust["warnings"] + reasons
+
     label, setup, grade = _decision(score, tech)
-    confidence = min(96, max(45, score + (0 if prices["source"] == "Yahoo Finance" else -12)))
+    if not trust["actionable"] and grade in {"A", "B"}:
+        label, setup, grade = "只觀察", "資料不足不給買進", "C"
+
+    confidence = min(96, max(40, score + (0 if trust["actionable"] else -15)))
     return {
         "symbol": stock.symbol,
         "name": stock.name,
@@ -128,6 +177,7 @@ def build_decision_card(stock: StockInfo) -> dict:
         "theme": stock.theme,
         "price_source": prices["source"],
         "data_quality": prices.get("data_quality", "unknown"),
+        "data_trust": trust,
         "latest_date": prices["latest_date"],
         "prices": prices["prices"],
         "tech": tech,
@@ -177,16 +227,25 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
 
 
 def _macd_zero_axis_candidates(cards: list[dict]) -> list[dict]:
+    """Return only meaningful zero-axis MACD candidates.
+
+    Do not fill the list with weak below-zero names just to reach 10 rows.
+    Empty/short list is better than misleading recommendations.
+    """
+    priority_map = {
+        "即將從0軸翻正": 0,
+        "剛從0軸翻正": 1,
+        "0軸下方改善": 2,
+        "0軸上方延續": 3,
+        "0軸上方整理": 4,
+    }
+    candidates = [c for c in cards if c["tech"]["macd"].get("zero_axis_status", "") in priority_map]
+
     def rank(card: dict) -> tuple[int, int]:
         status = card["tech"]["macd"].get("zero_axis_status", "")
-        priority = {
-            "即將從0軸翻正": 0,
-            "剛從0軸翻正": 1,
-            "0軸下方改善": 2,
-            "0軸上方延續": 3,
-        }.get(status, 9)
-        return (priority, -card["score"])
-    return sorted(cards, key=rank)[:10]
+        return (priority_map.get(status, 9), -card["score"])
+
+    return sorted(candidates, key=rank)[:10]
 
 
 def run_teacher_pipeline() -> dict:
@@ -208,10 +267,10 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     return {
-        "version": "3.1.0",
+        "version": "3.2.0",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "今天先找可執行買點，不追情緒單；0 軸 MACD 轉強股只列為優先觀察，不等於無條件買進。",
+        "teacher_summary": "今天先找可執行買點，不追情緒單；資料可信度先行；0 軸 MACD 轉強股只列為優先觀察，不等於無條件買進。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
