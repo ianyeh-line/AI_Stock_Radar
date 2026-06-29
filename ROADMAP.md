@@ -1,15 +1,13 @@
 # ROADMAP
 
-## Current: v3.2.0
+## v3.2.1
+- 修正交易狀態與 Supabase 設定體驗。
 
-Focus: trustworthy teacher-style decision support.
+## v3.3.0
+- 強化 Data Trust Guardrails。
+- 完善朋友 Web Beta 使用流程。
+- 補強個股資料來源一致性。
 
-## Next
-
-- v3.3.0: Supabase setup simplification and in-app diagnostic checklist.
-- v3.4.0: Better market regime detection and institutional flow restoration.
-- v3.5.0: Portfolio risk allocation and position sizing guidance.
-
-## Not Now
-
-- Backtesting is intentionally deferred. Data reliability and recommendation guardrails are higher priority.
+## v3.4.0
+- 推薦語句品質提升。
+- A/B/C 劇本推演與持股總教練強化。

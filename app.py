@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.2", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.2.1", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -33,6 +33,10 @@ st.markdown(
     .tw-green { color:#16A34A; font-weight:700; }
     .tw-gray { color:#374151; font-weight:700; }
     .small-muted { color:#6B7280; font-size:0.88rem; }
+    .market-card { border:1px solid #E5E7EB; border-radius:14px; padding:16px 18px; background:#FFFFFF; min-height:92px; }
+    .market-title { color:#6B7280; font-size:0.9rem; margin-bottom:6px; }
+    .market-view { font-size:1.35rem; font-weight:750; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
+    .setup-box { border:1px solid #F59E0B; border-radius:12px; padding:12px; background:#FFFBEB; font-size:0.92rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -94,7 +98,7 @@ def render_beta_access() -> None:
             st.rerun()
     st.sidebar.caption(f"雲端資料庫狀態：{cloud['status']}")
     if not is_cloud_store_configured():
-        st.sidebar.info("未設定 Supabase 時仍可體驗，但重新開瀏覽器後資料不會永久保存。")
+        st.sidebar.info("未設定 Supabase 時仍可體驗，但重新開瀏覽器後資料不會永久保存。請依 docs/deploy/supabase-beginner-guide.md 完成設定。")
 
 
 def run_pipeline() -> dict:
@@ -255,8 +259,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.2｜AI 股市老師")
-st.caption("本版重點：資料可信度防呆、MACD 0軸判斷修正、Beta Access 持股保存、個股技術圖表升級。")
+st.title("🚀 AI Stock Radar 3.2.1｜AI 股市老師")
+st.caption("本版重點：台灣交易狀態修正、完整市場結論顯示、Supabase 設定助手、資料可信度防呆。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -266,18 +270,22 @@ else:
     payload = load_payload()
 
 status = payload["trading_status"]
-st.caption(f"日期：{status['date']}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{payload.get('version')}")
+st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{payload.get('version')}")
 st.info(payload["teacher_summary"])
 store = storage_status()
 st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("市場結論", payload["market_view"])
+mcol, k2, k3, k4 = st.columns([2.2, 1, 1, 1])
+with mcol:
+    st.markdown(
+        f"<div class='market-card'><div class='market-title'>市場結論</div><div class='market-view'>{payload['market_view']}</div></div>",
+        unsafe_allow_html=True,
+    )
 k2.metric("今日可買", len(payload["buy_list"]))
 k3.metric("等待突破", len(payload["wait_list"]))
 k4.metric("避免名單", len(payload["avoid_list"]))
 
-tabs = st.tabs(["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "資料可信度", "個股線圖", "每日報告"])
+tabs = st.tabs(["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "資料可信度", "個股線圖", "Supabase設定", "每日報告"])
 
 with tabs[0]:
     st.header("今日可買進名單")
@@ -300,7 +308,7 @@ with tabs[1]:
 with tabs[2]:
     st.header("個人持股分析｜股市老師總教練")
     add_portfolio_ui()
-    coach = run_teacher_pipeline()["portfolio_coach"]
+    coach = payload["portfolio_coach"]
     st.write(coach["summary"])
     if coach["rows"]:
         st.metric("總損益", f"{coach['total_pnl']:.0f}", f"{coach['total_pnl_pct']}%")
@@ -365,4 +373,26 @@ with tabs[7]:
     render_technical_chart(choices[selected], key=choices[selected]["symbol"])
 
 with tabs[8]:
+    st.header("Supabase 設定助手")
+    cloud_info = cloud_status()
+    if is_cloud_store_configured():
+        st.success("Supabase 已設定。朋友使用 Email + 自訂存取碼後，持股與觀察清單會保存到雲端。")
+        st.write(f"資料表：{cloud_info.get('table')}")
+    else:
+        st.warning("Supabase 尚未設定，所以朋友資料目前只會暫存在本次瀏覽。")
+        st.markdown("""
+<div class='setup-box'>
+<b>你需要完成三件事：</b><br>
+1. 在 Supabase 建立 <code>user_profiles</code> 資料表。<br>
+2. 複製 Supabase Project URL 與 Secret / service_role key。<br>
+3. 到 Streamlit Cloud → Manage app → Settings → Secrets 貼上設定。<br><br>
+完整步驟請看 repo 內：<code>docs/deploy/supabase-beginner-guide.md</code>
+</div>
+""", unsafe_allow_html=True)
+        st.code("""[supabase]
+url = "https://你的專案.supabase.co"
+service_role_key = "你的 Supabase Secret 或 service_role key"
+table = "user_profiles""" , language="toml")
+
+with tabs[9]:
     st.markdown(current_report(payload))

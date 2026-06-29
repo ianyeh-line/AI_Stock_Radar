@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None  # type: ignore
 
 from radar.core.indicators import analyze_prices
 from radar.core.market_data import fetch_price_series
@@ -13,20 +17,56 @@ from radar.data.user_store import load_portfolio, load_watchlist
 GENERIC_NAME_PREFIXES = ("待識別", "自訂個股")
 
 
+def _taipei_now() -> datetime:
+    """Return timezone-aware current time in Taiwan.
+
+    Streamlit Cloud servers do not necessarily run in Taiwan time. Earlier
+    versions used server local time, so a Taiwan after-hours session could be
+    shown as intraday. This function forces Asia/Taipei for both local and web.
+    """
+    if ZoneInfo is not None:
+        try:
+            return datetime.now(ZoneInfo("Asia/Taipei"))
+        except Exception:
+            pass
+    return datetime.now(timezone.utc) + timedelta(hours=8)
+
+
 def trading_status(now: datetime | None = None) -> dict:
-    now = now or datetime.now()
-    weekday = now.weekday()
+    now = now or _taipei_now()
+    if now.tzinfo is None:
+        tw_now = now
+    else:
+        try:
+            tw_now = now.astimezone(ZoneInfo("Asia/Taipei")) if ZoneInfo is not None else now.astimezone(timezone(timedelta(hours=8)))
+        except Exception:
+            tw_now = now
+
+    weekday = tw_now.weekday()
     is_trade_day = weekday < 5
-    hour = now.hour + now.minute / 60
+    hour = tw_now.hour + tw_now.minute / 60
+
     if not is_trade_day:
         session = "非交易日"
-    elif hour < 9:
+    elif hour < 8.5:
         session = "盤前"
+    elif hour < 9:
+        session = "盤前集合競價"
     elif hour <= 13.5:
         session = "盤中"
+    elif hour <= 14.5:
+        session = "收盤後整理"
     else:
         session = "盤後"
-    return {"date": now.date().isoformat(), "weekday": "一二三四五六日"[weekday], "session": session, "is_trade_day": is_trade_day}
+
+    return {
+        "date": tw_now.date().isoformat(),
+        "time": tw_now.strftime("%H:%M"),
+        "timezone": "Asia/Taipei",
+        "weekday": "一二三四五六日"[weekday],
+        "session": session,
+        "is_trade_day": is_trade_day,
+    }
 
 
 def _stock_with_discovered_name(stock: StockInfo, prices: dict) -> StockInfo:
@@ -267,7 +307,7 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     return {
-        "version": "3.2.0",
+        "version": "3.2.1",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "今天先找可執行買點，不追情緒單；資料可信度先行；0 軸 MACD 轉強股只列為優先觀察，不等於無條件買進。",
