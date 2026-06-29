@@ -1,19 +1,10 @@
-# AI Stock Radar
+# AI Stock Radar 3.0
 
-AI Stock Radar 是一個「AI 股市老師盤前決策系統」。目標不是成為資訊網站，而是每天早上幫投資人快速回答：今天哪些股票可以買、哪些等待、哪些避開、持股該續抱還是減碼。
+AI Stock Radar 3.0 is a simplified AI stock teacher dashboard for Taiwan stock swing-trading decisions.
 
-## Current Release
+Core purpose:
 
-## v2.4.0 User Account + Cloud Portfolio
-
-這版讓 Web Beta 具備朋友長期測試的基礎：
-
-- Google Login / Streamlit OIDC Ready
-- Supabase Cloud Portfolio Ready
-- 朋友登入後可保存個人持股與觀察清單
-- 未登入仍可用 Guest Mode
-- 本機模式仍保留 `~/.ai_stock_radar/` 個人資料
-- 不把個人持股資料寫進 GitHub
+> Help investors reduce decision time by showing what to buy, what to wait for, what to avoid, and how to manage existing holdings.
 
 ## Run locally
 
@@ -23,59 +14,23 @@ python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## Deploy to Streamlit Cloud
-
-App entrypoint:
+## Outputs
 
 ```text
-app.py
+output/dashboard_data.json
+output/daily_report.md
 ```
 
-Repository:
+## Key features
 
-```text
-ianyeh-line/AI_Stock_Radar
-```
+- AI stock teacher homepage
+- Buy / Wait / Avoid lists
+- Portfolio coach
+- Stock master name resolution
+- User data persistence under `~/.ai_stock_radar/`
+- Streamlit Cloud compatible
+- Beta Access mode for web friends: email + access code
 
-Branch:
+## Disclaimer
 
-```text
-main
-```
-
-## Enable persistent friend portfolios
-
-See:
-
-```text
-docs/deploy/supabase-cloud-portfolio.md
-```
-
-You need:
-
-1. Google OAuth Client
-2. Streamlit Secrets `[auth]`
-3. Supabase project
-4. Supabase `user_profiles` table
-5. Streamlit Secrets `[supabase]`
-
-Without these secrets, the app remains usable in Guest Mode.
-
-## Important data policy
-
-Personal holdings and watchlists are never committed to GitHub.
-
-Storage by mode:
-
-| Mode | Storage |
-|---|---|
-| Local Mac | `~/.ai_stock_radar/` |
-| Web Guest | Streamlit session only |
-| Web Login | Supabase `user_profiles` |
-
-## Validation
-
-```bash
-PYTHONPATH=src python3 -m radar.cli run
-python3 -m pytest
-```
+This tool is for decision support and research only. It is not investment advice, and it does not guarantee returns.

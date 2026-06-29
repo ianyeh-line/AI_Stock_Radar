@@ -1,31 +1,27 @@
 # ROADMAP
 
-## Current Release: v2.4.0 User Account + Cloud Portfolio
+## v3.0 - Product Reset
+- Stock teacher homepage
+- Portfolio coach
+- Buy / wait / avoid decision lists
+- Web beta compatibility
 
-Goal: Let friends use AI Stock Radar from a web link without re-entering holdings every time.
+## v3.1 - Data Reliability
+- Better Taiwan price source fallback
+- Data freshness gates
+- Mandatory recommendation guardrails
 
-Completed:
+## v3.2 - Backtest Validation
+- 5D / 10D / 20D outcome tracking
+- Similar signal historical win rate
+- Recommendation quality dashboard
 
-- Google Login readiness
-- Supabase cloud portfolio readiness
-- Guest Mode fallback
-- Local Mac mode preserved
-- User-data deployment guide
+## v3.3 - Portfolio Teacher
+- Portfolio concentration view
+- Risk allocation guidance
+- Position-level action plan
 
-## Next: v2.5.0 Beta Feedback + Reliability
-
-Planned:
-
-- In-app feedback button
-- Data anomaly reporting
-- Recommendation reliability badge
-- Admin-only issue export
-- Friend beta checklist
-
-## Later
-
-- Scheduled daily refresh
-- Email / LINE delivery
-- More robust institutional flow data
-- Strategy backtest improvement
-- User-specific recommendation history
+## v4.0 - Daily Automation
+- Scheduled refresh
+- Morning report delivery
+- Optional LINE / Email notification

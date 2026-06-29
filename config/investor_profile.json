@@ -1,8 +1,0 @@
-{
-  "style": "swing_trading",
-  "style_zh": "波段操作",
-  "risk_level": "medium",
-  "max_single_position_pct": 20,
-  "preferred_holding_days": "10-60",
-  "notes": "以波段操作為主，重視趨勢、主線、風險報酬比與分批進出。"
-}

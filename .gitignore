@@ -1,36 +1,12 @@
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Virtual env
-.venv/
-venv/
-env/
-
-# macOS
+*.pyc
 .DS_Store
-
-# Runtime outputs
-output/*
-!output/.gitkeep
-data/cache/*
-!data/cache/.gitkeep
-
-# Demo payload is intentionally committed for Web Beta first load
-!data/demo/
-!data/demo/dashboard_data.json
-!data/demo/daily_report.md
-
-# Local config and personal data
+.pytest_cache/
 .env
-config/settings.json
-config/user_profile.json
-config/user_watchlist.json
+output/*.json
+output/*.md
+!output/.gitkeep
 config/portfolio.json
-
-# Streamlit local secrets
+config/user_watchlist.json
+data/cache/
 .streamlit/secrets.toml

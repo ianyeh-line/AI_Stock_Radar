@@ -1,6 +1,0 @@
-{
-  "news_limit": 12,
-  "price_days": 260,
-  "dashboard_refresh_seconds": 600,
-  "default_market": "TW"
-}
