@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.5.3"
+APP_VERSION = "3.5.4"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -187,16 +187,11 @@ def render_data_trust(card: dict) -> None:
     status = trust.get("status", "未知")
     level = trust.get("trust_level", "未知")
     expected = trust.get("expected_latest_date", "未知")
-    reason = (card.get("source_selection") or trust.get("source_selection") or {}).get("reason", "")
-    msg = f"資料可信度：{status}｜等級：{level}｜預期資料日：{expected}｜實際資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}"
+    msg = f"資料狀態：{status}｜等級：{level}｜預期資料日：{expected}｜實際資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}"
     if trust.get("actionable"):
         st.success(msg)
     else:
         st.warning(msg)
-    if reason:
-        st.caption(f"來源選擇：{reason}")
-    for note in trust.get("notes", []):
-        st.caption(f"✅ {note}")
     for warning in trust.get("warnings", []):
         st.caption(f"⚠️ {warning}")
 
@@ -357,7 +352,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：落實 Data Freshness Rule；只要是目前交易狀態下最新資料，就不因來源為 Yahoo 或官方未同步而降等。")
+st.caption("本版重點：持股總教練口吻升級；資料採用只看目前交易狀態下的最新有效資料，不因 Yahoo 或官方未同步而降等。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -422,7 +417,7 @@ elif page == "持股總教練":
                 tech = card["tech"]
                 css = price_class(tech.get("change_pct", 0))
                 st.markdown(price_html(tech["close"], tech["change_pct"], "今日股價"), unsafe_allow_html=True)
-                st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）")
+                st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）｜Radar：{card.get('score')}｜等級：{card.get('grade')}")
                 st.write("**老師建議：** " + row["advice"])
                 st.write("**個股動作：** " + row["card"]["action"])
                 render_data_trust(row["card"])

@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.5.3 Data Freshness Rule:
+v3.5.4 Data Freshness Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -96,7 +96,7 @@ def expected_latest_trading_date(status: dict | None = None) -> dict:
         mode = "盤前，使用前一交易日收盤資料"
     else:
         expected = today
-        mode = "盤中/盤後，優先使用今天可取得的最新資料；官方未更新時可採用較新的 Yahoo 資料"
+        mode = "盤中/盤後，優先使用目前交易狀態下可取得的最新有效資料"
     return {"expected_date": expected.isoformat(), "mode": mode, "session": session}
 
 
@@ -206,11 +206,11 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
     if official_confirmed and not official_lagging:
         notes.append("官方資料與採用資料同日或官方資料較新")
     elif official_lagging and latest_date:
-        notes.append("官方資料尚未更新；已採用日期較新的 Yahoo 資料")
+        notes.append("已採用目前交易狀態下最新有效資料")
     elif quality == "yahoo_with_undated_official":
-        notes.append("官方資料未提供可驗證日期；依最新資料規則採用 Yahoo 最新可得資料")
+        notes.append("已採用目前交易狀態下最新有效資料")
     elif quality != "fallback":
-        notes.append("採用目前可取得的最新價格資料；不因來源為 Yahoo 自動降等")
+        notes.append("已採用目前交易狀態下最新有效資料")
 
     actionable = not warnings
     if not actionable:
@@ -224,7 +224,7 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
         status_text = "資料為目前交易狀態下的最新有效資料"
     elif official_lagging:
         trust_level = "高"
-        status_text = "Yahoo 資料較新，依最新資料規則可作為操作參考"
+        status_text = "採用目前交易狀態下最新有效資料"
     else:
         trust_level = "高"
         status_text = "採用目前交易狀態下最新可得資料，可作為操作參考"
@@ -338,25 +338,55 @@ def _portfolio_advice(card: dict, pnl_pct: float) -> str:
     stop = tech["stop"]
     trim1 = tech["trim1"]
     trim2 = tech["trim2"]
+    score = card.get("score", 0)
+    grade = card.get("grade", "-")
+    reasons = "、".join(card.get("reasons", [])[:4]) or "目前缺少明確轉強理由"
+    macd_status = tech.get("macd", {}).get("zero_axis_status", "未明確")
+    volume_ratio = tech.get("volume_ratio", "-")
     trust = card.get("data_trust") or {}
-    trust_note = "資料可信，可納入今日操作參考" if trust.get("actionable") else "資料可信度不足，先降級為觀察，不做積極加碼"
 
     if not trust.get("actionable"):
-        return f"僅能觀察｜目前股價 {close:.2f}，但{trust_note}；若已持有，以跌破 {stop:.2f} 作為風險檢討線，不建議因帳面損益而盲目攤平。若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，可先降低部位風險。"
+        return (
+            f"僅能觀察｜目前股價 {close:.2f}，資料狀態不足以支持積極動作。"
+            f"A劇本：重新站回 {high:.2f} 且量能改善，再評估是否續抱或加碼。"
+            f"B劇本：在 {low:.2f}～{high:.2f} 區間震盪，先以原部位觀察，不急著加碼。"
+            f"C劇本：跌破 {stop:.2f}，波段結構轉弱，先控風險，不用攤平取代紀律。"
+        )
 
-    if card["score"] >= 78 and pnl_pct >= -5:
+    if score >= 78 and pnl_pct >= -5:
         stance = "偏續抱"
-        plan = f"目前股價 {close:.2f}，若未跌破失效價 {stop:.2f}，老師看法是續抱優先；若放量突破 {breakout:.2f}，可視為波段轉強訊號。"
-    elif pnl_pct < -8 or card["score"] < 55:
+        plan = (
+            f"目前股價 {close:.2f}，Radar {score}（等級 {grade}）。"
+            f"只要沒有跌破 {stop:.2f}，老師看法是續抱優先；"
+            f"若放量突破 {breakout:.2f}，可視為波段轉強訊號，持股者可續抱，空手者不追高、等回測再看。"
+        )
+    elif pnl_pct < -8 or score < 55:
         stance = "先檢討"
-        plan = f"目前分數或損益結構不佳，若跌破 {stop:.2f}，應先減碼控風險；不建議用攤平取代停損紀律。若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向調節。"
+        plan = (
+            f"目前股價 {close:.2f}，Radar {score}（等級 {grade}），部位不是優先加碼標的。"
+            f"若跌破 {stop:.2f}，代表波段結構轉弱，應先減碼控風險；"
+            f"若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向調節而不是加碼。"
+        )
     elif low <= close <= high * 1.04:
         stance = "可觀察加碼"
-        plan = f"股價位於可觀察區附近，若 {low:.2f}～{high:.2f} 守穩且量能沒有失控，可小幅加碼；跌破 {stop:.2f} 則停止加碼並檢討。"
+        plan = (
+            f"目前股價 {close:.2f} 靠近支撐觀察區 {low:.2f}～{high:.2f}。"
+            f"若量能比維持在合理區間且不跌破 {stop:.2f}，可採小部位試單；"
+            f"若跌破 {stop:.2f}，立刻停止加碼並重新檢討。"
+        )
     else:
         stance = "等待確認"
-        plan = f"現價 {close:.2f} 尚未形成高勝率加碼點，等待突破 {breakout:.2f} 或回測 {low:.2f}～{high:.2f} 守穩再行動。"
-    return f"{stance}｜{plan}｜{trust_note}。"
+        plan = (
+            f"目前股價 {close:.2f} 尚未落在老師喜歡的高勝率加碼區。"
+            f"上方等突破 {breakout:.2f}，下方等回測 {low:.2f}～{high:.2f} 守穩；"
+            f"沒有到價就不硬買，避免把持股管理變成情緒交易。"
+        )
+    return (
+        f"{stance}｜{plan}"
+        f" 技術重點：MACD {macd_status}、量能比 {volume_ratio}。"
+        f" 判斷依據：{reasons}。"
+        f" 老師結論：持股先看價位與紀律，未到突破或支撐條件前，不因短線震盪任意加碼。"
+    )
 
 
 def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
@@ -394,7 +424,14 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
             theme, val = max(theme_value.items(), key=lambda kv: kv[1])
             concentration = val / total_value * 100
             top_theme = f"目前最大曝險族群為 {theme}，約占 {concentration:.1f}%。"
-        summary = f"持股總教練：目前組合總損益 {total_pnl:.0f}（{total_pnl_pct:.2f}%）。{top_theme} 策略上以汰弱留強為主，分數高且未跌破失效價的部位續抱，分數低或資料可信度不足的部位不加碼。優先續抱：{'、'.join(r['stock'] for r in strongest)}；優先檢討：{('、'.join(r['stock'] for r in weakest) if weakest else '暫無明顯落後持股')}。"
+        strongest_text = '、'.join(f"{r['stock']}（Radar {r['card']['score']}）" for r in strongest)
+        weakest_text = '、'.join(f"{r['stock']}（Radar {r['card']['score']}）" for r in weakest) if weakest else '暫無明顯落後持股'
+        summary = (
+            f"持股總教練：目前組合總損益 {total_pnl:.0f}（{total_pnl_pct:.2f}%）。{top_theme}"
+            f"老師會先做三件事：第一，保留趨勢仍在、未跌破失效價的強勢部位；第二，對反彈無量或跌破風險線的部位降低曝險；第三，不因帳面損益而盲目攤平。"
+            f"目前優先續抱：{strongest_text}；優先檢討：{weakest_text}。"
+            f"加碼原則：只有兩種情況值得做，一是回測支撐區守穩，二是放量突破關鍵壓力；其他情況以續抱或觀察為主。"
+        )
     return {"rows": rows, "total_cost": round(total_cost, 0), "total_value": round(total_value, 0), "total_pnl": round(total_pnl, 0), "total_pnl_pct": round(total_pnl_pct, 2), "summary": summary}
 
 
@@ -429,7 +466,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
     if stale_count:
         truth_status = f"有 {stale_count} 檔資料早於目前交易狀態應有的最新資料，已限制強推薦"
     elif yahoo_newer_count:
-        truth_status = "官方資料尚未全部同步，已採用日期較新的 Yahoo 資料作為判斷基準"
+        truth_status = "已採用目前交易狀態下最新有效資料作為判斷基準"
     else:
         truth_status = "資料日期符合目前交易狀態，依最新資料規則採用"
     return {
@@ -447,7 +484,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.5.3 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新資料，就不因來源為 Yahoo 或官方未同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.5.4 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或官方尚未同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -471,10 +508,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.5.3",
+        "version": "3.5.4",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師採用 Data Freshness Rule：只要資料是目前交易狀態下最新有效資料，不論來源是 TWSE / TPEx 或 Yahoo，都不因資料來源而降等；僅在資料過舊、fallback、缺失或樣本不足時降級。",
+        "teacher_summary": "股市老師採用 Data Freshness Rule：只要資料是目前交易狀態下最新有效資料，就不因來源或官方尚未同步而降等；只有資料過舊、fallback、缺失或樣本不足時才降級。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,

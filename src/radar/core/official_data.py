@@ -1,6 +1,6 @@
 """Official Taiwan market data integrations with freshness-aware source selection.
 
-v3.5.3 Data Freshness Rule:
+v3.5.4 Data Freshness Rule:
 - TWSE / TPEx official data and Yahoo Finance are compared by data date.
 - The newest valid data source is selected, regardless of whether it is official or Yahoo.
 - Price-source differences are disclosed in source metadata only; they do not
@@ -267,7 +267,7 @@ def _latest_row_close(rows: list[dict[str, Any]]) -> float | None:
 def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSnapshot) -> dict[str, Any]:
     """Select the freshest available price source.
 
-    v3.5.3 Data Freshness Rule:
+    v3.5.4 Data Freshness Rule:
     - Do not downgrade only because data comes from Yahoo or differs from official.
     - Compare source dates and use the newest valid data.
     - If official and Yahoo have the same date, keep Yahoo as the price basis so
@@ -292,7 +292,7 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
     payload["official_price_anomaly"] = False
     payload["source_selection"] = {
         "selected": payload.get("source", "Yahoo Finance"),
-        "reason": "預設使用 Yahoo Finance 歷史日線與最新報價",
+        "reason": "採用目前交易狀態下最新有效資料",
         "yahoo_date": payload["yahoo_latest_date"],
         "official_date": official_date_text,
     }
@@ -303,7 +303,7 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["official_date_verified"] = False
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
-            "reason": f"官方資料不可用：{snapshot.message or '未取得有效收盤價'}；採用 Yahoo 最新可得資料",
+            "reason": "已採用目前交易狀態下最新有效資料",
             "yahoo_date": payload["yahoo_latest_date"],
             "official_date": official_date_text,
         }
@@ -316,7 +316,7 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["data_quality"] = "yahoo_with_undated_official"
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
-            "reason": "官方資料有價格但無可驗證日期；依最新資料規則採用 Yahoo 最新可得資料",
+            "reason": "已採用目前交易狀態下最新有效資料",
             "yahoo_date": payload["yahoo_latest_date"],
             "official_date": "未提供",
         }
@@ -331,11 +331,11 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         if official_date < yahoo_date:
             payload["data_quality"] = "yahoo_newer_than_official"
             payload["source"] = "Yahoo Finance（較新）"
-            reason = "Yahoo 資料日期較官方資料新，依最新資料規則採用 Yahoo 作為今日判斷基準"
+            reason = "已採用目前交易狀態下最新有效資料作為今日判斷基準"
         else:
             payload["data_quality"] = "yahoo_same_day_official_confirmed"
             payload["source"] = "Yahoo Finance + 官方同日確認"
-            reason = "Yahoo 與官方資料同日；依最新資料規則保留 Yahoo 技術序列，官方作為同日確認"
+            reason = "已採用目前交易狀態下最新有效資料，官方作為同日確認"
         payload["latest_date"] = yahoo_date.isoformat() if yahoo_date else yahoo_date_text
         payload["source_selection"] = {
             "selected": payload["source"],

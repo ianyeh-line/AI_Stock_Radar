@@ -33,7 +33,7 @@ def _data_source_lines(payload: dict) -> list[str]:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.5.3 股市老師盤前決策",
+        "# AI Stock Radar 3.5.4 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",
@@ -54,8 +54,7 @@ def build_markdown(payload: dict) -> str:
             f"- 今日股價：{t['close']}（{t['change_pct']}%）｜資料日：{c['latest_date']}｜來源：{c['price_source']}",
             f"- 官方確認：{'是' if c.get('official_confirmed') else '否'}｜官方來源：{trust.get('official_source', '未取得')}",
             f"- 0軸 MACD：{t['macd'].get('zero_axis_status')}｜MACD(DIF)：{t['macd'].get('macd')}｜DEA：{t['macd'].get('signal')}",
-            f"- 資料可信度：{trust.get('status', '未知')}｜等級：{trust.get('trust_level', '未知')}｜資料日：{c.get('latest_date')}",
-            f"- 來源選擇：{(c.get('source_selection') or {}).get('reason', '未提供')}",
+            f"- 資料狀態：{trust.get('status', '未知')}｜資料日：{c.get('latest_date')}",
             f"- 建議：{c['action']}",
             f"- 失效：{c['risk']}",
             f"- 理由：{'、'.join(c['reasons'][:5])}",
@@ -81,7 +80,7 @@ def build_markdown(payload: dict) -> str:
     for row in payload.get("portfolio_coach", {}).get("rows", [])[:10]:
         card = row.get("card", {})
         tech = card.get("tech", {})
-        lines.append(f"- {row['stock']}：今日股價 {tech.get('close')}（{tech.get('change_pct')}%）｜損益 {row['pnl']}（{row['pnl_pct']}%）｜{row['advice']}")
+        lines.append(f"- {row['stock']}：Radar {card.get('score')}｜今日股價 {tech.get('close')}（{tech.get('change_pct')}%）｜損益 {row['pnl']}（{row['pnl_pct']}%）｜{row['advice']}")
     return "\n".join(lines)
 
 

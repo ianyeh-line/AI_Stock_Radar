@@ -1,23 +1,14 @@
 # CHANGELOG
 
-## v3.5.3 - Data Freshness Rule Update
-
-### Changed
-
-- 正式套用 Data Freshness Rule v1：以目前交易狀態下最新有效資料為準。
-- 移除「來源差異過大」作為降級原因；不再因 Yahoo / 官方差異而自動降等。
-- 盤前接受前一交易日資料；盤中接受當日盤中資料；盤後接受當日最新可得資料；非交易日接受最近交易日資料。
-- Yahoo 或官方只要是最新有效資料，都可作為操作評分基準。
-
-## v3.5.3 - Data Freshness Rule Update
+## v3.5.4 - Teacher Portfolio Rules Hotfix
 
 ### Fixed
 
-- 價格來源改為最新可得資料優先，不論來自 TWSE / TPEx 或 Yahoo。
-- Yahoo 日線會合併最新報價 meta，降低官方資料未更新造成的舊資料問題。
-- 新增持股與觀察清單改為 form，避免輸入股號、股數、成本時觸發資料抓取。
-- 更新版本號與 Release 文件。
+- 移除違反 Data Freshness Rule 的來源降等文字。
+- 移除持股建議中多餘的資料可信度口號。
+- 持股總教練改成更接近股市老師口吻，包含續抱、加碼、減碼、失效與 A/B/C 劇本。
+- 持股清單明確顯示 Radar 分數與等級，避免評論提到分數但畫面沒有上下文。
 
-## v3.5.1 - Data Source Reliability Hotfix
+### Rule
 
-- 修正官方資料異常造成線圖與持股估值失真。
+只要是目前交易狀態下可取得的最新有效資料，就不因來源為 Yahoo 或官方尚未同步而降等。

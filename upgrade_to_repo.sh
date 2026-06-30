@@ -19,4 +19,4 @@ rsync -av --delete \
   --exclude 'output/dashboard_data.json' \
   "$SOURCE_DIR/" "$TARGET/"
 
-echo "AI Stock Radar v3.5.3 Data Freshness Rule Update 已升級到 $TARGET"
+echo "AI Stock Radar v3.5.4 Teacher Portfolio Rules Hotfix 已升級到 $TARGET"
