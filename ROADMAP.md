@@ -1,27 +1,16 @@
 # ROADMAP
 
-## Completed
+## Current: v3.5.0
 
-- v3.0 Product Reset
-- v3.1 Dynamic Stock + MACD 0 Axis
-- v3.2 Data Trust + Beta Access
-- v3.3 MACD zero-axis unified observation
-- v3.4 Official Data Source Upgrade
+- Data Source Truthfulness
+- Official vs Yahoo newest-source selection
+- Data-date guardrails
 
-## Next Recommended Milestones
+## Next: v3.6.0
 
-### v3.5 Data Source Reliability
-- Add official TWSE / TPEx stock master refresh.
-- Add official institutional flow fallback.
-- Add visible freshness badge per stock.
-- Add retry / timeout metrics for cloud runs.
+建議方向：
 
-### v3.6 Portfolio Coach UX
-- More compact portfolio decision table.
-- Scenario-based portfolio allocation.
-- Teacher-style warnings for over-concentration.
-
-### v3.7 Signal Quality
-- Separate 「可買」 from 「接近買點」 more strictly.
-- Add risk-reward ratio guardrail.
-- Add volume confirmation quality.
+1. 強化法人資料日期與官方來源一致性。
+2. 新增每檔股票的「資料異常」明確標籤。
+3. 將持股總教練建議再收斂為：續抱、加碼等待、減碼、停損四種明確動作。
+4. 新增 Web Beta 回饋入口，方便朋友回報錯誤股票資料。

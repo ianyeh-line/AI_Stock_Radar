@@ -18,11 +18,15 @@ def save_outputs(payload: dict) -> None:
 def _data_source_lines(payload: dict) -> list[str]:
     summary = payload.get("data_source_summary") or {}
     return [
-        "## 資料來源與可信度",
+        "## 資料基準日與可信度",
+        f"- 今日/預期資料基準日：{summary.get('expected_latest_date', '未知')}",
+        f"- 實際價格資料日期範圍：{summary.get('price_date_min', '未知')}～{summary.get('price_date_max', '未知')}",
+        f"- 資料狀態：{summary.get('truth_status', '未知')}",
         f"- 官方盤後確認：{summary.get('official_confirmed', 0)} 檔",
+        f"- Yahoo 較官方新：{summary.get('yahoo_newer_than_official', 0)} 檔",
         f"- Yahoo Only：{summary.get('yahoo_only', 0)} 檔",
         f"- Fallback：{summary.get('fallback', 0)} 檔",
-        f"- 說明：{summary.get('description', 'TWSE / TPEx 官方資料優先；Yahoo 作為歷史線圖與 fallback。')}",
+        f"- 說明：{summary.get('description', 'TWSE / TPEx 與 Yahoo 比較日期後採用較新資料。')}",
         "",
     ]
 
@@ -30,7 +34,7 @@ def _data_source_lines(payload: dict) -> list[str]:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.4.0 股市老師盤前決策",
+        "# AI Stock Radar 3.5.0 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",
@@ -51,7 +55,8 @@ def build_markdown(payload: dict) -> str:
             f"- 今日股價：{t['close']}（{t['change_pct']}%）｜資料日：{c['latest_date']}｜來源：{c['price_source']}",
             f"- 官方確認：{'是' if c.get('official_confirmed') else '否'}｜官方來源：{trust.get('official_source', '未取得')}",
             f"- 0軸 MACD：{t['macd'].get('zero_axis_status')}｜MACD(DIF)：{t['macd'].get('macd')}｜DEA：{t['macd'].get('signal')}",
-            f"- 資料可信度：{trust.get('status', '未知')}｜來源：{c.get('price_source')}｜資料日：{c.get('latest_date')}",
+            f"- 資料可信度：{trust.get('status', '未知')}｜等級：{trust.get('trust_level', '未知')}｜資料日：{c.get('latest_date')}",
+            f"- 來源選擇：{(c.get('source_selection') or {}).get('reason', '未提供')}",
             f"- 建議：{c['action']}",
             f"- 失效：{c['risk']}",
             f"- 理由：{'、'.join(c['reasons'][:5])}",

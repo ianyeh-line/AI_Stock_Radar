@@ -1,18 +1,24 @@
 # CHANGELOG
 
-## v3.4.0 - Official Data Source Upgrade
+## v3.5.0 - Data Source Truthfulness
 
 ### Added
-- Added `radar.core.official_data` for TWSE / TPEx OpenAPI latest daily close snapshots.
-- Added official data confirmation to decision cards.
-- Added data source summary to dashboard and daily report.
-- Added teacher-style portfolio advice with concrete support, breakout, stop, and trim levels.
+
+- 新增資料基準日判斷。
+- 新增預期最新交易日邏輯：盤前使用前一交易日，盤中 / 盤後優先使用今日可得資料。
+- 新增 TWSE / TPEx 與 Yahoo 日期比較。
+- 新增「Yahoo 較官方新」資料來源狀態。
+- 決策卡新增來源選擇原因。
+- 每日報告新增資料基準日與資料狀態。
 
 ### Changed
-- Latest displayed price is now labelled 「今日股價」 in portfolio analysis.
-- Removed standalone 「資料可信度」 page from top navigation.
-- Moved 「每日報告」 before 「持股總教練」.
-- Data trust now explicitly distinguishes official-confirmed, Yahoo-only, and fallback data.
+
+- 官方資料不再盲目覆蓋 Yahoo。
+- 如果官方資料日期落後於 Yahoo，採用 Yahoo 作為較新資料。
+- 如果官方資料沒有可驗證日期，不覆蓋 Yahoo 最新日線。
+- 資料過舊、fallback、樣本不足時，不給 A 級買進。
 
 ### Fixed
-- Reduced risk of stale Yahoo-only latest price being treated as fully trusted.
+
+- 修正官方資料無日期時可能被當成今日資料的風險。
+- 修正官方資料尚未更新時，推薦仍可能過度強烈的問題。

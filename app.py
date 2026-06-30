@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.4.0", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.5.0", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -162,12 +162,20 @@ def price_class(change: float) -> str:
 def render_data_trust(card: dict) -> None:
     trust = card.get("data_trust") or {}
     status = trust.get("status", "未知")
+    level = trust.get("trust_level", "未知")
+    expected = trust.get("expected_latest_date", "未知")
+    reason = (card.get("source_selection") or trust.get("source_selection") or {}).get("reason", "")
+    msg = f"資料可信度：{status}｜等級：{level}｜預期資料日：{expected}｜實際資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}"
     if trust.get("actionable"):
-        st.success(f"資料可信度：{status}｜資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}")
+        st.success(msg)
     else:
-        st.warning(f"資料可信度：{status}｜資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}")
-        for warning in trust.get("warnings", []):
-            st.caption(f"⚠️ {warning}")
+        st.warning(msg)
+    if reason:
+        st.caption(f"來源選擇：{reason}")
+    for note in trust.get("notes", []):
+        st.caption(f"✅ {note}")
+    for warning in trust.get("warnings", []):
+        st.caption(f"⚠️ {warning}")
 
 
 def render_card(card: dict, show_trust: bool = True) -> None:
@@ -310,8 +318,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.4.0｜AI 股市老師")
-st.caption("本版重點：TWSE / TPEx 官方資料源升級、持股老師建議加長、移除獨立資料可信度頁。")
+st.title("🚀 AI Stock Radar 3.5.0｜AI 股市老師")
+st.caption("本版重點：資料基準日真實性、官方與 Yahoo 擇新採用、資料過舊時降級推薦。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -324,7 +332,8 @@ status = payload["trading_status"]
 st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{payload.get('version')}")
 st.info(payload["teacher_summary"])
 source_summary = payload.get("data_source_summary", {})
-st.caption(f"資料來源：官方確認 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo Only {source_summary.get('yahoo_only', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
+st.caption(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
+st.caption(f"資料來源：官方確認 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo較新 {source_summary.get('yahoo_newer_than_official', 0)} 檔｜Yahoo Only {source_summary.get('yahoo_only', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
 store = storage_status()
 st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 

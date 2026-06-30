@@ -1,20 +1,18 @@
-"""Official Taiwan market data integrations.
+"""Official Taiwan market data integrations with freshness-aware source selection.
 
-v3.4.0 introduces an official-data-first layer for latest daily snapshots.
-
-Design principles:
-- TWSE / TPEx official OpenAPI data is used for the latest Taiwan daily close
-  snapshot when available.
-- Yahoo Finance remains the historical OHLC source for technical indicators and
-  chart continuity.
-- If official data is unavailable, the product continues to run with Yahoo data
-  but data trust will explicitly flag that official confirmation is missing.
+v3.5.0 Data Source Truthfulness:
+- TWSE / TPEx official data is no longer blindly preferred.
+- Yahoo Finance remains the historical OHLC source and can be used as the
+  latest reference when it is newer than official data.
+- The product records why a source was selected so the recommendation can be
+  downgraded or explained when data is stale, fallback, or official data is not
+  updated yet.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -70,7 +68,6 @@ def _parse_float(value: Any) -> float | None:
     text = str(value).strip().replace(",", "")
     if text in {"", "--", "-", "X", "除權息"}:
         return None
-    # Taiwan exchange data sometimes includes + / - prefixes.
     text = text.replace("+", "")
     try:
         return float(text)
@@ -89,11 +86,9 @@ def _parse_int(value: Any) -> int | None:
 
 
 def _get_any(row: dict[str, Any], *keys: str) -> Any:
-    # Exact match first.
     for key in keys:
         if key in row:
             return row[key]
-    # Case-insensitive / whitespace-insensitive fallback.
     normalized = {str(k).strip().lower().replace(" ", ""): v for k, v in row.items()}
     for key in keys:
         nk = key.strip().lower().replace(" ", "")
@@ -108,20 +103,65 @@ def _normalize_symbol(value: Any) -> str:
     return digits[:4] if len(digits) >= 4 else text
 
 
-def _today_string() -> str:
-    return date.today().isoformat()
+def _normalize_snapshot_date(value: Any) -> str:
+    """Normalize common exchange date formats to ISO date.
+
+    Accepted examples:
+    - 2026-06-30
+    - 2026/06/30
+    - 20260630
+    - 115/06/30 (ROC year)
+
+    Empty / unknown dates intentionally return an empty string. Earlier versions
+    used today's date as a fallback, which could make stale official data look
+    fresh. v3.5.0 avoids that.
+    """
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    text = text.replace("年", "/").replace("月", "/").replace("日", "")
+    text = text.replace(".", "/").replace("-", "/")
+    digits = "".join(ch for ch in text if ch.isdigit())
+    candidates: list[tuple[int, int, int]] = []
+    if len(digits) == 8:
+        candidates.append((int(digits[:4]), int(digits[4:6]), int(digits[6:8])))
+    elif len(digits) == 7:
+        # Taiwan ROC year, e.g. 1150630
+        candidates.append((int(digits[:3]) + 1911, int(digits[3:5]), int(digits[5:7])))
+    parts = [p for p in text.split("/") if p]
+    if len(parts) >= 3:
+        y = int(parts[0])
+        if y < 1911:
+            y += 1911
+        candidates.append((y, int(parts[1]), int(parts[2])))
+    for y, m, d in candidates:
+        try:
+            return date(y, m, d).isoformat()
+        except Exception:
+            continue
+    return ""
+
+
+def _date_value(value: str | None) -> date | None:
+    try:
+        return date.fromisoformat(str(value or ""))
+    except Exception:
+        return None
 
 
 def _snapshot_from_row(row: dict[str, Any], stock: StockInfo, source: str) -> OfficialSnapshot:
     name = str(_get_any(row, "Name", "證券名稱", "公司名稱", "有價證券名稱", "名稱") or stock.name).strip() or stock.name
-    raw_date = _get_any(row, "Date", "日期", "資料日期")
-    snapshot_date = str(raw_date).strip() if raw_date else _today_string()
+    raw_date = _get_any(row, "Date", "日期", "資料日期", "TradeDate", "交易日期")
+    snapshot_date = _normalize_snapshot_date(raw_date)
     open_ = _parse_float(_get_any(row, "OpeningPrice", "開盤價", "Open", "開盤"))
     high = _parse_float(_get_any(row, "HighestPrice", "最高價", "High", "最高"))
     low = _parse_float(_get_any(row, "LowestPrice", "最低價", "Low", "最低"))
     close = _parse_float(_get_any(row, "ClosingPrice", "收盤價", "Close", "收盤"))
     volume = _parse_int(_get_any(row, "TradeVolume", "成交股數", "成交量", "Volume"))
     change = _parse_float(_get_any(row, "Change", "漲跌價差", "漲跌", "ChangePrice"))
+    message = "" if snapshot_date else "官方資料未提供可驗證日期，不直接覆蓋 Yahoo 最新日線"
     return OfficialSnapshot(
         symbol=stock.symbol,
         name=name,
@@ -135,6 +175,7 @@ def _snapshot_from_row(row: dict[str, Any], stock: StockInfo, source: str) -> Of
         volume=volume,
         change=change,
         ok=close is not None and close > 0,
+        message=message,
     )
 
 
@@ -147,7 +188,6 @@ def _fetch_json_cached(url: str, timeout: float) -> tuple[tuple[tuple[str, Any],
         rows = [row for row in data if isinstance(row, dict)]
     elif isinstance(data, dict):
         rows = []
-        # Some APIs wrap data in a named field.
         for key in ("data", "result", "items"):
             maybe_rows = data.get(key)
             if isinstance(maybe_rows, list):
@@ -155,7 +195,6 @@ def _fetch_json_cached(url: str, timeout: float) -> tuple[tuple[tuple[str, Any],
                 break
     else:
         rows = []
-    # Return a hashable representation so lru_cache can keep it safely.
     return tuple(tuple(row.items()) for row in rows)
 
 
@@ -172,12 +211,6 @@ def _find_symbol(rows: list[dict[str, Any]], stock: StockInfo) -> dict[str, Any]
 
 
 def fetch_official_snapshot(stock: StockInfo, timeout: float = 5.0) -> OfficialSnapshot:
-    """Fetch the latest official daily snapshot from TWSE / TPEx.
-
-    The function is intentionally defensive because official OpenAPI field names
-    can differ between TWSE and TPEx. If any issue occurs, it returns ok=False
-    instead of raising, so the app can fall back to Yahoo Finance.
-    """
     if stock.market == "TWO":
         last_message = ""
         for url in TPEX_DAILY_CLOSE_URLS:
@@ -201,42 +234,103 @@ def fetch_official_snapshot(stock: StockInfo, timeout: float = 5.0) -> OfficialS
         return OfficialSnapshot(stock.symbol, stock.name, stock.market, "TWSE OpenAPI", "", None, None, None, None, None, None, False, str(exc))
 
 
-def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSnapshot) -> dict[str, Any]:
-    """Merge official latest snapshot into Yahoo historical payload.
+def _merge_snapshot_into_rows(rows: list[dict[str, Any]], snapshot: OfficialSnapshot) -> list[dict[str, Any]]:
+    out = [dict(row) for row in rows]
+    new_row = {
+        "date": snapshot.date,
+        "open": round(float(snapshot.open if snapshot.open is not None else snapshot.close), 2),
+        "high": round(float(snapshot.high if snapshot.high is not None else snapshot.close), 2),
+        "low": round(float(snapshot.low if snapshot.low is not None else snapshot.close), 2),
+        "close": round(float(snapshot.close or 0), 2),
+        "volume": int(snapshot.volume or 0),
+    }
+    if out and out[-1].get("date") == snapshot.date:
+        out[-1].update({k: v for k, v in new_row.items() if v not in {None, 0} or k == "date"})
+    else:
+        out.append(new_row)
+    return out
 
-    Yahoo remains useful for historical charting. Official data is used to
-    confirm / correct the latest close when available.
+
+def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSnapshot) -> dict[str, Any]:
+    """Select the freshest trustworthy latest price source.
+
+    Source policy:
+    - If official date is newer than or equal to Yahoo date, use official latest
+      snapshot and keep Yahoo history.
+    - If Yahoo date is newer than official, keep Yahoo latest price and record
+      that official data is lagging.
+    - If official date is unavailable, do not overwrite Yahoo. The user should
+      see that official data could not be date-verified.
     """
     payload = dict(price_payload)
+    rows = [dict(row) for row in payload.get("prices", [])]
+    yahoo_date_text = str(payload.get("latest_date") or (rows[-1].get("date") if rows else ""))
+    yahoo_date = _date_value(yahoo_date_text)
+    official_date = _date_value(snapshot.date)
+    payload["yahoo_latest_date"] = yahoo_date_text
     payload["official_snapshot"] = snapshot.as_dict()
+    payload["official_source"] = snapshot.source
+    payload["official_date"] = snapshot.date
+    payload["source_selection"] = {
+        "selected": payload.get("source", "Yahoo Finance"),
+        "reason": "預設使用 Yahoo Finance 歷史日線",
+        "yahoo_date": yahoo_date_text,
+        "official_date": snapshot.date,
+    }
+
     if not snapshot.ok or snapshot.close is None:
         payload["official_confirmed"] = False
-        payload["official_source"] = snapshot.source
+        payload["official_lagging"] = False
+        payload["official_date_verified"] = False
+        payload["source_selection"] = {
+            "selected": payload.get("source", "Yahoo Finance"),
+            "reason": f"官方資料不可用：{snapshot.message or '未取得有效收盤價'}",
+            "yahoo_date": yahoo_date_text,
+            "official_date": snapshot.date,
+        }
         return payload
 
-    rows = [dict(row) for row in payload.get("prices", [])]
-    if rows:
-        last = rows[-1]
-        # Official daily snapshot is treated as the most reliable latest daily
-        # close. If its date is unavailable, keep Yahoo date but still confirm
-        # close / OHLC fields.
-        if snapshot.date:
-            last["date"] = snapshot.date
-        last["close"] = round(float(snapshot.close), 2)
-        if snapshot.open is not None:
-            last["open"] = round(float(snapshot.open), 2)
-        if snapshot.high is not None:
-            last["high"] = round(float(snapshot.high), 2)
-        if snapshot.low is not None:
-            last["low"] = round(float(snapshot.low), 2)
-        if snapshot.volume is not None:
-            last["volume"] = int(snapshot.volume)
-        rows[-1] = last
-        payload["prices"] = rows
+    if official_date is None:
+        payload["official_confirmed"] = False
+        payload["official_lagging"] = False
+        payload["official_date_verified"] = False
+        payload["data_quality"] = "yahoo_with_undated_official"
+        payload["source_selection"] = {
+            "selected": payload.get("source", "Yahoo Finance"),
+            "reason": "官方資料有價格但無可驗證日期，因此保留 Yahoo 最新日線",
+            "yahoo_date": yahoo_date_text,
+            "official_date": "未提供",
+        }
+        return payload
+
+    if yahoo_date is not None and official_date < yahoo_date:
+        payload["official_confirmed"] = False
+        payload["official_lagging"] = True
+        payload["official_date_verified"] = True
+        payload["data_quality"] = "yahoo_newer_than_official"
+        payload["source"] = "Yahoo Finance（較新）"
+        payload["latest_date"] = yahoo_date.isoformat()
+        payload["source_selection"] = {
+            "selected": "Yahoo Finance",
+            "reason": "Yahoo 資料日期較官方資料新，採用較新的 Yahoo 日線作為今日判斷基準",
+            "yahoo_date": yahoo_date.isoformat(),
+            "official_date": official_date.isoformat(),
+        }
+        return payload
+
+    # Official is at least as new as Yahoo, so it can confirm / correct the latest row.
+    payload["prices"] = _merge_snapshot_into_rows(rows, snapshot)
     payload["name"] = snapshot.name or payload.get("name")
     payload["source"] = f"{snapshot.source} + Yahoo Finance"
-    payload["official_source"] = snapshot.source
     payload["official_confirmed"] = True
-    payload["latest_date"] = snapshot.date or payload.get("latest_date")
+    payload["official_lagging"] = False
+    payload["official_date_verified"] = True
+    payload["latest_date"] = snapshot.date
     payload["data_quality"] = "official_confirmed_daily"
+    payload["source_selection"] = {
+        "selected": snapshot.source,
+        "reason": "官方資料日期不晚於 Yahoo，採用 TWSE / TPEx 官方盤後快照確認最新價",
+        "yahoo_date": yahoo_date_text,
+        "official_date": official_date.isoformat(),
+    }
     return payload

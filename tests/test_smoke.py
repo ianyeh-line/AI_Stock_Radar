@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.4.0"
+    assert payload["version"] == "3.5.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -105,3 +105,25 @@ def test_apply_official_snapshot_updates_latest_row():
     assert updated["official_confirmed"] is True
     assert updated["prices"][-1]["close"] == 12.5
     assert updated["latest_date"] == "2026-01-02"
+
+
+from radar.core.official_data import apply_official_snapshot, OfficialSnapshot
+
+
+def test_yahoo_newer_than_official_is_kept():
+    payload = {"source": "Yahoo Finance", "latest_date": "2026-06-30", "prices": [{"date": "2026-06-30", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}], "data_quality": "live_daily"}
+    snapshot = OfficialSnapshot("2330", "台積電", "TW", "TWSE OpenAPI", "2026-06-29", 12, 13, 11, 12.5, 200, 2.5, True)
+    updated = apply_official_snapshot(payload, snapshot)
+    assert updated["latest_date"] == "2026-06-30"
+    assert updated["prices"][-1]["close"] == 10
+    assert updated["official_lagging"] is True
+    assert updated["data_quality"] == "yahoo_newer_than_official"
+
+
+def test_undated_official_does_not_overwrite_yahoo():
+    payload = {"source": "Yahoo Finance", "latest_date": "2026-06-30", "prices": [{"date": "2026-06-30", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}], "data_quality": "live_daily"}
+    snapshot = OfficialSnapshot("2330", "台積電", "TW", "TWSE OpenAPI", "", 12, 13, 11, 12.5, 200, 2.5, True)
+    updated = apply_official_snapshot(payload, snapshot)
+    assert updated["latest_date"] == "2026-06-30"
+    assert updated["prices"][-1]["close"] == 10
+    assert updated["official_confirmed"] is False
