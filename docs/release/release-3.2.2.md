@@ -1,4 +1,4 @@
-# Release v3.2.3 - Supabase Secrets Hotfix
+# Release v3.2.4 - UX State and MACD Chart Hotfix
 
 ## Goal
 

@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.2.3", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.2.4", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -191,13 +191,19 @@ def _macd_chart_series(closes: list[float]) -> dict:
 def render_technical_chart(card: dict, key: str) -> None:
     range_label = st.radio("觀察區間", ["1個月", "3個月", "6個月", "1年"], index=1, horizontal=True, key=f"range-{key}")
     days = {"1個月": 30, "3個月": 90, "6個月": 180, "1年": 252}[range_label]
-    rows = card.get("prices", [])[-days:]
-    if len(rows) < 20:
+
+    all_rows = card.get("prices", [])
+    if len(all_rows) < 20:
         st.warning("價格資料不足，無法繪製完整技術圖。")
         return
-    df = pd.DataFrame(rows)
-    closes = [float(x) for x in df["close"].tolist()]
-    macd_series = _macd_chart_series(closes)
+
+    # 用完整價格序列計算 MACD，再只截取使用者選擇的觀察區間顯示。
+    # 這可避免切到 1 個月時，因樣本不足而讓 MACD/DIF 消失。
+    full_df = pd.DataFrame(all_rows)
+    df = full_df.tail(days).copy()
+    closes_full = [float(x) for x in full_df["close"].tolist()]
+    macd_series = _macd_chart_series(closes_full)
+
     fig = make_subplots(
         rows=4,
         cols=1,
@@ -213,19 +219,26 @@ def render_technical_chart(card: dict, key: str) -> None:
         fig.add_trace(go.Scatter(x=df["date"], y=df["close"].rolling(w).mean(), mode="lines", name=name), row=1, col=1)
     colors = [up if c >= o else down for c, o in zip(df["close"], df["open"])]
     fig.add_trace(go.Bar(x=df["date"], y=df["volume"], marker_color=colors, name="成交量"), row=2, col=1)
+
     if macd_series["macd"]:
-        x = df["date"].tolist()[-len(macd_series["macd"]):]
-        hist_colors = [up if h >= 0 else down for h in macd_series["hist"]]
-        fig.add_trace(go.Bar(x=x, y=macd_series["hist"], marker_color=hist_colors, name="Hist"), row=3, col=1)
-        fig.add_trace(go.Scatter(x=x, y=macd_series["macd"], mode="lines", name="MACD/DIF"), row=3, col=1)
-        fig.add_trace(go.Scatter(x=x, y=macd_series["signal"], mode="lines", name="DEA"), row=3, col=1)
+        display_n = min(len(df), len(macd_series["macd"]), len(macd_series["signal"]), len(macd_series["hist"]))
+        x = df["date"].tolist()[-display_n:]
+        macd_y = macd_series["macd"][-display_n:]
+        dea_y = macd_series["signal"][-display_n:]
+        hist_y = macd_series["hist"][-display_n:]
+        hist_colors = [up if h >= 0 else down for h in hist_y]
+        fig.add_trace(go.Bar(x=x, y=hist_y, marker_color=hist_colors, name="Hist"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=x, y=macd_y, mode="lines", name="MACD/DIF"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=x, y=dea_y, mode="lines", name="DEA"), row=3, col=1)
         fig.add_hline(y=0, line_width=1, line_dash="dash", row=3, col=1)
+    else:
+        fig.add_trace(go.Scatter(x=[df["date"].iloc[-1]], y=[0], mode="text", text=["MACD 樣本不足"], showlegend=False), row=3, col=1)
+
     tech = card["tech"]
     summary = f"RSI {tech.get('rsi')}｜KD {tech.get('kd', {}).get('k')}/{tech.get('kd', {}).get('d')}｜BIAS20 {tech.get('bias20')}%｜量能比 {tech.get('volume_ratio')}"
     fig.add_trace(go.Scatter(x=[df["date"].iloc[-1]], y=[0], mode="text", text=[summary], textposition="middle center", showlegend=False), row=4, col=1)
     fig.update_layout(height=760, xaxis_rangeslider_visible=False, margin=dict(l=20, r=20, t=40, b=20))
-    st.plotly_chart(fig, use_container_width=True, key=f"chart-{key}")
-
+    st.plotly_chart(fig, use_container_width=True, key=f"chart-{key}-{range_label}")
 
 def add_watchlist_ui() -> None:
     st.subheader("新增指定觀察個股")
@@ -278,8 +291,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.2.3｜AI 股市老師")
-st.caption("本版重點：修正線上版持股 / 觀察清單雲端保存流程，新增 Supabase 連線檢查與明確錯誤提示。")
+st.title("🚀 AI Stock Radar 3.2.4｜AI 股市老師")
+st.caption("本版重點：修正線上版操作後跳回首頁，以及 1 個月技術圖 MACD/DIF 資料消失問題。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -304,16 +317,19 @@ k2.metric("今日可買", len(payload["buy_list"]))
 k3.metric("等待突破", len(payload["wait_list"]))
 k4.metric("避免名單", len(payload["avoid_list"]))
 
-tabs = st.tabs(["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "資料可信度", "個股線圖", "Supabase設定", "每日報告"])
+PAGES = ["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "資料可信度", "個股線圖", "Supabase設定", "每日報告"]
+st.session_state.setdefault("active_page", "今日可買")
+page = st.radio("功能", PAGES, horizontal=True, key="active_page")
+st.divider()
 
-with tabs[0]:
+if page == "今日可買":
     st.header("今日可買進名單")
     if not payload["buy_list"]:
         st.warning("今日沒有 A 級可買進名單。資料不足或買點不佳時，股市老師不硬給買進。")
     for card in payload["buy_list"][:8]:
         render_card(card)
 
-with tabs[1]:
+elif page == "等待/避免":
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("等待突破 / 拉回")
@@ -324,7 +340,7 @@ with tabs[1]:
         for card in payload["avoid_list"][:8]:
             render_card(card)
 
-with tabs[2]:
+elif page == "持股總教練":
     st.header("個人持股分析｜股市老師總教練")
     add_portfolio_ui()
     coach = payload["portfolio_coach"]
@@ -341,7 +357,7 @@ with tabs[2]:
     else:
         st.info("尚未輸入持股。")
 
-with tabs[3]:
+elif page == "觀察清單":
     st.header("指定觀察個股")
     add_watchlist_ui()
     items = load_watchlist()
@@ -354,13 +370,13 @@ with tabs[3]:
         except Exception as exc:
             st.error(str(exc))
 
-with tabs[4]:
+elif page == "MACD觀察":
     st.header("MACD 觀察名單：柱狀體翻正")
     for card in payload["macd_list"][:10]:
         t = card["tech"]
         st.write(f"**{card['label']}**｜{t['macd']['status']}｜Hist {t['macd']['hist']}｜MACD(DIF) {t['macd']['macd']}｜最新價 {t['close']}｜RSI {t['rsi']}")
 
-with tabs[5]:
+elif page == "0軸MACD":
     st.header("MACD 即將從 0 軸翻正")
     st.caption("重點看 MACD/DIF 線與 0 軸的位置。若 MACD 已在 0 軸上方，不會再被錯誤標示為 0 軸下方偏弱。")
     zero_items = payload.get("macd_zero_axis_list", [])[:10]
@@ -370,7 +386,7 @@ with tabs[5]:
         t = card["tech"]
         st.write(f"**{card['label']}**｜{t['macd'].get('zero_axis_status')}｜MACD(DIF) {t['macd']['macd']}｜DEA {t['macd']['signal']}｜最新價 {t['close']}｜{card['decision']}｜{card['action']}")
 
-with tabs[6]:
+elif page == "資料可信度":
     st.header("資料可信度")
     st.caption("本版不做回測，優先防止舊資料、fallback 或樣本不足時仍給買進建議。")
     all_cards = payload.get("all_cards", [])
@@ -384,14 +400,14 @@ with tabs[6]:
             for warning in card["data_trust"].get("warnings", []):
                 st.caption(f"⚠️ {warning}")
 
-with tabs[7]:
+elif page == "個股線圖":
     st.header("個股技術線圖")
     dynamic_cards = payload["all_cards"][:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
     choices = {card["label"]: card for card in dynamic_cards}
     selected = st.selectbox("選擇個股", list(choices.keys()))
     render_technical_chart(choices[selected], key=choices[selected]["symbol"])
 
-with tabs[8]:
+elif page == "Supabase設定":
     st.header("Supabase 設定助手")
     cloud_info = cloud_status()
     st.write(f"目前狀態：**{cloud_info.get('status')}**")
@@ -435,5 +451,5 @@ url = "https://你的專案.supabase.co"
 service_role_key = "你的 Supabase Secret 或 service_role key"
 table = "user_profiles""" , language="toml")
 
-with tabs[9]:
+elif page == "每日報告":
     st.markdown(current_report(payload))

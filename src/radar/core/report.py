@@ -18,7 +18,7 @@ def save_outputs(payload: dict) -> None:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.2.3 股市老師盤前決策",
+        "# AI Stock Radar 3.2.4 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",

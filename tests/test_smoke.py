@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.2.3"
+    assert payload["version"] == "3.2.4"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 

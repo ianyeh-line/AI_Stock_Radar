@@ -1,14 +1,21 @@
-# AI Stock Radar v3.2.3
+# AI Stock Radar v3.2.4
 
-AI 股市老師 Web Beta：修正 Supabase Secrets 設定格式造成的雲端保存失敗。
+本版修正線上版操作體驗與技術線圖問題。
 
-## 安裝
+## 修正內容
+
+- 測試 Supabase 連線後，停留在「Supabase設定」頁，不再跳回首頁。
+- 重新產生今日決策資料後，停留在使用者原本所在功能頁。
+- 個股技術線圖切到「1個月」時，MACD/DIF/DEA 仍會顯示。
+- MACD 以完整歷史資料計算，再依使用者選擇的區間顯示，避免短區間樣本不足。
+
+## 升級
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.2.3_SupabaseSecrets_Hotfix/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.2.4_UXState_MACDChart_Hotfix/upgrade_to_repo.sh
 ```
 
-## 本機驗收
+## 執行
 
 ```bash
 cd ~/Desktop/AI_Stock_Radar
@@ -16,20 +23,3 @@ PYTHONPATH=src python3 -m radar.cli run
 python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
-
-## Streamlit Secrets 正確格式
-
-```toml
-[supabase]
-url = "https://你的專案.supabase.co"
-service_role_key = "你的 service_role 或 secret key"
-table = "user_profiles"
-```
-
-注意：
-
-- `url` 不要包含 `/rest/v1`。
-- `table` 不要填 `public.user_profiles`，只填 `user_profiles`。
-- key 不要用 publishable / anon key。
-
-v3.2.3 會自動修正常見誤填，但仍建議 Secrets 使用上面格式。

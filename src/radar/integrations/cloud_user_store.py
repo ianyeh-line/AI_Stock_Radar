@@ -1,6 +1,6 @@
 """Cloud user portfolio/watchlist storage via Supabase REST API.
 
-v3.2.3 hardens the Web Beta persistence layer:
+v3.2.4 hardens the Web Beta persistence layer:
 - Make save failures visible instead of silently showing success.
 - Support common Streamlit Secrets key names.
 - Add connection diagnostics for Streamlit Cloud setup.
