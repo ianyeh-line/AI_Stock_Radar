@@ -22,11 +22,11 @@ def _data_source_lines(payload: dict) -> list[str]:
         f"- 今日/預期資料基準日：{summary.get('expected_latest_date', '未知')}",
         f"- 實際價格資料日期範圍：{summary.get('price_date_min', '未知')}～{summary.get('price_date_max', '未知')}",
         f"- 資料狀態：{summary.get('truth_status', '未知')}",
-        f"- 官方盤後確認：{summary.get('official_confirmed', 0)} 檔",
-        f"- Yahoo 較官方新：{summary.get('yahoo_newer_than_official', 0)} 檔",
-        f"- Yahoo Only：{summary.get('yahoo_only', 0)} 檔",
+        f"- 官方採用：{summary.get('official_confirmed', 0)} 檔",
+        f"- Yahoo 採用：{summary.get('yahoo_selected', summary.get('yahoo_newer_than_official', 0) + summary.get('yahoo_only', 0))} 檔",
+        f"- 官方異常未採用：{summary.get('official_anomaly', 0)} 檔",
         f"- Fallback：{summary.get('fallback', 0)} 檔",
-        f"- 說明：{summary.get('description', 'TWSE / TPEx 與 Yahoo 比較日期後採用較新資料。')}",
+        f"- 說明：{summary.get('description', 'TWSE / TPEx 與 Yahoo 比較日期與價格合理性後採用較可信資料。')}",
         "",
     ]
 
@@ -34,7 +34,7 @@ def _data_source_lines(payload: dict) -> list[str]:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.5.0 股市老師盤前決策",
+        "# AI Stock Radar 3.5.1 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",

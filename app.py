@@ -23,7 +23,9 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.5.0", page_icon="🚀", layout="wide")
+APP_VERSION = "3.5.1"
+
+st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -117,6 +119,10 @@ def render_beta_access() -> None:
         st.sidebar.info("未設定 Supabase 時仍可體驗，但重新開瀏覽器後資料不會永久保存。請依 docs/deploy/supabase-beginner-guide.md 完成設定。")
 
 
+def _payload_is_current(payload: dict | None) -> bool:
+    return bool(payload and payload.get("version") == APP_VERSION)
+
+
 def run_pipeline() -> dict:
     payload = run_teacher_pipeline()
     if st.session_state.get("guest_mode_enabled") or st.session_state.get("cloud_user_email"):
@@ -128,18 +134,26 @@ def run_pipeline() -> dict:
 
 
 def load_payload() -> dict:
-    if st.session_state.get("dashboard_payload"):
-        return st.session_state["dashboard_payload"]
+    cached = st.session_state.get("dashboard_payload")
+    if cached:
+        if _payload_is_current(cached):
+            return cached
+        st.session_state.pop("dashboard_payload", None)
+        st.session_state.pop("report_md", None)
     if st.session_state.pop("force_pipeline_reload", False):
         return run_pipeline()
-    # v3.3.0: once the user enters Email + access code, the page must use that
-    # user's cloud/session portfolio immediately instead of reading the shared
-    # static dashboard_data.json. This makes saved holdings appear right after
-    # login.
+    # If a user has logged in / guest state is active, always rebuild from that
+    # user's portfolio/watchlist. This avoids showing a static payload from an
+    # older release or another user.
     if st.session_state.get("cloud_user_email") or st.session_state.get("guest_mode_enabled"):
         return run_pipeline()
     if PAYLOAD_PATH.exists():
-        return json.loads(PAYLOAD_PATH.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(PAYLOAD_PATH.read_text(encoding="utf-8"))
+            if _payload_is_current(payload):
+                return payload
+        except Exception:
+            pass
     return run_pipeline()
 
 
@@ -157,6 +171,15 @@ def price_class(change: float) -> str:
     if change < 0:
         return "tw-green"
     return "tw-gray"
+
+
+def price_html(price: float, change_pct: float, label: str = "今日股價") -> str:
+    symbol = "▲" if change_pct > 0 else "▼" if change_pct < 0 else "—"
+    return (
+        f"<div class='small-muted'>{label}</div>"
+        f"<div class='{price_class(change_pct)}' style='font-size:1.05rem'>"
+        f"{price:.2f}（{symbol} {change_pct}%）</div>"
+    )
 
 
 def render_data_trust(card: dict) -> None:
@@ -186,7 +209,7 @@ def render_card(card: dict, show_trust: bool = True) -> None:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Radar", card["score"])
         c2.metric("信心", f"{card['confidence']}%")
-        c3.markdown(f"<div class='small-muted'>最新價</div><div class='{css}'>{t['close']:.2f}（{t['change_pct']}%）</div>", unsafe_allow_html=True)
+        c3.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
         c4.write(f"資料日：{card['latest_date']}")
         st.write(f"**老師建議：** {card['action']}")
         st.write(f"**風險紀律：** {card['risk']}")
@@ -220,8 +243,16 @@ def render_technical_chart(card: dict, key: str) -> None:
 
     # 用完整價格序列計算 MACD，再只截取使用者選擇的觀察區間顯示。
     # 這可避免切到 1 個月時，因樣本不足而讓 MACD/DIF 消失。
-    full_df = pd.DataFrame(all_rows)
+    full_df = pd.DataFrame(all_rows).copy()
+    full_df["date"] = pd.to_datetime(full_df["date"], errors="coerce")
+    for col in ["open", "high", "low", "close", "volume"]:
+        full_df[col] = pd.to_numeric(full_df[col], errors="coerce")
+    full_df = full_df.dropna(subset=["date", "open", "high", "low", "close"]).sort_values("date")
+    if len(full_df) < 20:
+        st.warning("價格日期或價格欄位異常，無法繪製完整技術圖。")
+        return
     df = full_df.tail(days).copy()
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     closes_full = [float(x) for x in full_df["close"].tolist()]
     macd_series = _macd_chart_series(closes_full)
 
@@ -318,7 +349,7 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.5.0｜AI 股市老師")
+st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
 st.caption("本版重點：資料基準日真實性、官方與 Yahoo 擇新採用、資料過舊時降級推薦。")
 
 if st.button("重新產生今日決策資料"):
@@ -329,11 +360,11 @@ else:
     payload = load_payload()
 
 status = payload["trading_status"]
-st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{payload.get('version')}")
+st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{APP_VERSION}")
 st.info(payload["teacher_summary"])
 source_summary = payload.get("data_source_summary", {})
 st.caption(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
-st.caption(f"資料來源：官方確認 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo較新 {source_summary.get('yahoo_newer_than_official', 0)} 檔｜Yahoo Only {source_summary.get('yahoo_only', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
+st.caption(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜官方異常未採用 {source_summary.get('official_anomaly', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
 store = storage_status()
 st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 
@@ -383,11 +414,7 @@ elif page == "持股總教練":
                 card = row["card"]
                 tech = card["tech"]
                 css = price_class(tech.get("change_pct", 0))
-                st.markdown(
-                    f"<div class='small-muted'>今日股價</div>"
-                    f"<div class='{css}'>{tech['close']:.2f}（{tech['change_pct']}%）</div>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown(price_html(tech["close"], tech["change_pct"], "今日股價"), unsafe_allow_html=True)
                 st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）")
                 st.write("**老師建議：** " + row["advice"])
                 st.write("**個股動作：** " + row["card"]["action"])
@@ -419,7 +446,7 @@ elif page == "MACD觀察":
         css = price_class(t.get("change_pct", 0))
         with st.container(border=True):
             st.subheader(f"{card['label']}｜{t['macd'].get('zero_axis_status')}")
-            st.markdown(f"<span class='{css}'>最新價 {t['close']:.2f}（{t['change_pct']}%）</span>", unsafe_allow_html=True)
+            st.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
             st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
             st.write(f"**老師判斷：** {card['decision']}｜{card['action']}")
             render_data_trust(card)

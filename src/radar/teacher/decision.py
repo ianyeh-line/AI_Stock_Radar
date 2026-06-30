@@ -184,6 +184,7 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
     source_selection = prices.get("source_selection") or {}
     official_confirmed = bool(prices.get("official_confirmed"))
     official_lagging = bool(prices.get("official_lagging"))
+    official_price_anomaly = bool(prices.get("official_price_anomaly"))
 
     if quality == "fallback" or source == "fallback":
         warnings.append("價格資料為 fallback，禁止列為買進，只能觀察")
@@ -204,6 +205,8 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
 
     if official_confirmed:
         notes.append("TWSE / TPEx 官方資料已確認最新價")
+    elif official_price_anomaly:
+        notes.append("官方快照與 Yahoo 最新價差異過大；為避免估值與圖表失真，本次採用 Yahoo 價格")
     elif official_lagging and latest_date:
         notes.append("官方資料尚未更新；已採用日期較新的 Yahoo 資料作為判斷基準")
     elif quality == "yahoo_with_undated_official":
@@ -212,7 +215,10 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
         notes.append("目前使用 Yahoo 最新可得日線，官方確認不足，信心略降")
 
     actionable = not warnings
-    if actionable and official_lagging:
+    if actionable and official_price_anomaly:
+        trust_level = "中"
+        status_text = "Yahoo 價格採用，官方價差異常"
+    elif actionable and official_lagging:
         trust_level = "中高"
         status_text = "Yahoo 較新，官方尚未更新"
     elif actionable and official_confirmed:
@@ -236,6 +242,7 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
         "quality": quality,
         "official_confirmed": official_confirmed,
         "official_lagging": official_lagging,
+        "official_price_anomaly": official_price_anomaly,
         "official_source": official_snapshot.get("source") or prices.get("official_source") or "未取得",
         "official_date": official_snapshot.get("date") or prices.get("official_date") or "未提供",
         "official_message": official_snapshot.get("message", ""),
@@ -291,6 +298,9 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
     if not trust["actionable"]:
         score = min(score, 64)
         reasons = trust["warnings"] + reasons
+    elif trust.get("official_price_anomaly"):
+        score = min(100, max(0, score - 5))
+        reasons = ["官方快照價格異常，採用 Yahoo 價格；信心略降"] + reasons
     elif trust.get("official_lagging") or not trust.get("official_confirmed"):
         score = min(100, max(0, score - 3))
         reasons = ["採用較新的 Yahoo 資料，官方尚未完全同步，信心略降"] + reasons
@@ -300,7 +310,9 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         label, setup, grade = "只觀察", "資料不足不給買進", "C"
 
     confidence_penalty = 0 if trust["actionable"] else -18
-    if trust.get("official_lagging") or not trust.get("official_confirmed"):
+    if trust.get("official_price_anomaly"):
+        confidence_penalty -= 6
+    elif trust.get("official_lagging") or not trust.get("official_confirmed"):
         confidence_penalty -= 4
     confidence = min(96, max(40, score + confidence_penalty))
     return {
@@ -340,6 +352,9 @@ def _portfolio_advice(card: dict, pnl_pct: float) -> str:
     trim2 = tech["trim2"]
     trust = card.get("data_trust") or {}
     trust_note = "資料可信，可納入今日操作參考" if trust.get("actionable") else "資料可信度不足，先降級為觀察，不做積極加碼"
+
+    if not trust.get("actionable"):
+        return f"僅能觀察｜目前股價 {close:.2f}，但{trust_note}；若已持有，以跌破 {stop:.2f} 作為風險檢討線，不建議因帳面損益而盲目攤平。若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，可先降低部位風險。"
 
     if card["score"] >= 78 and pnl_pct >= -5:
         stance = "偏續抱"
@@ -384,13 +399,14 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
     summary = "目前尚未建立持股；可先從今日可買與等待突破名單中挑選 1～3 檔觀察。"
     if rows:
         strongest = sorted(rows, key=lambda r: r["card"]["score"], reverse=True)[:2]
-        weakest = sorted(rows, key=lambda r: r["card"]["score"])[:2]
+        strong_symbols = {r["card"]["symbol"] for r in strongest}
+        weakest = [r for r in sorted(rows, key=lambda r: r["card"]["score"]) if r["card"]["symbol"] not in strong_symbols][:2]
         top_theme = ""
         if total_value:
             theme, val = max(theme_value.items(), key=lambda kv: kv[1])
             concentration = val / total_value * 100
             top_theme = f"目前最大曝險族群為 {theme}，約占 {concentration:.1f}%。"
-        summary = f"持股總教練：目前組合總損益 {total_pnl:.0f}（{total_pnl_pct:.2f}%）。{top_theme} 策略上以汰弱留強為主，分數高且未跌破失效價的部位續抱，分數低或資料可信度不足的部位不加碼。優先續抱：{'、'.join(r['stock'] for r in strongest)}；優先檢討：{'、'.join(r['stock'] for r in weakest)}。"
+        summary = f"持股總教練：目前組合總損益 {total_pnl:.0f}（{total_pnl_pct:.2f}%）。{top_theme} 策略上以汰弱留強為主，分數高且未跌破失效價的部位續抱，分數低或資料可信度不足的部位不加碼。優先續抱：{'、'.join(r['stock'] for r in strongest)}；優先檢討：{('、'.join(r['stock'] for r in weakest) if weakest else '暫無明顯落後持股')}。"
     return {"rows": rows, "total_cost": round(total_cost, 0), "total_value": round(total_value, 0), "total_pnl": round(total_pnl, 0), "total_pnl_pct": round(total_pnl_pct, 2), "summary": summary}
 
 
@@ -415,13 +431,17 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
     policy = expected_latest_trading_date(status)
     official_count = sum(1 for c in cards if c.get("official_confirmed"))
     yahoo_newer_count = sum(1 for c in cards if c.get("official_lagging"))
+    official_anomaly_count = sum(1 for c in cards if c.get("data_trust", {}).get("official_price_anomaly") or c.get("official_price_anomaly"))
     fallback_count = sum(1 for c in cards if c.get("data_quality") == "fallback")
     stale_count = sum(1 for c in cards if c.get("data_trust", {}).get("latest_date") and c.get("data_trust", {}).get("latest_date") < policy["expected_date"])
-    yahoo_only_count = sum(1 for c in cards if (not c.get("official_confirmed") and c.get("data_quality") != "fallback" and not c.get("official_lagging")))
+    yahoo_only_count = sum(1 for c in cards if (not c.get("official_confirmed") and c.get("data_quality") != "fallback" and not c.get("official_lagging") and not c.get("official_price_anomaly")))
+    yahoo_selected_count = yahoo_newer_count + yahoo_only_count + official_anomaly_count
     max_date = max(latest_dates) if latest_dates else ""
     min_date = min(latest_dates) if latest_dates else ""
     if stale_count:
         truth_status = f"有 {stale_count} 檔資料早於預期最新交易日，已限制強推薦"
+    elif official_anomaly_count:
+        truth_status = f"有 {official_anomaly_count} 檔官方快照價格異常，已改採 Yahoo 並降低信心"
     elif yahoo_newer_count:
         truth_status = "官方資料尚未全部同步，已採用較新的 Yahoo 資料作為判斷基準"
     else:
@@ -430,6 +450,8 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "official_confirmed": official_count,
         "yahoo_newer_than_official": yahoo_newer_count,
         "yahoo_only": yahoo_only_count,
+        "yahoo_selected": yahoo_selected_count,
+        "official_anomaly": official_anomaly_count,
         "fallback": fallback_count,
         "stale": stale_count,
         "expected_latest_date": policy["expected_date"],
@@ -437,7 +459,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.5.0 採用資料新鮮度優先：TWSE / TPEx 與 Yahoo 比較日期，採用較新的可得資料；資料過舊或 fallback 時不給強推薦。",
+        "description": "v3.5.1 採用資料新鮮度與價格合理性雙重檢查：TWSE / TPEx 與 Yahoo 比較日期，並避免官方異常快照破壞技術線圖與持股估值。",
     }
 
 
@@ -461,7 +483,7 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.5.0",
+        "version": "3.5.1",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "股市老師以資料新鮮度為先：TWSE/TPEx 官方與 Yahoo 比較後採用較新的資料；若資料非預期最新交易日、fallback 或樣本不足，直接降級為觀察，不硬給買進。",

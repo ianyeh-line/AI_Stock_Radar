@@ -1,6 +1,6 @@
 # ROADMAP
 
-## Current: v3.5.0
+## Current: v3.5.1
 
 - Data Source Truthfulness
 - Official vs Yahoo newest-source selection

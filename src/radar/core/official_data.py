@@ -251,31 +251,53 @@ def _merge_snapshot_into_rows(rows: list[dict[str, Any]], snapshot: OfficialSnap
     return out
 
 
+def _safe_ratio_diff(a: float | None, b: float | None) -> float | None:
+    if a is None or b is None or a <= 0 or b <= 0:
+        return None
+    return abs(a - b) / max(min(a, b), 1e-9)
+
+
+def _latest_row_close(rows: list[dict[str, Any]]) -> float | None:
+    if not rows:
+        return None
+    try:
+        return float(rows[-1].get("close"))
+    except Exception:
+        return None
+
+
 def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSnapshot) -> dict[str, Any]:
     """Select the freshest trustworthy latest price source.
 
-    Source policy:
-    - If official date is newer than or equal to Yahoo date, use official latest
-      snapshot and keep Yahoo history.
-    - If Yahoo date is newer than official, keep Yahoo latest price and record
-      that official data is lagging.
-    - If official date is unavailable, do not overwrite Yahoo. The user should
-      see that official data could not be date-verified.
+    v3.5.1 Hotfix:
+    - Normalize ROC official dates such as 1150629 to ISO dates before using them.
+    - Never let an official one-day snapshot destroy the Yahoo historical chart.
+    - If official close differs from Yahoo latest close by more than 35%, treat
+      it as an anomaly and keep Yahoo as the price basis. This prevents cases
+      like a single abnormal official row making the chart vertical and the
+      portfolio value incorrect.
     """
     payload = dict(price_payload)
     rows = [dict(row) for row in payload.get("prices", [])]
     yahoo_date_text = str(payload.get("latest_date") or (rows[-1].get("date") if rows else ""))
-    yahoo_date = _date_value(yahoo_date_text)
-    official_date = _date_value(snapshot.date)
-    payload["yahoo_latest_date"] = yahoo_date_text
-    payload["official_snapshot"] = snapshot.as_dict()
+    yahoo_date = _date_value(_normalize_snapshot_date(yahoo_date_text) or yahoo_date_text)
+    official_date_text = _normalize_snapshot_date(snapshot.date) or snapshot.date
+    official_date = _date_value(official_date_text)
+    yahoo_close = _latest_row_close(rows)
+    official_close = snapshot.close
+    snapshot_dict = snapshot.as_dict()
+    snapshot_dict["date"] = official_date_text
+
+    payload["yahoo_latest_date"] = yahoo_date.isoformat() if yahoo_date else yahoo_date_text
+    payload["official_snapshot"] = snapshot_dict
     payload["official_source"] = snapshot.source
-    payload["official_date"] = snapshot.date
+    payload["official_date"] = official_date_text
+    payload["official_price_anomaly"] = False
     payload["source_selection"] = {
         "selected": payload.get("source", "Yahoo Finance"),
         "reason": "預設使用 Yahoo Finance 歷史日線",
-        "yahoo_date": yahoo_date_text,
-        "official_date": snapshot.date,
+        "yahoo_date": payload["yahoo_latest_date"],
+        "official_date": official_date_text,
     }
 
     if not snapshot.ok or snapshot.close is None:
@@ -285,8 +307,8 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
             "reason": f"官方資料不可用：{snapshot.message or '未取得有效收盤價'}",
-            "yahoo_date": yahoo_date_text,
-            "official_date": snapshot.date,
+            "yahoo_date": payload["yahoo_latest_date"],
+            "official_date": official_date_text,
         }
         return payload
 
@@ -298,8 +320,25 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
             "reason": "官方資料有價格但無可驗證日期，因此保留 Yahoo 最新日線",
-            "yahoo_date": yahoo_date_text,
+            "yahoo_date": payload["yahoo_latest_date"],
             "official_date": "未提供",
+        }
+        return payload
+
+    ratio_diff = _safe_ratio_diff(official_close, yahoo_close)
+    if ratio_diff is not None and ratio_diff > 0.35:
+        payload["official_confirmed"] = False
+        payload["official_lagging"] = False
+        payload["official_date_verified"] = True
+        payload["official_price_anomaly"] = True
+        payload["data_quality"] = "yahoo_official_price_anomaly"
+        payload["source"] = "Yahoo Finance（官方價差異常未採用）"
+        payload["latest_date"] = yahoo_date.isoformat() if yahoo_date else yahoo_date_text
+        payload["source_selection"] = {
+            "selected": "Yahoo Finance",
+            "reason": f"官方收盤價 {official_close} 與 Yahoo 最新價 {yahoo_close} 差異超過 35%，為避免圖表與持股估值失真，本次採用 Yahoo 價格並標示官方價差異常",
+            "yahoo_date": payload["yahoo_latest_date"],
+            "official_date": official_date.isoformat(),
         }
         return payload
 
@@ -318,19 +357,26 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         }
         return payload
 
-    # Official is at least as new as Yahoo, so it can confirm / correct the latest row.
-    payload["prices"] = _merge_snapshot_into_rows(rows, snapshot)
+    # Official is at least as new as Yahoo and price is plausible, so it can
+    # confirm / correct only the latest row while preserving the Yahoo history.
+    normalized_snapshot = OfficialSnapshot(
+        snapshot.symbol, snapshot.name, snapshot.market, snapshot.source,
+        official_date.isoformat(), snapshot.open, snapshot.high, snapshot.low,
+        snapshot.close, snapshot.volume, snapshot.change, snapshot.ok, snapshot.message,
+    )
+    payload["prices"] = _merge_snapshot_into_rows(rows, normalized_snapshot)
     payload["name"] = snapshot.name or payload.get("name")
     payload["source"] = f"{snapshot.source} + Yahoo Finance"
     payload["official_confirmed"] = True
     payload["official_lagging"] = False
     payload["official_date_verified"] = True
-    payload["latest_date"] = snapshot.date
+    payload["latest_date"] = official_date.isoformat()
     payload["data_quality"] = "official_confirmed_daily"
     payload["source_selection"] = {
         "selected": snapshot.source,
-        "reason": "官方資料日期不晚於 Yahoo，採用 TWSE / TPEx 官方盤後快照確認最新價",
-        "yahoo_date": yahoo_date_text,
+        "reason": "官方資料日期不晚於 Yahoo 且價格差異合理，採用 TWSE / TPEx 官方盤後快照確認最新價",
+        "yahoo_date": payload["yahoo_latest_date"],
         "official_date": official_date.isoformat(),
     }
     return payload
+

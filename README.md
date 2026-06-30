@@ -1,16 +1,17 @@
-# AI Stock Radar v3.5.0
+# AI Stock Radar v3.5.1
 
 AI Stock Radar 是一個「AI 股市老師」盤前 / 盤中 / 盤後決策輔助工具，目標是協助投資人在 3 分鐘內完成台股波段操作判斷。
 
-## v3.5.0 重點
+## v3.5.1 重點
 
-本版主軸是 **Data Source Truthfulness**：
+本版是 **Data Source Reliability Hotfix**，直接修正 v3.5.0 線上版問題：
 
-- TWSE / TPEx 官方資料與 Yahoo Finance 比較日期。
-- 採用較新的可得資料作為今日判斷基準。
-- 若官方資料尚未更新，但 Yahoo 日期較新，會採用 Yahoo 並清楚標示。
-- 若資料早於預期最新交易日、fallback 或樣本不足，系統會降級推薦，不給 A 級買進。
-- 首頁、決策卡、每日報告都會顯示資料基準日與來源選擇原因。
+- 修正版本號不一致：App 與 payload 版本不一致時會自動重算，不再沿用舊版快取。
+- 修正官方快照價格異常造成持股估值與線圖失真的問題。
+- 官方資料若與 Yahoo 最新價格差異超過合理範圍，會改採 Yahoo 並清楚標示。
+- 個股線圖會先清理異常日期與非數字價格，再繪製 K 線 / MACD，避免圖表失效。
+- 持股總教練若資料可信度不足，會改為「僅能觀察」，不再同時出現加碼與觀察矛盾語句。
+- 今日股價顯示維持台股邏輯：漲紅、跌綠、平盤灰色。
 
 ## 本機執行
 
@@ -24,7 +25,7 @@ PYTHONPATH=src python3 -m streamlit run app.py
 ## 升級
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.5.0_DataSourceTruthfulness_Product_Release/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.5.1_DataSourceReliability_Hotfix/upgrade_to_repo.sh
 ```
 
 ## Commit
@@ -32,7 +33,7 @@ bash ~/Desktop/AI_Stock_Radar_v3.5.0_DataSourceTruthfulness_Product_Release/upgr
 ```bash
 bash scripts/cleanup_repo.sh
 git add .
-git commit -m "Release v3.5.0 Data Source Truthfulness"
+git commit -m "Release v3.5.1 Data Source Reliability Hotfix"
 git push
 ```
 
