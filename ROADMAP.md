@@ -1,20 +1,27 @@
 # ROADMAP
 
-## Current: v3.3.0
+## Completed
 
-重點：提升線上版使用體驗與 MACD 判斷可信度。
+- v3.0 Product Reset
+- v3.1 Dynamic Stock + MACD 0 Axis
+- v3.2 Data Trust + Beta Access
+- v3.3 MACD zero-axis unified observation
+- v3.4 Official Data Source Upgrade
 
-## Next: v3.4.0 Data Source Upgrade
+## Next Recommended Milestones
 
-建議開始導入 TWSE / TPEx 官方資料源：
+### v3.5 Data Source Reliability
+- Add official TWSE / TPEx stock master refresh.
+- Add official institutional flow fallback.
+- Add visible freshness badge per stock.
+- Add retry / timeout metrics for cloud runs.
 
-- TWSE OpenAPI：上市股票、盤後日線、市場統計、三大法人等。
-- TPEx OpenAPI：上櫃股票、三大法人、盤後資料等。
-- Yahoo Finance 保留作為技術線圖與資料 fallback。
+### v3.6 Portfolio Coach UX
+- More compact portfolio decision table.
+- Scenario-based portfolio allocation.
+- Teacher-style warnings for over-concentration.
 
-## Later
-
-- 更完整的個股主檔。
-- 法人籌碼穩定化。
-- 每日自動化報告。
-- LINE / Email 推播。
+### v3.7 Signal Quality
+- Separate 「可買」 from 「接近買點」 more strictly.
+- Add risk-reward ratio guardrail.
+- Add volume confirmation quality.

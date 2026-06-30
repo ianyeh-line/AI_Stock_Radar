@@ -1,12 +1,21 @@
-# AI Stock Radar v3.3.0
+# AI Stock Radar v3.4.0
 
-本版聚焦三件事：
+AI 股市老師盤前決策系統。
 
-1. 線上版用戶輸入 Email + 自訂存取碼後，直接載入雲端持股與觀察清單，不需要再按「重新產生今日決策資料」。
-2. 個人持股分析加入今日最新可得股價，並使用台股慣例：漲紅、跌綠。
-3. MACD 觀察整合為「0 軸 MACD 轉強」：只看 DIF 從 0 軸下方即將翻正或剛翻正，資料不可信時不推薦。
+本版重點：**Data Source Upgrade**。價格資料改為「TWSE / TPEx 官方盤後資料優先確認最新價，Yahoo Finance 保留為歷史線圖與 fallback」。
 
-## 執行
+## 本版新增
+
+- TWSE OpenAPI 上市個股盤後收盤資料整合。
+- TPEx OpenAPI 上櫃個股盤後收盤資料整合。
+- Yahoo Finance 繼續提供歷史 OHLC 線圖與技術指標計算。
+- 若官方資料取得失敗，系統會清楚標示 Yahoo Only / fallback，不會默默當成高可信推薦。
+- 個人持股分析欄位由「今日最新可得價」改為「今日股價」。
+- 持股總教練建議加長，加入老師式續抱、加碼、減碼、失效條件與組合曝險說明。
+- 移除獨立「資料可信度」功能頁；資料可信度改回到每張決策卡與每日報告中呈現。
+- 「每日報告」頁籤移到「持股總教練」前面。
+
+## 本機執行
 
 ```bash
 cd ~/Desktop/AI_Stock_Radar
@@ -15,15 +24,20 @@ python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## 升級
+## Web Beta
 
-```bash
-bash ~/Desktop/AI_Stock_Radar_v3.3.0_DataTrust_MACDUnified_Product_Release/upgrade_to_repo.sh
+Streamlit Cloud 部署仍使用：
+
+```text
+app.py
+requirements.txt
+.streamlit/config.toml
 ```
 
-## 驗收重點
+Supabase 仍可保存朋友的 Email + 自訂存取碼對應的觀察清單與個人持股。
 
-- 線上版輸入同一組 Email + 自訂存取碼後，持股與觀察清單應直接載入。
-- 個人持股分析應顯示今日最新可得價與漲跌顏色。
-- MACD 觀察頁只應顯示「即將從 0 軸翻正」或「剛從 0 軸翻正」且資料可信的股票。
-- 個股技術線圖在 1 個月 / 3 個月 / 6 個月 / 1 年區間都應顯示 MACD/DIF/DEA。
+## 資料來源定位
+
+- TWSE / TPEx：最新官方盤後收盤資料確認。
+- Yahoo Finance：歷史日線、技術線圖、fallback。
+- 若官方資料缺失，AI Stock Radar 會降低推薦可信度。

@@ -9,6 +9,7 @@ from datetime import date, timedelta
 import requests
 
 from radar.data.stock_master import StockInfo
+from radar.core.official_data import apply_official_snapshot, fetch_official_snapshot
 
 
 FALLBACK_PRICES = {
@@ -130,19 +131,38 @@ def _fetch_yahoo_candidate(stock: StockInfo, yahoo_symbol: str, market: str, day
 
 
 def fetch_price_series(stock: StockInfo, days: int = 180, timeout: float = 4.0) -> dict:
-    """Fetch daily prices from Yahoo chart API.
+    """Fetch daily prices with official latest snapshot confirmation.
 
-    v3.1.0 enhancement:
-    - Unknown user-entered Taiwan stocks are not blocked by Stock Master.
-    - The fetcher tries both .TW and .TWO and returns whichever has valid data.
-    - If Yahoo returns a useful name, the payload carries that name so the UI and
-      portfolio coach can display the stock better than 自訂個股.
+    v3.4.0 Data Source Upgrade:
+    - Yahoo Finance remains the historical OHLC source for indicators/charts.
+    - TWSE / TPEx OpenAPI is queried for the latest official daily close.
+    - When official data is available, the latest row is confirmed / corrected
+      by TWSE / TPEx and data_quality becomes official_confirmed_daily.
+    - When official data is unavailable, Yahoo/fallback still works but data
+      trust will clearly flag the missing official confirmation.
     """
+    yahoo_payload: dict | None = None
     for yahoo_symbol, market in _candidate_symbols(stock):
         try:
             payload = _fetch_yahoo_candidate(stock, yahoo_symbol, market, days, timeout)
             if payload:
-                return payload
+                yahoo_payload = payload
+                break
         except Exception:
             continue
-    return _fallback_series(stock, min(days, 120))
+
+    if yahoo_payload is None:
+        yahoo_payload = _fallback_series(stock, min(days, 120))
+
+    try:
+        # Use the market discovered by Yahoo when possible. This helps dynamic
+        # user-entered stocks that were initially assumed to be listed (.TW) but
+        # actually trade on TPEx (.TWO).
+        market = str(yahoo_payload.get("market") or stock.market or "TW")
+        confirmed_stock = StockInfo(stock.symbol, str(yahoo_payload.get("name") or stock.name), market, stock.theme)
+        snapshot = fetch_official_snapshot(confirmed_stock, timeout=timeout)
+        return apply_official_snapshot(yahoo_payload, snapshot)
+    except Exception:
+        yahoo_payload.setdefault("official_confirmed", False)
+        yahoo_payload.setdefault("official_snapshot", {"ok": False, "message": "官方資料抓取失敗"})
+        return yahoo_payload

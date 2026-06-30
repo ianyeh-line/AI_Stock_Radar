@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.3.0", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.4.0", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -310,8 +310,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.3.0｜AI 股市老師")
-st.caption("本版重點：登入後自動載入雲端持股、整合 MACD 0 軸觀察、強化個股技術圖表。")
+st.title("🚀 AI Stock Radar 3.4.0｜AI 股市老師")
+st.caption("本版重點：TWSE / TPEx 官方資料源升級、持股老師建議加長、移除獨立資料可信度頁。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -323,6 +323,8 @@ else:
 status = payload["trading_status"]
 st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{payload.get('version')}")
 st.info(payload["teacher_summary"])
+source_summary = payload.get("data_source_summary", {})
+st.caption(f"資料來源：官方確認 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo Only {source_summary.get('yahoo_only', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
 store = storage_status()
 st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 
@@ -336,7 +338,7 @@ k2.metric("今日可買", len(payload["buy_list"]))
 k3.metric("等待突破", len(payload["wait_list"]))
 k4.metric("避免名單", len(payload["avoid_list"]))
 
-PAGES = ["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "資料可信度", "個股線圖", "Supabase設定", "每日報告"]
+PAGES = ["今日可買", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
 st.session_state.setdefault("active_page", "今日可買")
 page = st.radio("功能", PAGES, horizontal=True, key="active_page")
 st.divider()
@@ -373,7 +375,7 @@ elif page == "持股總教練":
                 tech = card["tech"]
                 css = price_class(tech.get("change_pct", 0))
                 st.markdown(
-                    f"<div class='small-muted'>今日最新可得價</div>"
+                    f"<div class='small-muted'>今日股價</div>"
                     f"<div class='{css}'>{tech['close']:.2f}（{tech['change_pct']}%）</div>",
                     unsafe_allow_html=True,
                 )
@@ -412,20 +414,6 @@ elif page == "MACD觀察":
             st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
             st.write(f"**老師判斷：** {card['decision']}｜{card['action']}")
             render_data_trust(card)
-
-elif page == "資料可信度":
-    st.header("資料可信度")
-    st.caption("本版不做回測，優先防止舊資料、fallback 或樣本不足時仍給買進建議。")
-    all_cards = payload.get("all_cards", [])
-    bad = [c for c in all_cards if not (c.get("data_trust") or {}).get("actionable")]
-    good = [c for c in all_cards if (c.get("data_trust") or {}).get("actionable")]
-    st.metric("可作為操作參考", len(good))
-    st.metric("資料不足僅觀察", len(bad))
-    for card in bad[:20]:
-        with st.container(border=True):
-            st.write(f"**{card['label']}**｜{card['latest_date']}｜{card['price_source']}｜{card['data_trust']['status']}")
-            for warning in card["data_trust"].get("warnings", []):
-                st.caption(f"⚠️ {warning}")
 
 elif page == "個股線圖":
     st.header("個股技術線圖")

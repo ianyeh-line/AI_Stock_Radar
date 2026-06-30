@@ -124,17 +124,22 @@ def _score(stock: StockInfo, tech: dict) -> tuple[int, list[str]]:
 def _data_trust(prices: dict, sample_size: int) -> dict:
     """Evaluate whether this stock can receive actionable recommendations.
 
-    v3.2.0 focuses on data trust instead of backtesting. If the latest price
-    series is fallback/stale/too short, the stock is still analyzable but cannot
-    be promoted to A-grade buy.
+    v3.4.0 upgrades data trust: official TWSE / TPEx confirmation is
+    preferred for latest daily close. Yahoo Finance remains the chart/history
+    fallback, but if official confirmation is missing, recommendation confidence
+    is lowered.
     """
     latest_date = str(prices.get("latest_date") or "")
     source = str(prices.get("source") or "unknown")
     quality = str(prices.get("data_quality") or "unknown")
     warnings: list[str] = []
 
-    if source != "Yahoo Finance" or quality != "live_daily":
-        warnings.append("價格資料不是 Yahoo Finance 最新日線，僅供觀察")
+    official_snapshot = prices.get("official_snapshot") or {}
+    official_confirmed = bool(prices.get("official_confirmed"))
+    if quality == "fallback" or source == "fallback":
+        warnings.append("價格資料為 fallback，僅供觀察")
+    elif not official_confirmed:
+        warnings.append("尚未取得 TWSE / TPEx 官方盤後確認，僅能降級參考")
     try:
         age_days = (date.today() - date.fromisoformat(latest_date)).days
     except Exception:
@@ -153,6 +158,9 @@ def _data_trust(prices: dict, sample_size: int) -> dict:
         "latest_date": latest_date,
         "source": source,
         "quality": quality,
+        "official_confirmed": official_confirmed,
+        "official_source": official_snapshot.get("source") or prices.get("official_source") or "未取得",
+        "official_message": official_snapshot.get("message", ""),
         "age_days": age_days,
         "warnings": warnings,
     }
@@ -217,6 +225,8 @@ def build_decision_card(stock: StockInfo) -> dict:
         "theme": stock.theme,
         "price_source": prices["source"],
         "data_quality": prices.get("data_quality", "unknown"),
+        "official_confirmed": bool(prices.get("official_confirmed")),
+        "official_snapshot": prices.get("official_snapshot", {}),
         "data_trust": trust,
         "latest_date": prices["latest_date"],
         "prices": prices["prices"],
@@ -232,11 +242,52 @@ def build_decision_card(stock: StockInfo) -> dict:
     }
 
 
+def _portfolio_advice(card: dict, pnl_pct: float) -> str:
+    """Teacher-style holding advice with concrete scenarios."""
+    tech = card["tech"]
+    close = tech["close"]
+    low = tech["support_low"]
+    high = tech["support_high"]
+    breakout = tech["breakout"]
+    stop = tech["stop"]
+    trim1 = tech["trim1"]
+    trim2 = tech["trim2"]
+    trust = card.get("data_trust") or {}
+    trust_note = "資料可信，可納入今日操作參考" if trust.get("actionable") else "資料可信度不足，先降級為觀察，不做積極加碼"
+
+    if card["score"] >= 78 and pnl_pct >= -5:
+        stance = "偏續抱"
+        plan = (
+            f"目前股價 {close:.2f}，若未跌破失效價 {stop:.2f}，老師看法是續抱優先；"
+            f"若放量突破 {breakout:.2f}，可視為波段轉強訊號。"
+        )
+    elif pnl_pct < -8 or card["score"] < 55:
+        stance = "先檢討"
+        plan = (
+            f"目前分數或損益結構不佳，若跌破 {stop:.2f}，應先減碼控風險；"
+            f"不建議用攤平取代停損紀律。若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向調節。"
+        )
+    elif low <= close <= high * 1.04:
+        stance = "可觀察加碼"
+        plan = (
+            f"股價位於可觀察區附近，若 {low:.2f}～{high:.2f} 守穩且量能沒有失控，"
+            f"可小幅加碼；跌破 {stop:.2f} 則停止加碼並檢討。"
+        )
+    else:
+        stance = "等待確認"
+        plan = (
+            f"現價 {close:.2f} 尚未形成高勝率加碼點，等待突破 {breakout:.2f} 或回測 "
+            f"{low:.2f}～{high:.2f} 守穩再行動。"
+        )
+    return f"{stance}｜{plan}｜{trust_note}。"
+
+
 def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
     holdings = load_portfolio()
     rows = []
     total_cost = 0.0
     total_value = 0.0
+    theme_value: dict[str, float] = {}
     for item in holdings:
         try:
             stock = resolve_stock(str(item.get("symbol") or item.get("name") or ""))
@@ -249,22 +300,29 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
         base = shares * cost
         total_cost += base
         total_value += value
+        theme_value[card.get("theme", "其他")] = theme_value.get(card.get("theme", "其他"), 0.0) + value
         pnl = value - base
         pnl_pct = pnl / base * 100 if base else 0
-        if card["score"] >= 75 and pnl_pct >= -5:
-            advice = "可續抱，若回測不破失效價仍可觀察加碼。"
-        elif pnl_pct < -8 or card["score"] < 55:
-            advice = "需檢討部位，若跌破失效價應先減碼，不建議攤平。"
-        else:
-            advice = "維持觀察，等待轉強或量能確認。"
+        advice = _portfolio_advice(card, pnl_pct)
         rows.append({"stock": card["label"], "shares": shares, "cost": cost, "value": round(value, 0), "pnl": round(pnl, 0), "pnl_pct": round(pnl_pct, 2), "advice": advice, "card": card})
     total_pnl = total_value - total_cost
     total_pnl_pct = total_pnl / total_cost * 100 if total_cost else 0
     summary = "目前尚未建立持股；可先從今日可買與等待突破名單中挑選 1～3 檔觀察。"
     if rows:
-        summary = "持股總教練：以汰弱留強為主，續抱強勢且未跌破失效價的部位，弱勢股不建議用攤平取代停損。"
+        strongest = sorted(rows, key=lambda r: r["card"]["score"], reverse=True)[:2]
+        weakest = sorted(rows, key=lambda r: r["card"]["score"])[:2]
+        top_theme = ""
+        if total_value:
+            theme, val = max(theme_value.items(), key=lambda kv: kv[1])
+            concentration = val / total_value * 100
+            top_theme = f"目前最大曝險族群為 {theme}，約占 {concentration:.1f}%。"
+        summary = (
+            f"持股總教練：目前組合總損益 {total_pnl:.0f}（{total_pnl_pct:.2f}%）。"
+            f"{top_theme} 策略上以汰弱留強為主，分數高且未跌破失效價的部位續抱，"
+            f"分數低或資料可信度不足的部位不加碼。優先續抱："
+            f"{'、'.join(r['stock'] for r in strongest)}；優先檢討：{'、'.join(r['stock'] for r in weakest)}。"
+        )
     return {"rows": rows, "total_cost": round(total_cost, 0), "total_value": round(total_value, 0), "total_pnl": round(total_pnl, 0), "total_pnl_pct": round(total_pnl_pct, 2), "summary": summary}
-
 
 def _macd_zero_axis_candidates(cards: list[dict]) -> list[dict]:
     """Return only actionable zero-axis MACD turn candidates.
@@ -312,11 +370,20 @@ def run_teacher_pipeline() -> dict:
             watch_items.append(cards_by_symbol.get(stock.symbol) or build_decision_card(stock))
         except Exception:
             continue
+    official_count = sum(1 for c in cards if c.get("official_confirmed"))
+    yahoo_count = sum(1 for c in cards if c.get("price_source") == "Yahoo Finance")
+    fallback_count = sum(1 for c in cards if c.get("data_quality") == "fallback")
+    data_source_summary = {
+        "official_confirmed": official_count,
+        "yahoo_only": yahoo_count,
+        "fallback": fallback_count,
+        "description": "TWSE / TPEx 官方盤後資料優先確認最新價；Yahoo Finance 提供歷史線圖與 fallback。",
+    }
     return {
-        "version": "3.3.0",
+        "version": "3.4.0",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "今天先找可執行買點，不追情緒單；資料可信度先行；MACD 觀察只看 DIF 從 0 軸下方即將或剛轉正的股票，不用綠柱翻紅硬湊名單。",
+        "teacher_summary": "今天先找可執行買點，不追情緒單；優先使用 TWSE / TPEx 官方盤後資料確認最新價，Yahoo 作為歷史線圖與 fallback；MACD 只看 DIF 從 0 軸下方即將或剛轉強。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
@@ -324,5 +391,6 @@ def run_teacher_pipeline() -> dict:
         "macd_zero_axis_list": macd_zero,
         "watchlist_analysis": watch_items,
         "portfolio_coach": _portfolio_coach(cards_by_symbol),
+        "data_source_summary": data_source_summary,
         "all_cards": cards,
     }

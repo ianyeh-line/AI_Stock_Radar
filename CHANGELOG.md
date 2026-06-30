@@ -1,21 +1,18 @@
 # CHANGELOG
 
-## v3.3.0 - Data Trust, Cloud Load UX, MACD Zero-Axis Unification
+## v3.4.0 - Official Data Source Upgrade
 
 ### Added
-
-- 線上版登入後自動載入雲端持股與觀察清單。
-- 個人持股分析新增今日最新可得價與台股漲紅跌綠顯示。
-- 新增 TWSE / TPEx 資料源規劃文件。
+- Added `radar.core.official_data` for TWSE / TPEx OpenAPI latest daily close snapshots.
+- Added official data confirmation to decision cards.
+- Added data source summary to dashboard and daily report.
+- Added teacher-style portfolio advice with concrete support, breakout, stop, and trim levels.
 
 ### Changed
-
-- 「MACD觀察」與「0軸MACD」整合成單一 MACD 0 軸觀察。
-- MACD 觀察只列出 DIF 從 0 軸下方即將翻正或剛翻正的個股。
-- 資料不新、fallback、樣本不足的個股不列入 MACD 觀察推薦。
-- 技術圖表加入 MACD 0 軸狀態說明。
+- Latest displayed price is now labelled 「今日股價」 in portfolio analysis.
+- Removed standalone 「資料可信度」 page from top navigation.
+- Moved 「每日報告」 before 「持股總教練」.
+- Data trust now explicitly distinguishes official-confirmed, Yahoo-only, and fallback data.
 
 ### Fixed
-
-- 修正線上版輸入 Email + 存取碼後，需再按重新產生資料才看到持股的問題。
-- 修正持股分析未顯示最新價與漲跌顏色的問題。
+- Reduced risk of stale Yahoo-only latest price being treated as fully trusted.

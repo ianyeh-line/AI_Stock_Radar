@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.3.0"
+    assert payload["version"] == "3.4.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -83,3 +83,25 @@ def test_macd_observation_uses_zero_axis_candidates():
     for card in payload["macd_list"]:
         assert card["data_trust"]["actionable"]
         assert card["tech"]["macd"]["zero_axis_status"] in {"即將從0軸翻正", "剛從0軸翻正"}
+
+
+from radar.core.official_data import _normalize_symbol, _snapshot_from_row, OfficialSnapshot, apply_official_snapshot
+from radar.data.stock_master import StockInfo
+
+
+def test_official_snapshot_parser_twse_style():
+    stock = StockInfo("2330", "台積電", "TW", "半導體")
+    row = {"Code": "2330", "Name": "台積電", "OpeningPrice": "1000", "HighestPrice": "1020", "LowestPrice": "990", "ClosingPrice": "1010", "TradeVolume": "1,234,000", "Change": "+10"}
+    snapshot = _snapshot_from_row(row, stock, "TWSE OpenAPI")
+    assert snapshot.ok
+    assert snapshot.close == 1010
+    assert snapshot.volume == 1234000
+
+
+def test_apply_official_snapshot_updates_latest_row():
+    payload = {"source": "Yahoo Finance", "latest_date": "2026-01-01", "prices": [{"date": "2026-01-01", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}], "data_quality": "live_daily"}
+    snapshot = OfficialSnapshot("2330", "台積電", "TW", "TWSE OpenAPI", "2026-01-02", 12, 13, 11, 12.5, 200, 2.5, True)
+    updated = apply_official_snapshot(payload, snapshot)
+    assert updated["official_confirmed"] is True
+    assert updated["prices"][-1]["close"] == 12.5
+    assert updated["latest_date"] == "2026-01-02"
