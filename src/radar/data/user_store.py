@@ -5,7 +5,7 @@ Storage priority:
 2. Streamlit session state for Guest Mode, when cloud is not configured.
 3. Local files under ~/.ai_stock_radar for the product owner using the app locally.
 
-v3.2.2 change: save_* now returns True/False so the UI can tell the user when
+v3.2.3 change: save_* now returns True/False so the UI can tell the user when
 cloud persistence actually failed instead of showing a false success message.
 """
 

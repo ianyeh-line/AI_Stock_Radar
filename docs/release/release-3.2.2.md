@@ -1,4 +1,4 @@
-# Release v3.2.2 - Cloud Persistence Hotfix
+# Release v3.2.3 - Supabase Secrets Hotfix
 
 ## Goal
 

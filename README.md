@@ -1,26 +1,35 @@
-# AI Stock Radar v3.2.2
+# AI Stock Radar v3.2.3
 
-AI Stock Radar 是「AI 股市老師」盤前決策工具，目標是幫助使用者在 3 分鐘內完成台股觀察與波段操作決策。
+AI 股市老師 Web Beta：修正 Supabase Secrets 設定格式造成的雲端保存失敗。
 
-## 本版重點
-
-- 修正線上版台灣交易狀態判斷。
-- 修正市場結論文字被截斷。
-- 新增 Supabase 設定助手與新手文件。
-- 保留 v3.2.0 的資料可信度、Beta Access、MACD 0 軸與技術線圖能力。
-
-## 本機執行
+## 安裝
 
 ```bash
+bash ~/Desktop/AI_Stock_Radar_v3.2.3_SupabaseSecrets_Hotfix/upgrade_to_repo.sh
+```
+
+## 本機驗收
+
+```bash
+cd ~/Desktop/AI_Stock_Radar
 PYTHONPATH=src python3 -m radar.cli run
 python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## Supabase 設定
+## Streamlit Secrets 正確格式
 
-請看：
-
-```text
-docs/deploy/supabase-beginner-guide.md
+```toml
+[supabase]
+url = "https://你的專案.supabase.co"
+service_role_key = "你的 service_role 或 secret key"
+table = "user_profiles"
 ```
+
+注意：
+
+- `url` 不要包含 `/rest/v1`。
+- `table` 不要填 `public.user_profiles`，只填 `user_profiles`。
+- key 不要用 publishable / anon key。
+
+v3.2.3 會自動修正常見誤填，但仍建議 Secrets 使用上面格式。

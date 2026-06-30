@@ -1,6 +1,6 @@
 """Cloud user portfolio/watchlist storage via Supabase REST API.
 
-v3.2.2 hardens the Web Beta persistence layer:
+v3.2.3 hardens the Web Beta persistence layer:
 - Make save failures visible instead of silently showing success.
 - Support common Streamlit Secrets key names.
 - Add connection diagnostics for Streamlit Cloud setup.
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -77,11 +77,50 @@ def _secret_value(*keys: str) -> str:
         return ""
 
 
+
+def _normalize_supabase_url(raw_url: str) -> str:
+    """Normalize common Supabase URL inputs for REST API calls.
+
+    Streamlit Secrets should ideally contain only:
+        https://<project-ref>.supabase.co
+
+    In practice, new users often paste the Data API endpoint, for example:
+        https://<project-ref>.supabase.co/rest/v1
+
+    If we do not normalize this, the app builds invalid URLs such as
+    /rest/v1/rest/v1/user_profiles and Supabase returns PGRST125.
+    """
+    raw_url = (raw_url or "").strip().strip('"').strip("'").rstrip("/")
+    if not raw_url:
+        return ""
+    parsed = urlparse(raw_url if "://" in raw_url else f"https://{raw_url}")
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return raw_url.rstrip("/")
+
+
+def _normalize_table_name(raw_table: str) -> str:
+    """Normalize table name entered in Streamlit Secrets.
+
+    Supabase UI labels the table as public.user_profiles. PostgREST endpoint
+    should use only user_profiles. This function also handles users pasting a
+    REST path such as /rest/v1/user_profiles.
+    """
+    value = (raw_table or DEFAULT_TABLE).strip().strip('"').strip("'").strip("/")
+    if not value:
+        return DEFAULT_TABLE
+    if "/" in value:
+        value = value.split("/")[-1]
+    if "." in value:
+        value = value.split(".")[-1]
+    return value or DEFAULT_TABLE
+
 def supabase_config() -> dict[str, str]:
-    url = (
+    raw_url = (
         _secret_value("supabase", "url")
         or _secret_value("connections", "supabase", "url")
-    ).rstrip("/")
+    )
+    url = _normalize_supabase_url(raw_url)
 
     # Prefer server-side keys. Keep anon_key as a detected value only so we can
     # show a clear warning; it should not be used for persistence when RLS is on.
@@ -92,8 +131,15 @@ def supabase_config() -> dict[str, str]:
         or _secret_value("supabase", "key")
         or _secret_value("supabase", "anon_key")
     )
-    table = _secret_value("supabase", "table") or DEFAULT_TABLE
-    return {"url": url, "key": key, "table": table}
+    raw_table = _secret_value("supabase", "table") or DEFAULT_TABLE
+    table = _normalize_table_name(raw_table)
+    return {
+        "url": url,
+        "key": key,
+        "table": table,
+        "raw_url": str(raw_url or ""),
+        "raw_table": str(raw_table or ""),
+    }
 
 
 def _looks_like_public_key(key: str) -> bool:
@@ -124,7 +170,18 @@ def cloud_status() -> dict[str, str]:
     masked = ""
     if key:
         masked = f"{key[:8]}...{key[-6:]}" if len(key) > 18 else "已設定"
-    return {"status": status, "url": cfg["url"], "table": cfg["table"], "key_preview": masked}
+    warning_parts = []
+    if cfg.get("raw_url") and cfg.get("raw_url") != cfg["url"]:
+        warning_parts.append("URL 已自動修正為專案根網址")
+    if cfg.get("raw_table") and cfg.get("raw_table") != cfg["table"]:
+        warning_parts.append("資料表名稱已自動修正為 user_profiles")
+    return {
+        "status": status,
+        "url": cfg["url"],
+        "table": cfg["table"],
+        "key_preview": masked,
+        "warning": "；".join(warning_parts),
+    }
 
 
 def _headers(prefer: str | None = None) -> dict[str, str]:
@@ -173,6 +230,12 @@ def check_cloud_connection() -> CloudCheck:
         detail = response.text[:500]
         if response.status_code in (401, 403):
             return CloudCheck(False, "Supabase 權限不足：請確認 Streamlit Secrets 使用 service_role / secret key，不要用 anon key。", detail)
+        if "PGRST125" in detail or "Invalid path" in detail:
+            return CloudCheck(
+                False,
+                "Supabase URL / table 設定格式錯誤：URL 應只填 https://xxxx.supabase.co，table 應只填 user_profiles，不要填 public.user_profiles 或 /rest/v1/user_profiles。",
+                detail,
+            )
         if response.status_code == 404:
             return CloudCheck(False, "找不到 user_profiles 資料表：請確認 SQL schema 已建立，table 名稱為 user_profiles。", detail)
         return CloudCheck(False, f"Supabase 回應異常：HTTP {response.status_code}", detail)

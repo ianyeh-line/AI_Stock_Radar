@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.2.2", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.2.3", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -278,7 +278,7 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.2.2｜AI 股市老師")
+st.title("🚀 AI Stock Radar 3.2.3｜AI 股市老師")
 st.caption("本版重點：修正線上版持股 / 觀察清單雲端保存流程，新增 Supabase 連線檢查與明確錯誤提示。")
 
 if st.button("重新產生今日決策資料"):

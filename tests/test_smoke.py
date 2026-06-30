@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.2.2"
+    assert payload["version"] == "3.2.3"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -63,3 +63,15 @@ def test_data_trust_exists_on_decision_card():
     card = build_decision_card(resolve_stock("2330"))
     assert "data_trust" in card
     assert "status" in card["data_trust"]
+
+from radar.integrations.cloud_user_store import _normalize_supabase_url, _normalize_table_name
+
+
+def test_supabase_secret_url_normalization():
+    assert _normalize_supabase_url("https://abc.supabase.co/rest/v1") == "https://abc.supabase.co"
+    assert _normalize_supabase_url("abc.supabase.co/rest/v1/user_profiles") == "https://abc.supabase.co"
+
+
+def test_supabase_secret_table_normalization():
+    assert _normalize_table_name("public.user_profiles") == "user_profiles"
+    assert _normalize_table_name("/rest/v1/user_profiles") == "user_profiles"

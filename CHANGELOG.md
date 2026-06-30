@@ -1,26 +1,22 @@
 # CHANGELOG
 
-## v3.2.1 - Trading Status + Supabase Setup Hotfix
+## v3.2.3 - Supabase Secrets Hotfix
 
 ### Fixed
-- 修正 Streamlit Cloud 使用 UTC 導致台灣盤後誤判為盤中的問題。
-- 市場結論改為可換行卡片，不再被 metric 元件截斷。
-- 持股總教練頁不再重跑完整 pipeline，改善頁面反應。
+- 修正 Streamlit Secrets 常見誤填造成的 Supabase `PGRST125 Invalid path specified in request URL` 問題。
+- 自動把 `https://xxxx.supabase.co/rest/v1` 修正成 `https://xxxx.supabase.co`。
+- 自動把 `public.user_profiles` 修正成 `user_profiles`。
+- Supabase 連線測試會明確提示 URL 與 table 的正確格式。
 
 ### Added
-- 新增 Supabase 設定助手頁籤。
-- 新增 `docs/deploy/supabase-beginner-guide.md`。
-- 新增 `docs/deploy/supabase-schema.sql`。
-- 新增 `.streamlit/secrets.example.toml`。
-- 新增台灣交易狀態 regression tests。
+- Regression tests for Supabase URL and table name normalization.
 
-## v3.2.2 - Cloud Persistence Hotfix
+### Notes
+- Streamlit Secrets 建議格式：
 
-### Fixed
-- Fixed false success messaging when online portfolio/watchlist data was not saved to Supabase.
-- Added Supabase connection and permission diagnostics.
-- Added warning when a public/publishable Supabase key is used instead of service_role/secret key.
-- Added explicit UI feedback for cloud save failures.
-
-### Improved
-- Cloud save failures are preserved in session for the current browser, preventing immediate data loss during setup.
+```toml
+[supabase]
+url = "https://你的專案.supabase.co"
+service_role_key = "你的 service_role 或 secret key"
+table = "user_profiles"
+```
