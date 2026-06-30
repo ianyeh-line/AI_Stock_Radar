@@ -19,11 +19,11 @@ import streamlit as st
 from radar.core.indicators import ema_series
 from radar.core.report import build_markdown, save_outputs
 from radar.data.stock_master import resolve_stock
-from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist, save_watchlist, storage_status
-from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured
+from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist, save_watchlist, storage_status, last_save_status
+from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.2.1", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.2.2", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -97,7 +97,16 @@ def render_beta_access() -> None:
             st.session_state["guest_mode_enabled"] = not is_cloud_store_configured()
             st.rerun()
     st.sidebar.caption(f"雲端資料庫狀態：{cloud['status']}")
-    if not is_cloud_store_configured():
+    if is_cloud_store_configured():
+        if st.sidebar.button("測試 Supabase 連線"):
+            check = check_cloud_connection()
+            if check.ok:
+                st.sidebar.success(check.message)
+            else:
+                st.sidebar.error(check.message)
+                if check.detail:
+                    st.sidebar.caption(check.detail[:300])
+    else:
         st.sidebar.info("未設定 Supabase 時仍可體驗，但重新開瀏覽器後資料不會永久保存。請依 docs/deploy/supabase-beginner-guide.md 完成設定。")
 
 
@@ -228,10 +237,16 @@ def add_watchlist_ui() -> None:
             items = load_watchlist()
             if not any(i.get("symbol") == card["symbol"] for i in items):
                 items.append({"symbol": card["symbol"], "name": card["name"]})
-                save_watchlist(items)
-            st.success(f"已加入 {card['label']}")
-            st.session_state.pop("dashboard_payload", None)
-            st.rerun()
+                ok = save_watchlist(items)
+            else:
+                ok = True
+            status = last_save_status()
+            if ok:
+                st.success(f"已加入 {card['label']}｜{status.get('detail', '')}")
+                st.session_state.pop("dashboard_payload", None)
+                st.rerun()
+            else:
+                st.error(f"已暫存在本次瀏覽，但雲端保存失敗：{status.get('detail', '')}")
         except Exception as exc:
             st.error(str(exc))
 
@@ -248,10 +263,14 @@ def add_portfolio_ui() -> None:
             card = build_decision_card(stock)
             items = [i for i in load_portfolio() if i.get("symbol") != card["symbol"]]
             items.append({"symbol": card["symbol"], "name": card["name"], "shares": shares, "cost": cost})
-            save_portfolio(items)
-            st.success(f"已儲存 {card['label']}")
-            st.session_state.pop("dashboard_payload", None)
-            st.rerun()
+            ok = save_portfolio(items)
+            status = last_save_status()
+            if ok:
+                st.success(f"已儲存 {card['label']}｜{status.get('detail', '')}")
+                st.session_state.pop("dashboard_payload", None)
+                st.rerun()
+            else:
+                st.error(f"已暫存在本次瀏覽，但雲端保存失敗：{status.get('detail', '')}")
         except Exception as exc:
             st.error(str(exc))
 
@@ -259,8 +278,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.2.1｜AI 股市老師")
-st.caption("本版重點：台灣交易狀態修正、完整市場結論顯示、Supabase 設定助手、資料可信度防呆。")
+st.title("🚀 AI Stock Radar 3.2.2｜AI 股市老師")
+st.caption("本版重點：修正線上版持股 / 觀察清單雲端保存流程，新增 Supabase 連線檢查與明確錯誤提示。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -375,9 +394,31 @@ with tabs[7]:
 with tabs[8]:
     st.header("Supabase 設定助手")
     cloud_info = cloud_status()
+    st.write(f"目前狀態：**{cloud_info.get('status')}**")
+    st.write(f"資料表：`{cloud_info.get('table')}`")
+    if cloud_info.get('url'):
+        st.write(f"Project URL：`{cloud_info.get('url')}`")
+    if cloud_info.get('key_preview'):
+        st.write(f"Key：`{cloud_info.get('key_preview')}`")
+
+    if st.button("測試 Supabase 連線與權限", key="supabase_connection_test"):
+        check = check_cloud_connection()
+        if check.ok:
+            st.success(check.message)
+        else:
+            st.error(check.message)
+            if check.detail:
+                st.code(check.detail)
+
+    err = last_cloud_error()
+    if err:
+        st.warning(f"最近一次雲端保存錯誤：{err}")
+        detail = last_cloud_response()
+        if detail:
+            st.code(detail)
+
     if is_cloud_store_configured():
         st.success("Supabase 已設定。朋友使用 Email + 自訂存取碼後，持股與觀察清單會保存到雲端。")
-        st.write(f"資料表：{cloud_info.get('table')}")
     else:
         st.warning("Supabase 尚未設定，所以朋友資料目前只會暫存在本次瀏覽。")
         st.markdown("""

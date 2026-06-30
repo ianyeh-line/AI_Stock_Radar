@@ -1,14 +1,16 @@
 """Cloud user portfolio/watchlist storage via Supabase REST API.
 
-v3.2.0 restores Web Beta persistence: friends can use Email + Access Code
-(Beta Access) and store personal watchlist/portfolio in Supabase. When Supabase
-is not configured, the app falls back to Streamlit session storage so the page
-remains usable.
+v3.2.2 hardens the Web Beta persistence layer:
+- Make save failures visible instead of silently showing success.
+- Support common Streamlit Secrets key names.
+- Add connection diagnostics for Streamlit Cloud setup.
+- Use a server-side Supabase service_role / secret key only.
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
 
@@ -16,6 +18,42 @@ import requests
 
 DEFAULT_TABLE = "user_profiles"
 TIMEOUT_SECONDS = 12
+
+_LAST_ERROR = ""
+_LAST_RESPONSE = ""
+
+
+def _set_error(message: str, detail: str = "") -> None:
+    global _LAST_ERROR, _LAST_RESPONSE
+    _LAST_ERROR = message
+    _LAST_RESPONSE = detail[:1000] if detail else ""
+    st = _streamlit()
+    if st is not None:
+        try:
+            st.session_state["cloud_store_last_error"] = _LAST_ERROR
+            st.session_state["cloud_store_last_response"] = _LAST_RESPONSE
+        except Exception:
+            pass
+
+
+def last_cloud_error() -> str:
+    st = _streamlit()
+    if st is not None:
+        try:
+            return str(st.session_state.get("cloud_store_last_error") or _LAST_ERROR)
+        except Exception:
+            pass
+    return _LAST_ERROR
+
+
+def last_cloud_response() -> str:
+    st = _streamlit()
+    if st is not None:
+        try:
+            return str(st.session_state.get("cloud_store_last_response") or _LAST_RESPONSE)
+        except Exception:
+            pass
+    return _LAST_RESPONSE
 
 
 def _streamlit() -> Any | None:
@@ -40,9 +78,17 @@ def _secret_value(*keys: str) -> str:
 
 
 def supabase_config() -> dict[str, str]:
-    url = _secret_value("supabase", "url").rstrip("/")
+    url = (
+        _secret_value("supabase", "url")
+        or _secret_value("connections", "supabase", "url")
+    ).rstrip("/")
+
+    # Prefer server-side keys. Keep anon_key as a detected value only so we can
+    # show a clear warning; it should not be used for persistence when RLS is on.
     key = (
         _secret_value("supabase", "service_role_key")
+        or _secret_value("supabase", "secret_key")
+        or _secret_value("supabase", "sb_secret_key")
         or _secret_value("supabase", "key")
         or _secret_value("supabase", "anon_key")
     )
@@ -50,29 +96,47 @@ def supabase_config() -> dict[str, str]:
     return {"url": url, "key": key, "table": table}
 
 
+def _looks_like_public_key(key: str) -> bool:
+    if not key:
+        return False
+    # Supabase legacy anon/service keys are JWTs and hard to distinguish without
+    # decoding. However users often paste publishable keys in the new API Keys UI.
+    lowered = key.lower()
+    return lowered.startswith("sb_publishable_") or lowered.startswith("supabase_publishable_")
+
+
 def is_cloud_store_configured() -> bool:
     cfg = supabase_config()
-    return bool(cfg["url"] and cfg["key"])
+    return bool(cfg["url"] and cfg["key"] and not _looks_like_public_key(cfg["key"]))
 
 
 def cloud_status() -> dict[str, str]:
     cfg = supabase_config()
+    key = cfg["key"]
     if not cfg["url"]:
         status = "未設定 Supabase URL"
-    elif not cfg["key"]:
+    elif not key:
         status = "未設定 Supabase Key"
+    elif _looks_like_public_key(key):
+        status = "偵測到 publishable / public key；請改用 service_role 或 secret key"
     else:
         status = "已設定，可保存朋友持股"
-    return {"status": status, "url": cfg["url"], "table": cfg["table"]}
+    masked = ""
+    if key:
+        masked = f"{key[:8]}...{key[-6:]}" if len(key) > 18 else "已設定"
+    return {"status": status, "url": cfg["url"], "table": cfg["table"], "key_preview": masked}
 
 
-def _headers() -> dict[str, str]:
+def _headers(prefer: str | None = None) -> dict[str, str]:
     key = supabase_config()["key"]
-    return {
+    headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
+    if prefer:
+        headers["Prefer"] = prefer
+    return headers
 
 
 def _base_url() -> str:
@@ -84,15 +148,54 @@ def _empty(email: str) -> dict[str, Any]:
     return {"user_email": email, "watchlist": [], "portfolio": []}
 
 
-def load_user_profile(email: str) -> dict[str, Any]:
-    email = (email or "").strip().lower()
-    if not email or not is_cloud_store_configured():
-        return _empty(email)
-    url = f"{_base_url()}?user_email=eq.{quote(email)}&select=user_email,watchlist,portfolio"
+@dataclass
+class CloudCheck:
+    ok: bool
+    message: str
+    detail: str = ""
+
+
+def check_cloud_connection() -> CloudCheck:
+    cfg = supabase_config()
+    if not cfg["url"]:
+        return CloudCheck(False, "未設定 Supabase URL")
+    if not cfg["key"]:
+        return CloudCheck(False, "未設定 Supabase Key")
+    if _looks_like_public_key(cfg["key"]):
+        return CloudCheck(False, "目前填的是 public / publishable key。請改用 service_role 或 secret key。")
+
+    url = f"{_base_url()}?select=user_email&limit=1"
     try:
         response = requests.get(url, headers=_headers(), timeout=TIMEOUT_SECONDS)
-        response.raise_for_status()
+        if response.status_code in (200, 206):
+            _set_error("")
+            return CloudCheck(True, "Supabase 連線成功")
+        detail = response.text[:500]
+        if response.status_code in (401, 403):
+            return CloudCheck(False, "Supabase 權限不足：請確認 Streamlit Secrets 使用 service_role / secret key，不要用 anon key。", detail)
+        if response.status_code == 404:
+            return CloudCheck(False, "找不到 user_profiles 資料表：請確認 SQL schema 已建立，table 名稱為 user_profiles。", detail)
+        return CloudCheck(False, f"Supabase 回應異常：HTTP {response.status_code}", detail)
+    except Exception as exc:
+        return CloudCheck(False, f"Supabase 連線失敗：{exc}")
+
+
+def load_user_profile(email: str) -> dict[str, Any]:
+    email = (email or "").strip().lower()
+    if not email:
+        _set_error("未提供使用者識別碼")
+        return _empty(email)
+    if not is_cloud_store_configured():
+        _set_error("Supabase 尚未完整設定")
+        return _empty(email)
+    url = f"{_base_url()}?user_email=eq.{quote(email)}&select=user_email,watchlist,portfolio&limit=1"
+    try:
+        response = requests.get(url, headers=_headers(), timeout=TIMEOUT_SECONDS)
+        if response.status_code not in (200, 206):
+            _set_error(f"讀取 Supabase 失敗：HTTP {response.status_code}", response.text)
+            return _empty(email)
         rows = response.json()
+        _set_error("")
         if rows:
             row = rows[0]
             return {
@@ -100,23 +203,40 @@ def load_user_profile(email: str) -> dict[str, Any]:
                 "watchlist": row.get("watchlist") or [],
                 "portfolio": row.get("portfolio") or [],
             }
-    except Exception:
+    except Exception as exc:
+        _set_error(f"讀取 Supabase 失敗：{exc}")
         return _empty(email)
     return _empty(email)
 
 
 def save_user_profile(email: str, watchlist: list[dict[str, Any]], portfolio: list[dict[str, Any]]) -> bool:
     email = (email or "").strip().lower()
-    if not email or not is_cloud_store_configured():
+    if not email:
+        _set_error("未提供使用者識別碼，無法保存")
         return False
+    if not is_cloud_store_configured():
+        _set_error("Supabase 尚未完整設定，無法保存到雲端")
+        return False
+
     payload = {"user_email": email, "watchlist": watchlist, "portfolio": portfolio}
     url = f"{_base_url()}?on_conflict=user_email"
-    headers = _headers() | {"Prefer": "resolution=merge-duplicates,return=minimal"}
+    headers = _headers("resolution=merge-duplicates,return=representation")
     try:
         response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False), timeout=TIMEOUT_SECONDS)
-        response.raise_for_status()
-        return True
-    except Exception:
+        if response.status_code in (200, 201, 204):
+            _set_error("")
+            return True
+        # If the upsert path fails because of policy/shape, expose the actual
+        # Supabase message. This is much better than pretending success.
+        if response.status_code in (401, 403):
+            _set_error("寫入 Supabase 權限不足：請使用 service_role / secret key，且放在 Streamlit Secrets。", response.text)
+        elif response.status_code == 404:
+            _set_error("寫入 Supabase 失敗：找不到 user_profiles 資料表。", response.text)
+        else:
+            _set_error(f"寫入 Supabase 失敗：HTTP {response.status_code}", response.text)
+        return False
+    except Exception as exc:
+        _set_error(f"寫入 Supabase 失敗：{exc}")
         return False
 
 

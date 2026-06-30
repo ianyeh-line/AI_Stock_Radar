@@ -4,6 +4,9 @@ Storage priority:
 1. Streamlit Beta Access + Supabase cloud profile, when configured.
 2. Streamlit session state for Guest Mode, when cloud is not configured.
 3. Local files under ~/.ai_stock_radar for the product owner using the app locally.
+
+v3.2.2 change: save_* now returns True/False so the UI can tell the user when
+cloud persistence actually failed instead of showing a false success message.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from radar.integrations.cloud_user_store import (
     load_cloud_watchlist,
     save_cloud_portfolio,
     save_cloud_watchlist,
+    last_cloud_error,
 )
 
 APP_DIR = Path.home() / ".ai_stock_radar"
@@ -83,6 +87,13 @@ def _save_session_list(key: str, items: list[dict]) -> None:
         ss[key] = items
 
 
+def _record_save_result(ok: bool, detail: str = "") -> None:
+    ss = _session_state()
+    if ss is not None:
+        ss["last_user_store_save_ok"] = ok
+        ss["last_user_store_save_detail"] = detail
+
+
 def load_watchlist() -> list[dict]:
     if _use_cloud():
         return load_cloud_watchlist(_cloud_email())
@@ -91,14 +102,24 @@ def load_watchlist() -> list[dict]:
     return _read_json(WATCHLIST_PATH, [])
 
 
-def save_watchlist(items: list[dict]) -> None:
+def save_watchlist(items: list[dict]) -> bool:
     if _use_cloud():
-        save_cloud_watchlist(_cloud_email(), items)
-        return
+        ok = save_cloud_watchlist(_cloud_email(), items)
+        if not ok:
+            # Preserve the user's changes during this browser session even when
+            # Supabase is misconfigured, but report failure clearly.
+            _save_session_list("guest_watchlist", items)
+            _record_save_result(False, last_cloud_error())
+            return False
+        _record_save_result(True, "已保存到 Supabase")
+        return True
     if _use_session():
         _save_session_list("guest_watchlist", items)
-        return
+        _record_save_result(True, "已暫存在本次瀏覽 session")
+        return True
     _write_json(WATCHLIST_PATH, items)
+    _record_save_result(True, str(WATCHLIST_PATH))
+    return True
 
 
 def load_portfolio() -> list[dict]:
@@ -109,14 +130,32 @@ def load_portfolio() -> list[dict]:
     return _read_json(PORTFOLIO_PATH, [])
 
 
-def save_portfolio(items: list[dict]) -> None:
+def save_portfolio(items: list[dict]) -> bool:
     if _use_cloud():
-        save_cloud_portfolio(_cloud_email(), items)
-        return
+        ok = save_cloud_portfolio(_cloud_email(), items)
+        if not ok:
+            _save_session_list("guest_portfolio", items)
+            _record_save_result(False, last_cloud_error())
+            return False
+        _record_save_result(True, "已保存到 Supabase")
+        return True
     if _use_session():
         _save_session_list("guest_portfolio", items)
-        return
+        _record_save_result(True, "已暫存在本次瀏覽 session")
+        return True
     _write_json(PORTFOLIO_PATH, items)
+    _record_save_result(True, str(PORTFOLIO_PATH))
+    return True
+
+
+def last_save_status() -> dict[str, str | bool]:
+    ss = _session_state()
+    if ss is None:
+        return {"ok": True, "detail": ""}
+    return {
+        "ok": bool(ss.get("last_user_store_save_ok", True)),
+        "detail": str(ss.get("last_user_store_save_detail") or ""),
+    }
 
 
 def storage_status() -> dict[str, str]:

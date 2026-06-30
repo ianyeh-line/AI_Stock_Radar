@@ -1,4 +1,4 @@
-# AI Stock Radar v3.2.1
+# AI Stock Radar v3.2.2
 
 AI Stock Radar 是「AI 股市老師」盤前決策工具，目標是幫助使用者在 3 分鐘內完成台股觀察與波段操作決策。
 
