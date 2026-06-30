@@ -1,6 +1,15 @@
 # CHANGELOG
 
-## v3.5.2 - Data Freshness and Input Flow Hotfix
+## v3.5.3 - Data Freshness Rule Update
+
+### Changed
+
+- 正式套用 Data Freshness Rule v1：以目前交易狀態下最新有效資料為準。
+- 移除「來源差異過大」作為降級原因；不再因 Yahoo / 官方差異而自動降等。
+- 盤前接受前一交易日資料；盤中接受當日盤中資料；盤後接受當日最新可得資料；非交易日接受最近交易日資料。
+- Yahoo 或官方只要是最新有效資料，都可作為操作評分基準。
+
+## v3.5.3 - Data Freshness Rule Update
 
 ### Fixed
 

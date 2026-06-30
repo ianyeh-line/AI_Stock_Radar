@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.5.2"
+APP_VERSION = "3.5.3"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -357,7 +357,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：資料來源以最新可得資料為準，官方 / Yahoo 擇新採用；新增持股改用表單，按下加入後才抓取資料。")
+st.caption("本版重點：落實 Data Freshness Rule；只要是目前交易狀態下最新資料，就不因來源為 Yahoo 或官方未同步而降等。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -371,7 +371,7 @@ st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--
 st.info(payload["teacher_summary"])
 source_summary = payload.get("data_source_summary", {})
 st.caption(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
-st.caption(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜官方異常未採用 {source_summary.get('official_anomaly', 0)} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
+st.caption(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
 store = storage_status()
 st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 

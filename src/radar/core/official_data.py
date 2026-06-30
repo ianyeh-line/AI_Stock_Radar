@@ -1,12 +1,10 @@
 """Official Taiwan market data integrations with freshness-aware source selection.
 
-v3.5.0 Data Source Truthfulness:
-- TWSE / TPEx official data is no longer blindly preferred.
-- Yahoo Finance remains the historical OHLC source and can be used as the
-  latest reference when it is newer than official data.
-- The product records why a source was selected so the recommendation can be
-  downgraded or explained when data is stale, fallback, or official data is not
-  updated yet.
+v3.5.3 Data Freshness Rule:
+- TWSE / TPEx official data and Yahoo Finance are compared by data date.
+- The newest valid data source is selected, regardless of whether it is official or Yahoo.
+- Price-source differences are disclosed in source metadata only; they do not
+  downgrade recommendations when the selected data is the newest valid data.
 """
 
 from __future__ import annotations
@@ -267,15 +265,16 @@ def _latest_row_close(rows: list[dict[str, Any]]) -> float | None:
 
 
 def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSnapshot) -> dict[str, Any]:
-    """Select the freshest trustworthy latest price source.
+    """Select the freshest available price source.
 
-    v3.5.1 Hotfix:
-    - Normalize ROC official dates such as 1150629 to ISO dates before using them.
-    - Never let an official one-day snapshot destroy the Yahoo historical chart.
-    - If official close differs from Yahoo latest close by more than 35%, treat
-      it as an anomaly and keep Yahoo as the price basis. This prevents cases
-      like a single abnormal official row making the chart vertical and the
-      portfolio value incorrect.
+    v3.5.3 Data Freshness Rule:
+    - Do not downgrade only because data comes from Yahoo or differs from official.
+    - Compare source dates and use the newest valid data.
+    - If official and Yahoo have the same date, keep Yahoo as the price basis so
+      historical indicators and chart data remain consistent; official is used
+      as confirmation metadata.
+    - Only fallback, stale date, missing date, or insufficient samples should
+      limit recommendations.
     """
     payload = dict(price_payload)
     rows = [dict(row) for row in payload.get("prices", [])]
@@ -283,8 +282,6 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
     yahoo_date = _date_value(_normalize_snapshot_date(yahoo_date_text) or yahoo_date_text)
     official_date_text = _normalize_snapshot_date(snapshot.date) or snapshot.date
     official_date = _date_value(official_date_text)
-    yahoo_close = _latest_row_close(rows)
-    official_close = snapshot.close
     snapshot_dict = snapshot.as_dict()
     snapshot_dict["date"] = official_date_text
 
@@ -295,7 +292,7 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
     payload["official_price_anomaly"] = False
     payload["source_selection"] = {
         "selected": payload.get("source", "Yahoo Finance"),
-        "reason": "預設使用 Yahoo Finance 歷史日線",
+        "reason": "預設使用 Yahoo Finance 歷史日線與最新報價",
         "yahoo_date": payload["yahoo_latest_date"],
         "official_date": official_date_text,
     }
@@ -306,7 +303,7 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["official_date_verified"] = False
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
-            "reason": f"官方資料不可用：{snapshot.message or '未取得有效收盤價'}",
+            "reason": f"官方資料不可用：{snapshot.message or '未取得有效收盤價'}；採用 Yahoo 最新可得資料",
             "yahoo_date": payload["yahoo_latest_date"],
             "official_date": official_date_text,
         }
@@ -319,46 +316,37 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
         payload["data_quality"] = "yahoo_with_undated_official"
         payload["source_selection"] = {
             "selected": payload.get("source", "Yahoo Finance"),
-            "reason": "官方資料有價格但無可驗證日期，因此保留 Yahoo 最新日線",
+            "reason": "官方資料有價格但無可驗證日期；依最新資料規則採用 Yahoo 最新可得資料",
             "yahoo_date": payload["yahoo_latest_date"],
             "official_date": "未提供",
         }
         return payload
 
-    ratio_diff = _safe_ratio_diff(official_close, yahoo_close)
-    if ratio_diff is not None and ratio_diff > 0.35:
-        payload["official_confirmed"] = False
-        payload["official_lagging"] = False
+    # Newest date wins. If dates tie, Yahoo remains the price basis because it
+    # provides the full technical series used by the chart and indicators.
+    if yahoo_date is not None and official_date <= yahoo_date:
+        payload["official_confirmed"] = official_date == yahoo_date
+        payload["official_lagging"] = official_date < yahoo_date
         payload["official_date_verified"] = True
-        payload["official_price_anomaly"] = True
-        payload["data_quality"] = "yahoo_official_price_anomaly"
-        payload["source"] = "Yahoo Finance（官方價差異常未採用）"
+        if official_date < yahoo_date:
+            payload["data_quality"] = "yahoo_newer_than_official"
+            payload["source"] = "Yahoo Finance（較新）"
+            reason = "Yahoo 資料日期較官方資料新，依最新資料規則採用 Yahoo 作為今日判斷基準"
+        else:
+            payload["data_quality"] = "yahoo_same_day_official_confirmed"
+            payload["source"] = "Yahoo Finance + 官方同日確認"
+            reason = "Yahoo 與官方資料同日；依最新資料規則保留 Yahoo 技術序列，官方作為同日確認"
         payload["latest_date"] = yahoo_date.isoformat() if yahoo_date else yahoo_date_text
         payload["source_selection"] = {
-            "selected": "Yahoo Finance",
-            "reason": f"官方收盤價 {official_close} 與 Yahoo 最新價 {yahoo_close} 差異超過 35%，為避免圖表與持股估值失真，本次採用 Yahoo 價格並標示官方價差異常",
+            "selected": payload["source"],
+            "reason": reason,
             "yahoo_date": payload["yahoo_latest_date"],
             "official_date": official_date.isoformat(),
         }
         return payload
 
-    if yahoo_date is not None and official_date < yahoo_date:
-        payload["official_confirmed"] = False
-        payload["official_lagging"] = True
-        payload["official_date_verified"] = True
-        payload["data_quality"] = "yahoo_newer_than_official"
-        payload["source"] = "Yahoo Finance（較新）"
-        payload["latest_date"] = yahoo_date.isoformat()
-        payload["source_selection"] = {
-            "selected": "Yahoo Finance",
-            "reason": "Yahoo 資料日期較官方資料新，採用較新的 Yahoo 日線作為今日判斷基準",
-            "yahoo_date": yahoo_date.isoformat(),
-            "official_date": official_date.isoformat(),
-        }
-        return payload
-
-    # Official is at least as new as Yahoo and price is plausible, so it can
-    # confirm / correct only the latest row while preserving the Yahoo history.
+    # Official date is newer than Yahoo. Append official snapshot as the latest
+    # row while preserving Yahoo history for indicators.
     normalized_snapshot = OfficialSnapshot(
         snapshot.symbol, snapshot.name, snapshot.market, snapshot.source,
         official_date.isoformat(), snapshot.open, snapshot.high, snapshot.low,
@@ -366,17 +354,16 @@ def apply_official_snapshot(price_payload: dict[str, Any], snapshot: OfficialSna
     )
     payload["prices"] = _merge_snapshot_into_rows(rows, normalized_snapshot)
     payload["name"] = snapshot.name or payload.get("name")
-    payload["source"] = f"{snapshot.source} + Yahoo Finance"
+    payload["source"] = f"{snapshot.source}（較新） + Yahoo Finance 歷史線圖"
     payload["official_confirmed"] = True
     payload["official_lagging"] = False
     payload["official_date_verified"] = True
     payload["latest_date"] = official_date.isoformat()
-    payload["data_quality"] = "official_confirmed_daily"
+    payload["data_quality"] = "official_newer_than_yahoo"
     payload["source_selection"] = {
         "selected": snapshot.source,
-        "reason": "官方資料日期不晚於 Yahoo 且價格差異合理，採用 TWSE / TPEx 官方盤後快照確認最新價",
+        "reason": "官方資料日期較 Yahoo 新，依最新資料規則採用官方最新快照作為今日判斷基準",
         "yahoo_date": payload["yahoo_latest_date"],
         "official_date": official_date.isoformat(),
     }
     return payload
-

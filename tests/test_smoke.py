@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.5.2"
+    assert payload["version"] == "3.5.3"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -138,3 +138,23 @@ def test_yahoo_latest_quote_merges_same_day_price():
     assert merged is True
     assert updated[-1]["close"] == 103
     assert updated[-1]["volume"] == 2000
+
+
+from radar.teacher.decision import _data_trust, trading_status
+
+
+def test_yahoo_latest_expected_date_is_actionable_without_official_confirmation():
+    status = {"date": "2026-07-01", "time": "10:00", "timezone": "Asia/Taipei", "weekday": "三", "session": "盤中", "is_trade_day": True}
+    prices = {"latest_date": "2026-07-01", "source": "Yahoo Finance 最新報價", "data_quality": "yahoo_latest_quote", "official_confirmed": False, "official_lagging": False}
+    trust = _data_trust(prices, 90, status)
+    assert trust["actionable"] is True
+    assert trust["trust_level"] == "高"
+    assert not trust["warnings"]
+
+
+def test_premarket_previous_trading_day_is_actionable():
+    status = {"date": "2026-07-01", "time": "08:30", "timezone": "Asia/Taipei", "weekday": "三", "session": "盤前", "is_trade_day": True}
+    prices = {"latest_date": "2026-06-30", "source": "Yahoo Finance", "data_quality": "live_daily", "official_confirmed": False}
+    trust = _data_trust(prices, 90, status)
+    assert trust["actionable"] is True
+    assert not trust["warnings"]

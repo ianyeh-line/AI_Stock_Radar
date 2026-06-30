@@ -1,9 +1,10 @@
 """Stock teacher decision engine.
 
-v3.5.0 Data Source Truthfulness:
+v3.5.3 Data Freshness Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
-- Use the newest available data source as the price basis.
-- Downgrade recommendations when data is stale, fallback, or insufficient.
+- Use the newest valid data source as the price basis.
+- Do not downgrade solely because the source is Yahoo or because official data is unavailable.
+- Downgrade only when data is truly stale for the current trading state, fallback, missing, or insufficient.
 """
 
 from __future__ import annotations
@@ -184,7 +185,6 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
     source_selection = prices.get("source_selection") or {}
     official_confirmed = bool(prices.get("official_confirmed"))
     official_lagging = bool(prices.get("official_lagging"))
-    official_price_anomaly = bool(prices.get("official_price_anomaly"))
 
     if quality == "fallback" or source == "fallback":
         warnings.append("價格資料為 fallback，禁止列為買進，只能觀察")
@@ -195,41 +195,39 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
         latest_d = date.fromisoformat(latest_date)
         expected_d = date.fromisoformat(expected_date)
         if latest_d < expected_d:
-            warnings.append(f"資料基準日 {latest_date} 早於預期最新交易日 {expected_date}，不給強推薦")
+            warnings.append(f"資料基準日 {latest_date} 早於目前交易狀態應有的最新資料日 {expected_date}，不給強推薦")
         elif latest_d == expected_d:
-            notes.append(f"資料基準日符合預期最新交易日 {expected_date}")
+            notes.append(f"資料基準日 {latest_date} 符合目前交易狀態的最新資料要求")
         else:
-            notes.append(f"資料基準日 {latest_date} 晚於預期交易日 {expected_date}，請確認是否為跨時區或交易日判斷差異")
+            notes.append(f"資料基準日 {latest_date} 晚於預期交易日 {expected_date}；依最新資料規則採用")
     except Exception:
         warnings.append("無法判斷資料日期")
 
-    if official_confirmed:
-        notes.append("TWSE / TPEx 官方資料已確認最新價")
-    elif official_price_anomaly:
-        notes.append("官方快照與 Yahoo 最新價差異過大；為避免估值與圖表失真，本次採用 Yahoo 價格")
+    if official_confirmed and not official_lagging:
+        notes.append("官方資料與採用資料同日或官方資料較新")
     elif official_lagging and latest_date:
-        notes.append("官方資料尚未更新；已採用日期較新的 Yahoo 資料作為判斷基準")
+        notes.append("官方資料尚未更新；已採用日期較新的 Yahoo 資料")
     elif quality == "yahoo_with_undated_official":
-        notes.append("官方資料未提供可驗證日期；保留 Yahoo 最新日線，不讓無日期官方資料覆蓋")
+        notes.append("官方資料未提供可驗證日期；依最新資料規則採用 Yahoo 最新可得資料")
     elif quality != "fallback":
-        notes.append("目前使用 Yahoo 最新可得日線，官方確認不足，信心略降")
+        notes.append("採用目前可取得的最新價格資料；不因來源為 Yahoo 自動降等")
 
     actionable = not warnings
-    if actionable and official_price_anomaly:
-        trust_level = "中"
-        status_text = "Yahoo 價格採用，官方價差異常"
-    elif actionable and official_lagging:
-        trust_level = "中高"
-        status_text = "Yahoo 較新，官方尚未更新"
-    elif actionable and official_confirmed:
-        trust_level = "高"
-        status_text = "官方資料已確認，可作為操作參考"
-    elif actionable:
-        trust_level = "中"
-        status_text = "Yahoo 最新資料可參考，但缺官方確認"
-    else:
+    if not actionable:
         trust_level = "低"
         status_text = "資料不足，僅能觀察"
+    elif quality == "official_newer_than_yahoo":
+        trust_level = "高"
+        status_text = "官方資料較新，可作為操作參考"
+    elif official_confirmed and not official_lagging:
+        trust_level = "高"
+        status_text = "資料為目前交易狀態下的最新有效資料"
+    elif official_lagging:
+        trust_level = "高"
+        status_text = "Yahoo 資料較新，依最新資料規則可作為操作參考"
+    else:
+        trust_level = "高"
+        status_text = "採用目前交易狀態下最新可得資料，可作為操作參考"
 
     return {
         "status": status_text,
@@ -242,7 +240,7 @@ def _data_trust(prices: dict, sample_size: int, status: dict | None = None) -> d
         "quality": quality,
         "official_confirmed": official_confirmed,
         "official_lagging": official_lagging,
-        "official_price_anomaly": official_price_anomaly,
+        "official_price_anomaly": False,
         "official_source": official_snapshot.get("source") or prices.get("official_source") or "未取得",
         "official_date": official_snapshot.get("date") or prices.get("official_date") or "未提供",
         "official_message": official_snapshot.get("message", ""),
@@ -298,22 +296,12 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
     if not trust["actionable"]:
         score = min(score, 64)
         reasons = trust["warnings"] + reasons
-    elif trust.get("official_price_anomaly"):
-        score = min(100, max(0, score - 5))
-        reasons = ["官方快照價格異常，採用 Yahoo 價格；信心略降"] + reasons
-    elif trust.get("official_lagging") or not trust.get("official_confirmed"):
-        score = min(100, max(0, score - 3))
-        reasons = ["採用較新的 Yahoo 資料，官方尚未完全同步，信心略降"] + reasons
 
     label, setup, grade = _decision(score, tech)
     if not trust["actionable"] and grade in {"A", "B"}:
         label, setup, grade = "只觀察", "資料不足不給買進", "C"
 
     confidence_penalty = 0 if trust["actionable"] else -18
-    if trust.get("official_price_anomaly"):
-        confidence_penalty -= 6
-    elif trust.get("official_lagging") or not trust.get("official_confirmed"):
-        confidence_penalty -= 4
     confidence = min(96, max(40, score + confidence_penalty))
     return {
         "symbol": stock.symbol,
@@ -429,29 +417,29 @@ def _macd_zero_axis_candidates(cards: list[dict]) -> list[dict]:
 def _data_source_summary(cards: list[dict], status: dict) -> dict:
     latest_dates = [c.get("latest_date") for c in cards if c.get("latest_date")]
     policy = expected_latest_trading_date(status)
-    official_count = sum(1 for c in cards if c.get("official_confirmed"))
+    official_count = sum(1 for c in cards if c.get("data_quality") == "official_newer_than_yahoo")
+    official_same_day_count = sum(1 for c in cards if c.get("data_quality") == "yahoo_same_day_official_confirmed")
     yahoo_newer_count = sum(1 for c in cards if c.get("official_lagging"))
-    official_anomaly_count = sum(1 for c in cards if c.get("data_trust", {}).get("official_price_anomaly") or c.get("official_price_anomaly"))
     fallback_count = sum(1 for c in cards if c.get("data_quality") == "fallback")
     stale_count = sum(1 for c in cards if c.get("data_trust", {}).get("latest_date") and c.get("data_trust", {}).get("latest_date") < policy["expected_date"])
-    yahoo_only_count = sum(1 for c in cards if (not c.get("official_confirmed") and c.get("data_quality") != "fallback" and not c.get("official_lagging") and not c.get("official_price_anomaly")))
-    yahoo_selected_count = yahoo_newer_count + yahoo_only_count + official_anomaly_count
+    yahoo_only_count = sum(1 for c in cards if (not c.get("official_confirmed") and c.get("data_quality") != "fallback" and not c.get("official_lagging")))
+    yahoo_selected_count = yahoo_newer_count + yahoo_only_count + official_same_day_count
     max_date = max(latest_dates) if latest_dates else ""
     min_date = min(latest_dates) if latest_dates else ""
     if stale_count:
-        truth_status = f"有 {stale_count} 檔資料早於預期最新交易日，已限制強推薦"
-    elif official_anomaly_count:
-        truth_status = f"有 {official_anomaly_count} 檔官方快照價格異常，已改採 Yahoo 並降低信心"
+        truth_status = f"有 {stale_count} 檔資料早於目前交易狀態應有的最新資料，已限制強推薦"
     elif yahoo_newer_count:
-        truth_status = "官方資料尚未全部同步，已採用較新的 Yahoo 資料作為判斷基準"
+        truth_status = "官方資料尚未全部同步，已採用日期較新的 Yahoo 資料作為判斷基準"
     else:
-        truth_status = "資料日期符合目前交易狀態"
+        truth_status = "資料日期符合目前交易狀態，依最新資料規則採用"
     return {
-        "official_confirmed": official_count,
+        "official_confirmed": official_count + official_same_day_count,
+        "official_newer": official_count,
+        "official_same_day": official_same_day_count,
         "yahoo_newer_than_official": yahoo_newer_count,
         "yahoo_only": yahoo_only_count,
         "yahoo_selected": yahoo_selected_count,
-        "official_anomaly": official_anomaly_count,
+        "official_anomaly": 0,
         "fallback": fallback_count,
         "stale": stale_count,
         "expected_latest_date": policy["expected_date"],
@@ -459,7 +447,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.5.2 採用最新可得資料優先原則：TWSE / TPEx 官方、Yahoo 日線與 Yahoo 最新報價擇新採用，並避免官方異常快照破壞技術線圖與持股估值。",
+        "description": "v3.5.3 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新資料，就不因來源為 Yahoo 或官方未同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -483,10 +471,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.5.2",
+        "version": "3.5.3",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師以最新可得資料為先：TWSE / TPEx 官方盤後資料、Yahoo 日線與 Yahoo 最新報價會擇新採用；若資料非預期最新交易日、fallback 或樣本不足，直接降級為觀察，不硬給買進。",
+        "teacher_summary": "股市老師採用 Data Freshness Rule：只要資料是目前交易狀態下最新有效資料，不論來源是 TWSE / TPEx 或 Yahoo，都不因資料來源而降等；僅在資料過舊、fallback、缺失或樣本不足時降級。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
