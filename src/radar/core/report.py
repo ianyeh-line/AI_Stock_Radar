@@ -18,7 +18,7 @@ def save_outputs(payload: dict) -> None:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        "# AI Stock Radar 3.2.4 股市老師盤前決策",
+        "# AI Stock Radar 3.3.0 股市老師盤前決策",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）",
         f"交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",
@@ -43,12 +43,12 @@ def build_markdown(payload: dict) -> str:
             "",
         ]
     lines += [
-        "## MACD 即將從 0 軸翻正觀察名單",
-        "> 以 MACD(DIF) 與 0 軸位置判斷；若 DIF 已在 0 軸上方，不會標示為 0 軸下方偏弱。",
+        "## MACD 0 軸觀察名單",
+        "> 本版已整合 MACD 與 0軸MACD，僅列出 DIF 從 0 軸下方即將翻正或剛翻正，且資料可信的個股。",
     ]
     macd_zero_items = payload.get("macd_zero_axis_list", [])[:10]
     if not macd_zero_items:
-        lines.append("目前沒有符合『即將或剛從 0 軸轉強』的名單；沒有訊號時不硬湊推薦。")
+        lines.append("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單；沒有訊號時不硬湊推薦。")
     for c in macd_zero_items:
         t = c["tech"]
         lines.append(f"- {c['label']}：{t['macd'].get('zero_axis_status')}｜MACD(DIF) {t['macd']['macd']}｜DEA {t['macd']['signal']}｜最新價 {t['close']}｜{c['decision']}")

@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-st.set_page_config(page_title="AI Stock Radar 3.2.4", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Stock Radar 3.3.0", page_icon="🚀", layout="wide")
 
 st.markdown(
     """
@@ -95,6 +95,13 @@ def render_beta_access() -> None:
             st.session_state["beta_access_email"] = email.strip().lower()
             st.session_state["beta_access_enabled"] = True
             st.session_state["guest_mode_enabled"] = not is_cloud_store_configured()
+            # v3.3.0: Login should immediately load the user's cloud portfolio/watchlist
+            # into the decision engine. Do not wait for the user to press
+            # 「重新產生今日決策資料」.
+            st.session_state.pop("dashboard_payload", None)
+            st.session_state.pop("report_md", None)
+            st.session_state["force_pipeline_reload"] = True
+            st.session_state["active_page"] = "持股總教練"
             st.rerun()
     st.sidebar.caption(f"雲端資料庫狀態：{cloud['status']}")
     if is_cloud_store_configured():
@@ -123,7 +130,13 @@ def run_pipeline() -> dict:
 def load_payload() -> dict:
     if st.session_state.get("dashboard_payload"):
         return st.session_state["dashboard_payload"]
-    if (st.session_state.get("guest_mode_enabled") or st.session_state.get("cloud_user_email")) and not PAYLOAD_PATH.exists():
+    if st.session_state.pop("force_pipeline_reload", False):
+        return run_pipeline()
+    # v3.3.0: once the user enters Email + access code, the page must use that
+    # user's cloud/session portfolio immediately instead of reading the shared
+    # static dashboard_data.json. This makes saved holdings appear right after
+    # login.
+    if st.session_state.get("cloud_user_email") or st.session_state.get("guest_mode_enabled"):
         return run_pipeline()
     if PAYLOAD_PATH.exists():
         return json.loads(PAYLOAD_PATH.read_text(encoding="utf-8"))
@@ -237,7 +250,9 @@ def render_technical_chart(card: dict, key: str) -> None:
     tech = card["tech"]
     summary = f"RSI {tech.get('rsi')}｜KD {tech.get('kd', {}).get('k')}/{tech.get('kd', {}).get('d')}｜BIAS20 {tech.get('bias20')}%｜量能比 {tech.get('volume_ratio')}"
     fig.add_trace(go.Scatter(x=[df["date"].iloc[-1]], y=[0], mode="text", text=[summary], textposition="middle center", showlegend=False), row=4, col=1)
-    fig.update_layout(height=760, xaxis_rangeslider_visible=False, margin=dict(l=20, r=20, t=40, b=20))
+    fig.update_layout(height=820, xaxis_rangeslider_visible=False, margin=dict(l=20, r=20, t=40, b=20))
+    macd_status = card.get("tech", {}).get("macd", {}).get("zero_axis_status", "")
+    st.caption(f"MACD 0軸狀態：{macd_status}｜本圖使用完整歷史資料先計算 DIF/DEA，再依觀察區間顯示。")
     st.plotly_chart(fig, use_container_width=True, key=f"chart-{key}-{range_label}")
 
 def add_watchlist_ui() -> None:
@@ -257,6 +272,8 @@ def add_watchlist_ui() -> None:
             if ok:
                 st.success(f"已加入 {card['label']}｜{status.get('detail', '')}")
                 st.session_state.pop("dashboard_payload", None)
+                st.session_state.pop("report_md", None)
+                st.session_state["force_pipeline_reload"] = True
                 st.rerun()
             else:
                 st.error(f"已暫存在本次瀏覽，但雲端保存失敗：{status.get('detail', '')}")
@@ -281,6 +298,8 @@ def add_portfolio_ui() -> None:
             if ok:
                 st.success(f"已儲存 {card['label']}｜{status.get('detail', '')}")
                 st.session_state.pop("dashboard_payload", None)
+                st.session_state.pop("report_md", None)
+                st.session_state["force_pipeline_reload"] = True
                 st.rerun()
             else:
                 st.error(f"已暫存在本次瀏覽，但雲端保存失敗：{status.get('detail', '')}")
@@ -291,8 +310,8 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
-st.title("🚀 AI Stock Radar 3.2.4｜AI 股市老師")
-st.caption("本版重點：修正線上版操作後跳回首頁，以及 1 個月技術圖 MACD/DIF 資料消失問題。")
+st.title("🚀 AI Stock Radar 3.3.0｜AI 股市老師")
+st.caption("本版重點：登入後自動載入雲端持股、整合 MACD 0 軸觀察、強化個股技術圖表。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -317,7 +336,7 @@ k2.metric("今日可買", len(payload["buy_list"]))
 k3.metric("等待突破", len(payload["wait_list"]))
 k4.metric("避免名單", len(payload["avoid_list"]))
 
-PAGES = ["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "0軸MACD", "資料可信度", "個股線圖", "Supabase設定", "每日報告"]
+PAGES = ["今日可買", "等待/避免", "持股總教練", "觀察清單", "MACD觀察", "資料可信度", "個股線圖", "Supabase設定", "每日報告"]
 st.session_state.setdefault("active_page", "今日可買")
 page = st.radio("功能", PAGES, horizontal=True, key="active_page")
 st.divider()
@@ -350,6 +369,14 @@ elif page == "持股總教練":
         for row in coach["rows"]:
             with st.container(border=True):
                 st.subheader(row["stock"])
+                card = row["card"]
+                tech = card["tech"]
+                css = price_class(tech.get("change_pct", 0))
+                st.markdown(
+                    f"<div class='small-muted'>今日最新可得價</div>"
+                    f"<div class='{css}'>{tech['close']:.2f}（{tech['change_pct']}%）</div>",
+                    unsafe_allow_html=True,
+                )
                 st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）")
                 st.write("**老師建議：** " + row["advice"])
                 st.write("**個股動作：** " + row["card"]["action"])
@@ -371,20 +398,20 @@ elif page == "觀察清單":
             st.error(str(exc))
 
 elif page == "MACD觀察":
-    st.header("MACD 觀察名單：柱狀體翻正")
-    for card in payload["macd_list"][:10]:
-        t = card["tech"]
-        st.write(f"**{card['label']}**｜{t['macd']['status']}｜Hist {t['macd']['hist']}｜MACD(DIF) {t['macd']['macd']}｜最新價 {t['close']}｜RSI {t['rsi']}")
-
-elif page == "0軸MACD":
-    st.header("MACD 即將從 0 軸翻正")
-    st.caption("重點看 MACD/DIF 線與 0 軸的位置。若 MACD 已在 0 軸上方，不會再被錯誤標示為 0 軸下方偏弱。")
+    st.header("MACD 0軸觀察名單")
+    st.caption("本頁已整合原本 MACD 與 0軸MACD；只關注 MACD/DIF 從 0 軸下方即將翻正，或剛站上 0 軸的股票。若資料不新、fallback 或樣本不足，不列入推薦。")
     zero_items = payload.get("macd_zero_axis_list", [])[:10]
     if not zero_items:
-        st.info("目前沒有符合『即將或剛從 0 軸轉強』的名單；沒有訊號時不硬湊推薦。")
+        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單；沒有訊號時不硬湊推薦。")
     for card in zero_items:
         t = card["tech"]
-        st.write(f"**{card['label']}**｜{t['macd'].get('zero_axis_status')}｜MACD(DIF) {t['macd']['macd']}｜DEA {t['macd']['signal']}｜最新價 {t['close']}｜{card['decision']}｜{card['action']}")
+        css = price_class(t.get("change_pct", 0))
+        with st.container(border=True):
+            st.subheader(f"{card['label']}｜{t['macd'].get('zero_axis_status')}")
+            st.markdown(f"<span class='{css}'>最新價 {t['close']:.2f}（{t['change_pct']}%）</span>", unsafe_allow_html=True)
+            st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
+            st.write(f"**老師判斷：** {card['decision']}｜{card['action']}")
+            render_data_trust(card)
 
 elif page == "資料可信度":
     st.header("資料可信度")

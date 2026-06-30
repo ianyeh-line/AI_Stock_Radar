@@ -267,23 +267,28 @@ def _portfolio_coach(cards_by_symbol: dict[str, dict]) -> dict:
 
 
 def _macd_zero_axis_candidates(cards: list[dict]) -> list[dict]:
-    """Return only meaningful zero-axis MACD candidates.
+    """Return only actionable zero-axis MACD turn candidates.
 
-    Do not fill the list with weak below-zero names just to reach 10 rows.
-    Empty/short list is better than misleading recommendations.
+    v3.3.0 product rule:
+    The MACD observation list should focus on stocks whose MACD/DIF is moving
+    from below zero to above zero. Histogram green-to-red alone is not enough.
+    If price data is fallback/stale/too short, the stock is not included.
     """
     priority_map = {
-        "即將從0軸翻正": 0,
-        "剛從0軸翻正": 1,
-        "0軸下方改善": 2,
-        "0軸上方延續": 3,
-        "0軸上方整理": 4,
+        "剛從0軸翻正": 0,
+        "即將從0軸翻正": 1,
     }
-    candidates = [c for c in cards if c["tech"]["macd"].get("zero_axis_status", "") in priority_map]
+    candidates = [
+        c for c in cards
+        if c.get("data_trust", {}).get("actionable")
+        and c["tech"]["macd"].get("zero_axis_status", "") in priority_map
+    ]
 
-    def rank(card: dict) -> tuple[int, int]:
+    def rank(card: dict) -> tuple[int, float, int]:
         status = card["tech"]["macd"].get("zero_axis_status", "")
-        return (priority_map.get(status, 9), -card["score"])
+        # Prefer true fresh zero-axis turns, then higher score, then healthier RSI.
+        rsi = card["tech"].get("rsi") or 50
+        return (priority_map.get(status, 9), abs(rsi - 55), -card["score"])
 
     return sorted(candidates, key=rank)[:10]
 
@@ -296,8 +301,9 @@ def run_teacher_pipeline() -> dict:
     buy = [c for c in cards if c["grade"] == "A"][:5]
     wait = [c for c in cards if c["grade"] == "B"][:8]
     avoid = [c for c in cards if c["grade"] == "D"][:8]
-    macd = sorted(cards, key=lambda x: (0 if x["tech"]["macd"]["hist_status"] in {"即將翻正", "剛翻正"} else 1, -x["score"]))[:10]
     macd_zero = _macd_zero_axis_candidates(cards)
+    # v3.3.0: MACD observation is unified with zero-axis MACD.
+    macd = macd_zero
     cards_by_symbol = {c["symbol"]: c for c in cards}
     watch_items = []
     for item in load_watchlist():
@@ -307,10 +313,10 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     return {
-        "version": "3.2.4",
+        "version": "3.3.0",
         "trading_status": trading_status(),
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "今天先找可執行買點，不追情緒單；資料可信度先行；0 軸 MACD 轉強股只列為優先觀察，不等於無條件買進。",
+        "teacher_summary": "今天先找可執行買點，不追情緒單；資料可信度先行；MACD 觀察只看 DIF 從 0 軸下方即將或剛轉正的股票，不用綠柱翻紅硬湊名單。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,

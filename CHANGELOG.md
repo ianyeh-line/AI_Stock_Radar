@@ -1,14 +1,21 @@
 # CHANGELOG
 
-## v3.2.4 - UX State and MACD Chart Hotfix
+## v3.3.0 - Data Trust, Cloud Load UX, MACD Zero-Axis Unification
 
-### Fixed
+### Added
 
-- 修正 Streamlit 線上版在按下「測試 Supabase 連線」後跳回首頁的問題。
-- 修正按下「重新產生今日決策資料」後跳回首頁的問題。
-- 修正技術線圖切換到 1 個月後 MACD/DIF/DEA 消失的問題。
+- 線上版登入後自動載入雲端持股與觀察清單。
+- 個人持股分析新增今日最新可得價與台股漲紅跌綠顯示。
+- 新增 TWSE / TPEx 資料源規劃文件。
 
 ### Changed
 
-- 將原本 Streamlit tabs 改成可保存狀態的水平功能切換列。
-- MACD 圖表改為使用完整歷史價格計算，再截取顯示區間。
+- 「MACD觀察」與「0軸MACD」整合成單一 MACD 0 軸觀察。
+- MACD 觀察只列出 DIF 從 0 軸下方即將翻正或剛翻正的個股。
+- 資料不新、fallback、樣本不足的個股不列入 MACD 觀察推薦。
+- 技術圖表加入 MACD 0 軸狀態說明。
+
+### Fixed
+
+- 修正線上版輸入 Email + 存取碼後，需再按重新產生資料才看到持股的問題。
+- 修正持股分析未顯示最新價與漲跌顏色的問題。

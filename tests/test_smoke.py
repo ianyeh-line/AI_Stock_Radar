@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.2.4"
+    assert payload["version"] == "3.3.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -75,3 +75,11 @@ def test_supabase_secret_url_normalization():
 def test_supabase_secret_table_normalization():
     assert _normalize_table_name("public.user_profiles") == "user_profiles"
     assert _normalize_table_name("/rest/v1/user_profiles") == "user_profiles"
+
+
+def test_macd_observation_uses_zero_axis_candidates():
+    payload = run_teacher_pipeline()
+    assert payload["macd_list"] == payload["macd_zero_axis_list"]
+    for card in payload["macd_list"]:
+        assert card["data_trust"]["actionable"]
+        assert card["tech"]["macd"]["zero_axis_status"] in {"即將從0軸翻正", "剛從0軸翻正"}

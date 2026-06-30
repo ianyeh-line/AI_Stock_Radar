@@ -13,4 +13,4 @@ rsync -av --delete \
   --exclude 'config/portfolio.json' \
   --exclude 'config/user_watchlist.json' \
   "$RELEASE_DIR/" "$TARGET/"
-echo "AI Stock Radar v3.2.4 UX State and MACD Chart Hotfix 已升級到 $TARGET"
+echo "AI Stock Radar v3.3.0 Data Trust and MACD Zero-Axis 已升級到 $TARGET"

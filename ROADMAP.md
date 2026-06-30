@@ -1,12 +1,20 @@
 # ROADMAP
 
-## v3.2.4
+## Current: v3.3.0
 
-- 修正線上版頁面狀態保存。
-- 修正 1 個月技術線圖 MACD 顯示。
+重點：提升線上版使用體驗與 MACD 判斷可信度。
 
-## Next
+## Next: v3.4.0 Data Source Upgrade
 
-- 持續觀察 Supabase 寫入穩定度。
-- 改善朋友線上版使用流程與錯誤提示。
-- 強化個股資料可信度與推薦防呆。
+建議開始導入 TWSE / TPEx 官方資料源：
+
+- TWSE OpenAPI：上市股票、盤後日線、市場統計、三大法人等。
+- TPEx OpenAPI：上櫃股票、三大法人、盤後資料等。
+- Yahoo Finance 保留作為技術線圖與資料 fallback。
+
+## Later
+
+- 更完整的個股主檔。
+- 法人籌碼穩定化。
+- 每日自動化報告。
+- LINE / Email 推播。
