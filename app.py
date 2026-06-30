@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.5.4"
+APP_VERSION = "3.6.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -39,6 +39,9 @@ st.markdown(
     .market-title { color:#6B7280; font-size:0.9rem; margin-bottom:6px; }
     .market-view { font-size:1.35rem; font-weight:750; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
     .setup-box { border:1px solid #F59E0B; border-radius:12px; padding:12px; background:#FFFBEB; font-size:0.92rem; }
+    .teacher-section { border-left:4px solid #2563EB; padding:8px 12px; margin:8px 0; background:#F8FAFC; border-radius:8px; }
+    .teacher-label { color:#1F2937; font-weight:750; margin-bottom:4px; }
+    .footer-note { color:#6B7280; font-size:0.88rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -196,9 +199,35 @@ def render_data_trust(card: dict) -> None:
         st.caption(f"⚠️ {warning}")
 
 
-def render_card(card: dict, show_trust: bool = True) -> None:
+def render_teacher_narrative(card: dict) -> None:
+    narrative = card.get("teacher_narrative") or {}
+    if not narrative:
+        st.write("**老師建議：** " + card.get("action", ""))
+        return
+    st.markdown(f"<div class='teacher-section'><div class='teacher-label'>老師判斷</div>{narrative.get('teacher_judgement', '')}</div>", unsafe_allow_html=True)
+    with st.expander("展開完整股市老師分析", expanded=False):
+        st.markdown("**技術面**")
+        st.write(narrative.get("technical", ""))
+        st.markdown("**籌碼面**")
+        st.write(narrative.get("chip", ""))
+        st.markdown("**產業 / 消息面**")
+        st.write(narrative.get("news", ""))
+        st.markdown("**支撐 / 壓力**")
+        st.write(narrative.get("support_resistance", ""))
+        st.markdown("**A / B / C 劇本**")
+        st.write("A｜" + narrative.get("scenario_a", ""))
+        st.write("B｜" + narrative.get("scenario_b", ""))
+        st.write("C｜" + narrative.get("scenario_c", ""))
+        st.markdown("**未持有者策略**")
+        st.write(narrative.get("no_position_strategy", ""))
+        st.markdown("**已持有者策略**")
+        st.write(narrative.get("holding_strategy", ""))
+        st.markdown("**風險提醒**")
+        st.write(narrative.get("risk", ""))
+
+
+def render_card(card: dict, show_trust: bool = False) -> None:
     t = card["tech"]
-    css = price_class(t["change_pct"])
     with st.container(border=True):
         st.subheader(f"{card['label']}｜{card['setup']}｜等級 {card['grade']}")
         c1, c2, c3, c4 = st.columns(4)
@@ -206,14 +235,13 @@ def render_card(card: dict, show_trust: bool = True) -> None:
         c2.metric("信心", f"{card['confidence']}%")
         c3.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
         c4.write(f"資料日：{card['latest_date']}")
-        st.write(f"**老師建議：** {card['action']}")
+        render_teacher_narrative(card)
         st.write(f"**風險紀律：** {card['risk']}")
-        st.write("**理由：** " + "、".join(card["reasons"][:6]))
         macd = t["macd"]
-        st.caption(f"MACD(DIF)：{macd['macd']}｜DEA：{macd['signal']}｜柱狀體：{macd['hist']}｜0軸判斷：{macd.get('zero_axis_status')}")
+        st.caption(f"技術摘要：MACD(DIF) {macd['macd']}｜DEA {macd['signal']}｜柱狀體 {macd['hist']}｜0軸 {macd.get('zero_axis_status')}｜量能比 {t.get('volume_ratio')}")
+        st.caption(f"資料來源：{card.get('price_source')}｜資料日：{card.get('latest_date')}")
         if show_trust:
             render_data_trust(card)
-
 
 def _macd_chart_series(closes: list[float]) -> dict:
     if len(closes) < 35:
@@ -289,6 +317,39 @@ def render_technical_chart(card: dict, key: str) -> None:
     st.caption(f"MACD 0軸狀態：{macd_status}｜本圖使用完整歷史資料先計算 DIF/DEA，再依觀察區間顯示。")
     st.plotly_chart(fig, use_container_width=True, key=f"chart-{key}-{range_label}")
 
+
+def render_mini_macd_chart(card: dict, key: str) -> None:
+    rows = card.get("prices", [])
+    if len(rows) < 35:
+        st.caption("MACD 樣本不足，暫不繪製。")
+        return
+    df = pd.DataFrame(rows).copy()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["close"] = pd.to_numeric(df["close"], errors="coerce")
+    df = df.dropna(subset=["date", "close"]).sort_values("date")
+    if len(df) < 35:
+        st.caption("MACD 樣本不足，暫不繪製。")
+        return
+    macd_series = _macd_chart_series([float(x) for x in df["close"].tolist()])
+    display_n = min(70, len(macd_series.get("macd", [])), len(df))
+    if display_n < 10:
+        st.caption("MACD 樣本不足，暫不繪製。")
+        return
+    x = df["date"].dt.strftime("%Y-%m-%d").tolist()[-display_n:]
+    macd_y = macd_series["macd"][-display_n:]
+    dea_y = macd_series["signal"][-display_n:]
+    hist_y = macd_series["hist"][-display_n:]
+    up = "#DC2626"
+    down = "#16A34A"
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=x, y=hist_y, marker_color=[up if h >= 0 else down for h in hist_y], name="Hist"))
+    fig.add_trace(go.Scatter(x=x, y=macd_y, mode="lines", name="MACD/DIF"))
+    fig.add_trace(go.Scatter(x=x, y=dea_y, mode="lines", name="DEA"))
+    fig.add_hline(y=0, line_width=1, line_dash="dash")
+    fig.update_layout(height=280, margin=dict(l=10, r=10, t=20, b=20), xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True, key=f"mini-macd-{key}")
+
+
 def add_watchlist_ui() -> None:
     st.subheader("新增指定觀察個股")
     st.caption("輸入資料時不會重新抓股價；只有按下『加入觀察清單』後才會解析股票並更新分析。")
@@ -352,7 +413,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：持股總教練口吻升級；資料採用只看目前交易狀態下的最新有效資料，不因 Yahoo 或官方未同步而降等。")
+st.caption("本版重點：今日可買改用股市老師完整敘事；首頁先給決策，資料來源說明移到頁尾。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -363,12 +424,8 @@ else:
 
 status = payload["trading_status"]
 st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{APP_VERSION}")
-st.info(payload["teacher_summary"])
 source_summary = payload.get("data_source_summary", {})
-st.caption(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
-st.caption(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
 store = storage_status()
-st.caption(f"使用者資料：{store['label']}｜{store['detail']}")
 
 mcol, k2, k3, k4 = st.columns([2.2, 1, 1, 1])
 with mcol:
@@ -449,9 +506,10 @@ elif page == "MACD觀察":
         with st.container(border=True):
             st.subheader(f"{card['label']}｜{t['macd'].get('zero_axis_status')}")
             st.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
+            render_mini_macd_chart(card, key=card["symbol"])
             st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
-            st.write(f"**老師判斷：** {card['decision']}｜{card['action']}")
-            render_data_trust(card)
+            st.write(f"**老師判斷：** {card.get('teacher_narrative', {}).get('teacher_judgement', card['action'])}")
+            st.caption(f"資料來源：{card.get('price_source')}｜資料日：{card.get('latest_date')}")
 
 elif page == "個股線圖":
     st.header("個股技術線圖")
@@ -506,3 +564,11 @@ table = "user_profiles""" , language="toml")
 
 elif page == "每日報告":
     st.markdown(current_report(payload))
+
+
+st.divider()
+with st.expander("資料來源與更新說明", expanded=False):
+    st.caption(payload.get("teacher_summary", ""))
+    st.write(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
+    st.write(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo 採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
+    st.write(f"使用者資料：{store['label']}｜{store['detail']}")

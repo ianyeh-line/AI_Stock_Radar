@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.5.4 Data Freshness Rule:
+v3.6.0 Data Freshness Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -266,6 +266,17 @@ def _decision(score: int, tech: dict) -> tuple[str, str, str]:
     return "避免", "暫不操作", "D"
 
 
+def _breakout_context(tech: dict) -> str:
+    close = tech["close"]
+    breakout = tech["breakout"]
+    vr = tech.get("volume_ratio") or 0
+    if close >= breakout:
+        if vr >= 1.2:
+            return f"股價已站上關鍵突破價 {breakout:.2f}，且量能比 {vr} 有配合，波段結構已轉強；持股者可續抱，空手者不追價，等待回測不破再評估。"
+        return f"股價已站上關鍵突破價 {breakout:.2f}，但量能比 {vr} 未明顯放大，先視為試探突破；持股者可續抱，空手者不追價。"
+    return f"尚未突破關鍵壓力 {breakout:.2f}，需等收盤或盤中量價確認，不提前把觀察股當成強勢股。"
+
+
 def _action_text(label: str, tech: dict) -> str:
     close = tech["close"]
     low = tech["support_low"]
@@ -274,15 +285,91 @@ def _action_text(label: str, tech: dict) -> str:
     stop = tech["stop"]
     trim1 = tech["trim1"]
     trim2 = tech["trim2"]
+    breakout_context = _breakout_context(tech)
     if label == "今日可買":
-        return f"可在 {low:.2f}～{high:.2f} 分批，跌破 {stop:.2f} 失效；若放量突破 {breakout:.2f} 可續抱。"
+        if close >= breakout:
+            return f"{breakout_context} 若已有持股可續抱；若尚未持有，不追高，等回測 {breakout:.2f} 附近或 {low:.2f}～{high:.2f} 支撐區再找買點。跌破 {stop:.2f} 代表本次波段假突破或結構轉弱。"
+        if low <= close <= high * 1.04:
+            return f"可在 {low:.2f}～{high:.2f} 分批，跌破 {stop:.2f} 失效；若後續放量突破 {breakout:.2f}，持股者可續抱，不建議開盤急拉追價。"
+        return f"分數達標但現價 {close:.2f} 不在理想買點，等回測 {low:.2f}～{high:.2f} 或放量突破 {breakout:.2f}；未到價不硬買。"
     if label == "等待突破":
+        if close >= breakout:
+            return f"{breakout_context} 由等待突破轉為觀察站穩；若量能不足，不追價加碼，等回測突破價附近確認。"
         if close > high:
-            return f"現價 {close:.2f} 已高於支撐區 {low:.2f}～{high:.2f}，不追高；等突破 {breakout:.2f} 或回測支撐區守穩。"
+            return f"現價 {close:.2f} 已高於支撐區 {low:.2f}～{high:.2f}，但尚未突破 {breakout:.2f}；等待突破確認或回測支撐區守穩。"
         return f"等待站上 {breakout:.2f}，或回測 {low:.2f}～{high:.2f} 守穩再評估。"
     if label == "只觀察":
         return f"尚未形成高勝率買點；站回 {high:.2f} 並量能改善才提高評級，跌破 {stop:.2f} 轉弱。"
     return f"暫不建立新部位；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向減碼或避開。"
+
+
+def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
+    tech = card["tech"]
+    close = tech["close"]
+    low = tech["support_low"]
+    high = tech["support_high"]
+    stop = tech["stop"]
+    breakout = tech["breakout"]
+    trim1 = tech["trim1"]
+    trim2 = tech["trim2"]
+    rsi = tech.get("rsi")
+    vr = tech.get("volume_ratio")
+    ma20 = tech.get("ma20")
+    ma60 = tech.get("ma60")
+    macd = tech.get("macd", {})
+    reasons = card.get("reasons", [])
+    theme = stock.theme or "未分類"
+    support_state = "靠近支撐觀察區" if low <= close <= high * 1.04 else "高於理想支撐區" if close > high * 1.04 else "跌破支撐觀察區"
+    if close >= breakout:
+        price_state = "已突破關鍵壓力"
+    elif low <= close <= high * 1.04:
+        price_state = "位於可分批觀察區"
+    elif close < stop:
+        price_state = "跌破失效價"
+    else:
+        price_state = "位於支撐與壓力之間"
+    technical = (
+        f"目前股價 {close:.2f}，位置屬於「{price_state}」。MA20 {ma20}、MA60 {ma60} 作為波段結構參考；"
+        f"MACD(DIF) {macd.get('macd')}、DEA {macd.get('signal')}、0軸狀態為「{macd.get('zero_axis_status')}」。"
+        f"RSI {rsi}，量能比 {vr}。整體技術重點不是單一指標，而是價位、均線、MACD 與量能是否同步。"
+    )
+    chip = (
+        "目前系統尚未在此卡片接入完整連續法人買賣超與分點主力資料；本檔不把籌碼面當成主要加分。"
+        "若後續法人連續買超或投信加碼，才可提高波段持有信心；若價漲量縮且法人轉賣，則不追高。"
+    )
+    news = (
+        f"產業面歸類為「{theme}」。若近期產業新聞與訂單展望能直接支撐本族群，才視為消息面加分；"
+        "若僅是大盤氣氛帶動，則仍以技術位階與量能條件為主，不把題材當成無條件買進理由。"
+    )
+    support = f"支撐觀察區 {low:.2f}～{high:.2f}；關鍵突破價 {breakout:.2f}；失效價 {stop:.2f}；減碼觀察區 {trim1:.2f}～{trim2:.2f}。"
+    if card.get("decision") == "今日可買":
+        conclusion = f"可列入今日操作名單，但只買到價標的。{_action_text(card['decision'], tech)}"
+    elif card.get("decision") == "等待突破":
+        conclusion = f"目前是等待確認，不是立刻追價。{_action_text(card['decision'], tech)}"
+    elif card.get("decision") == "只觀察":
+        conclusion = f"目前條件還不完整，只適合觀察。{_action_text(card['decision'], tech)}"
+    else:
+        conclusion = f"目前不適合建立新部位。{_action_text(card['decision'], tech)}"
+    scenarios = {
+        "A": f"A劇本：拉回 {low:.2f}～{high:.2f} 守穩，量能不失控，波段結構維持，適合分批或續抱。",
+        "B": f"B劇本：直接挑戰 {breakout:.2f}，若量能同步放大可視為轉強；若量能不足，視為試探突破，不追高。",
+        "C": f"C劇本：跌破 {stop:.2f}，代表波段結構轉弱，停止加碼並檢討部位。",
+    }
+    return {
+        "teacher_judgement": conclusion,
+        "technical": technical,
+        "chip": chip,
+        "news": news,
+        "support_resistance": support,
+        "scenario_a": scenarios["A"],
+        "scenario_b": scenarios["B"],
+        "scenario_c": scenarios["C"],
+        "no_position_strategy": f"未持有者：只在 {low:.2f}～{high:.2f} 守穩或放量突破 {breakout:.2f} 後評估，不因盤中急拉追價。",
+        "holding_strategy": f"已持有者：未跌破 {stop:.2f} 前以續抱或小幅調節為主；若進入 {trim1:.2f}～{trim2:.2f} 且量能不足，可分批減碼。",
+        "risk": f"風險重點：跌破 {stop:.2f} 就不是原本的波段劇本；若量價背離或族群轉弱，不用攤平取代停損。",
+        "conclusion": conclusion,
+        "summary_reasons": reasons[:6],
+    }
 
 
 def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
@@ -303,7 +390,7 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
 
     confidence_penalty = 0 if trust["actionable"] else -18
     confidence = min(96, max(40, score + confidence_penalty))
-    return {
+    card = {
         "symbol": stock.symbol,
         "name": stock.name,
         "label": stock.label,
@@ -327,6 +414,8 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         "action": _action_text(label, tech),
         "risk": f"跌破 {tech['stop']:.2f} 代表波段結構轉弱，不建議用攤平取代停損紀律。",
     }
+    card["teacher_narrative"] = _teacher_narrative(stock, card)
+    return card
 
 
 def _portfolio_advice(card: dict, pnl_pct: float) -> str:
@@ -484,7 +573,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.5.4 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或官方尚未同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.6.0 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -508,10 +597,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.5.4",
+        "version": "3.6.0",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師採用 Data Freshness Rule：只要資料是目前交易狀態下最新有效資料，就不因來源或官方尚未同步而降等；只有資料過舊、fallback、缺失或樣本不足時才降級。",
+        "teacher_summary": "股市老師先給今天怎麼做，再補技術面、籌碼面、產業消息、支撐壓力與劇本推演；資料來源只作為頁尾說明，不影響最新有效資料的評等。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
