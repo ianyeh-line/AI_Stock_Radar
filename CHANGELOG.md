@@ -1,28 +1,14 @@
 # CHANGELOG
 
-## v3.5.1 - Data Source Reliability Hotfix
+## v3.5.2 - Data Freshness and Input Flow Hotfix
 
 ### Fixed
 
-- 修正線上版版本號可能顯示舊 payload 版本的問題。
-- 修正官方資料異常快照可能覆蓋 Yahoo 歷史日線，導致今日股價與技術線圖失真的問題。
-- 修正個股線圖遇到非 ISO 日期或異常官方快照時失效的問題。
-- 修正持股總教練在資料可信度不足時仍可能出現加碼語句，造成建議前後矛盾的問題。
-- 修正資料來源統計文字，將「官方採用 / Yahoo 採用 / 官方異常未採用 / Fallback」分開顯示。
+- 價格來源改為最新可得資料優先，不論來自 TWSE / TPEx 或 Yahoo。
+- Yahoo 日線會合併最新報價 meta，降低官方資料未更新造成的舊資料問題。
+- 新增持股與觀察清單改為 form，避免輸入股號、股數、成本時觸發資料抓取。
+- 更新版本號與 Release 文件。
 
-### Changed
+## v3.5.1 - Data Source Reliability Hotfix
 
-- 官方資料不再只因日期較新就覆蓋 Yahoo；現在同時檢查價格合理性。
-- 若官方價與 Yahoo 最新價差異過大，採用 Yahoo 價格並降低推薦信心。
-- App 啟動時若 session 或輸出檔 payload 不是目前版本，會自動重新產生今日決策資料。
-
-## v3.5.0 - Data Source Truthfulness
-
-### Added
-
-- 新增資料基準日判斷。
-- 新增預期最新交易日邏輯：盤前使用前一交易日，盤中 / 盤後優先使用今日可得資料。
-- 新增 TWSE / TPEx 與 Yahoo 日期比較。
-- 新增「Yahoo 較官方新」資料來源狀態。
-- 決策卡新增來源選擇原因。
-- 每日報告新增資料基準日與資料狀態。
+- 修正官方資料異常造成線圖與持股估值失真。

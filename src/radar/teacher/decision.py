@@ -459,7 +459,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.5.1 採用資料新鮮度與價格合理性雙重檢查：TWSE / TPEx 與 Yahoo 比較日期，並避免官方異常快照破壞技術線圖與持股估值。",
+        "description": "v3.5.2 採用最新可得資料優先原則：TWSE / TPEx 官方、Yahoo 日線與 Yahoo 最新報價擇新採用，並避免官方異常快照破壞技術線圖與持股估值。",
     }
 
 
@@ -483,10 +483,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.5.1",
+        "version": "3.5.2",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師以資料新鮮度為先：TWSE/TPEx 官方與 Yahoo 比較後採用較新的資料；若資料非預期最新交易日、fallback 或樣本不足，直接降級為觀察，不硬給買進。",
+        "teacher_summary": "股市老師以最新可得資料為先：TWSE / TPEx 官方盤後資料、Yahoo 日線與 Yahoo 最新報價會擇新採用；若資料非預期最新交易日、fallback 或樣本不足，直接降級為觀察，不硬給買進。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,

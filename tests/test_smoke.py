@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.5.1"
+    assert payload["version"] == "3.5.2"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -127,3 +127,14 @@ def test_undated_official_does_not_overwrite_yahoo():
     assert updated["latest_date"] == "2026-06-30"
     assert updated["prices"][-1]["close"] == 10
     assert updated["official_confirmed"] is False
+
+from radar.core.market_data import _merge_yahoo_latest_quote
+
+
+def test_yahoo_latest_quote_merges_same_day_price():
+    rows = [{"date": "2026-06-30", "open": 100, "high": 105, "low": 95, "close": 100, "volume": 1000}]
+    meta = {"regularMarketPrice": 103, "regularMarketTime": 1782777600, "regularMarketVolume": 2000, "regularMarketOpen": 101, "regularMarketDayHigh": 104, "regularMarketDayLow": 99}
+    updated, merged = _merge_yahoo_latest_quote(rows, meta)
+    assert merged is True
+    assert updated[-1]["close"] == 103
+    assert updated[-1]["volume"] == 2000

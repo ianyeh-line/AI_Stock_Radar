@@ -91,6 +91,71 @@ def _candidate_symbols(stock: StockInfo) -> list[tuple[str, str]]:
     return out
 
 
+def _safe_meta_price(meta: dict) -> float | None:
+    for key in ("regularMarketPrice", "postMarketPrice", "preMarketPrice"):
+        value = meta.get(key)
+        try:
+            price = float(value)
+            if price > 0:
+                return price
+        except Exception:
+            continue
+    return None
+
+
+def _safe_meta_time(meta: dict) -> int | None:
+    for key in ("regularMarketTime", "postMarketTime", "preMarketTime"):
+        value = meta.get(key)
+        try:
+            ts = int(value)
+            if ts > 0:
+                return ts
+        except Exception:
+            continue
+    return None
+
+
+def _merge_yahoo_latest_quote(rows: list[dict], meta: dict) -> tuple[list[dict], bool]:
+    """Merge Yahoo chart meta latest quote into daily OHLC rows.
+
+    Yahoo's daily OHLC rows are the primary historical series, but the chart
+    meta can contain a fresher regularMarketPrice / regularMarketTime. v3.5.2
+    uses this quote when it is same-day or newer, so the product follows the
+    newest available Yahoo data instead of waiting for a daily candle refresh.
+    """
+    if not rows:
+        return rows, False
+    latest_price = _safe_meta_price(meta)
+    latest_ts = _safe_meta_time(meta)
+    if latest_price is None or latest_ts is None:
+        return rows, False
+    latest_date = date.fromtimestamp(latest_ts).isoformat()
+    out = [dict(row) for row in rows]
+    latest_volume = int(meta.get("regularMarketVolume") or meta.get("postMarketVolume") or out[-1].get("volume") or 0)
+    open_ = float(meta.get("regularMarketOpen") or out[-1].get("open") or latest_price)
+    high = float(meta.get("regularMarketDayHigh") or max(open_, latest_price, float(out[-1].get("high") or latest_price)))
+    low = float(meta.get("regularMarketDayLow") or min(open_, latest_price, float(out[-1].get("low") or latest_price)))
+    new_row = {
+        "date": latest_date,
+        "open": round(open_, 2),
+        "high": round(max(high, latest_price), 2),
+        "low": round(min(low, latest_price), 2),
+        "close": round(latest_price, 2),
+        "volume": latest_volume,
+    }
+    if latest_date == out[-1].get("date"):
+        old_close = out[-1].get("close")
+        out[-1].update(new_row)
+        try:
+            return out, abs(float(old_close) - latest_price) > 1e-9
+        except Exception:
+            return out, True
+    if latest_date > str(out[-1].get("date")):
+        out.append(new_row)
+        return out, True
+    return out, False
+
+
 def _fetch_yahoo_candidate(stock: StockInfo, yahoo_symbol: str, market: str, days: int, timeout: float) -> dict | None:
     now = int(time.time())
     start = now - days * 86400
@@ -117,16 +182,18 @@ def _fetch_yahoo_candidate(stock: StockInfo, yahoo_symbol: str, market: str, day
     if len(rows) < 30:
         return None
     meta = result.get("meta", {}) or {}
+    rows, quote_merged = _merge_yahoo_latest_quote(rows, meta)
     yahoo_name = _clean_yahoo_name(meta.get("shortName") or meta.get("longName"), stock.symbol, stock.name)
     return {
         "symbol": stock.symbol,
         "name": yahoo_name,
         "market": market,
         "yahoo_symbol": yahoo_symbol,
-        "source": "Yahoo Finance",
+        "source": "Yahoo Finance 最新報價" if quote_merged else "Yahoo Finance",
         "latest_date": rows[-1]["date"],
         "prices": rows[-days:],
-        "data_quality": "live_daily",
+        "data_quality": "yahoo_latest_quote" if quote_merged else "live_daily",
+        "yahoo_quote_merged": quote_merged,
     }
 
 

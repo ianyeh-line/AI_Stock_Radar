@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.5.1"
+APP_VERSION = "3.5.2"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -296,11 +296,15 @@ def render_technical_chart(card: dict, key: str) -> None:
 
 def add_watchlist_ui() -> None:
     st.subheader("新增指定觀察個股")
-    text = st.text_input("輸入股號或名稱", placeholder="例如：2313、華通；清單外可輸入股號或『股號 股票名稱』", key="watch_input")
-    if st.button("加入觀察清單"):
+    st.caption("輸入資料時不會重新抓股價；只有按下『加入觀察清單』後才會解析股票並更新分析。")
+    with st.form("watchlist_add_form", clear_on_submit=True):
+        text = st.text_input("輸入股號或名稱", placeholder="例如：2313、華通；清單外可輸入股號或『股號 股票名稱』")
+        submitted = st.form_submit_button("加入觀察清單")
+    if submitted:
         try:
             stock = resolve_stock(text)
-            card = build_decision_card(stock)
+            with st.spinner(f"正在抓取 {stock.symbol} {stock.name} 最新資料..."):
+                card = build_decision_card(stock)
             items = load_watchlist()
             if not any(i.get("symbol") == card["symbol"] for i in items):
                 items.append({"symbol": card["symbol"], "name": card["name"]})
@@ -322,14 +326,18 @@ def add_watchlist_ui() -> None:
 
 def add_portfolio_ui() -> None:
     st.subheader("新增個人持股")
-    text = st.text_input("股號或名稱", placeholder="例如：3037、欣興；清單外可輸入股號或『股號 股票名稱』", key="portfolio_symbol")
-    col1, col2 = st.columns(2)
-    shares = col1.number_input("股數", min_value=0.0, step=100.0, value=0.0)
-    cost = col2.number_input("成本", min_value=0.0, step=1.0, value=0.0)
-    if st.button("加入 / 更新持股"):
+    st.caption("請先輸入股號 / 股數 / 成本；系統不會在輸入途中抓資料，只有按下『加入 / 更新持股』後才會抓取最新股價並更新持股總教練。")
+    with st.form("portfolio_add_form", clear_on_submit=True):
+        text = st.text_input("股號或名稱", placeholder="例如：3037、欣興；清單外可輸入股號或『股號 股票名稱』")
+        col1, col2 = st.columns(2)
+        shares = col1.number_input("股數", min_value=0.0, step=100.0, value=0.0)
+        cost = col2.number_input("成本", min_value=0.0, step=1.0, value=0.0)
+        submitted = st.form_submit_button("加入 / 更新持股")
+    if submitted:
         try:
             stock = resolve_stock(text)
-            card = build_decision_card(stock)
+            with st.spinner(f"正在抓取 {stock.symbol} {stock.name} 最新資料..."):
+                card = build_decision_card(stock)
             items = [i for i in load_portfolio() if i.get("symbol") != card["symbol"]]
             items.append({"symbol": card["symbol"], "name": card["name"], "shares": shares, "cost": cost})
             ok = save_portfolio(items)
@@ -345,12 +353,11 @@ def add_portfolio_ui() -> None:
         except Exception as exc:
             st.error(str(exc))
 
-
 ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：資料基準日真實性、官方與 Yahoo 擇新採用、資料過舊時降級推薦。")
+st.caption("本版重點：資料來源以最新可得資料為準，官方 / Yahoo 擇新採用；新增持股改用表單，按下加入後才抓取資料。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):

@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-set -e
-RELEASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+set -euo pipefail
+
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="$HOME/Desktop/AI_Stock_Radar"
+
 if [ ! -d "$TARGET" ]; then
-  echo "找不到 $TARGET"
+  echo "找不到 $TARGET，請確認 AI_Stock_Radar 在桌面。"
   exit 1
 fi
+
 rsync -av --delete \
-  --exclude '.git/' \
-  --exclude 'output/daily_report.md' \
-  --exclude 'output/dashboard_data.json' \
+  --exclude '.git' \
+  --exclude '.venv' \
   --exclude 'config/portfolio.json' \
   --exclude 'config/user_watchlist.json' \
-  "$RELEASE_DIR/" "$TARGET/"
-echo "AI Stock Radar v3.5.1 Data Source Reliability Hotfix 已升級到 $TARGET"
+  --exclude 'data/cache/' \
+  --exclude 'output/daily_report.md' \
+  --exclude 'output/dashboard_data.json' \
+  "$SOURCE_DIR/" "$TARGET/"
+
+echo "AI Stock Radar v3.5.2 Data Freshness and Input Flow Hotfix 已升級到 $TARGET"
