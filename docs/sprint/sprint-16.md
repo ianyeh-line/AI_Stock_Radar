@@ -1,4 +1,4 @@
-# Sprint 16 - Teacher Narrative UX
+# Sprint 16 - Teacher Narrative Fix
 
 ## Goal
 

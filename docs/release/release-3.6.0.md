@@ -1,4 +1,4 @@
-# Release v3.6.0 - Teacher Narrative UX
+# Release v3.6.1 - Teacher Narrative Fix
 
 本版修正使用者回饋：今日可買推薦太模板化、資料來源資訊搶版面、MACD 觀察資訊噪音過多。
 

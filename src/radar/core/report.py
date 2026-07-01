@@ -8,7 +8,7 @@ from pathlib import Path
 from radar.teacher.decision import run_teacher_pipeline
 
 
-REPORT_VERSION = "3.6.0"
+REPORT_VERSION = "3.6.1"
 
 
 def save_outputs(payload: dict) -> None:

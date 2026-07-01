@@ -1,21 +1,22 @@
 # CHANGELOG
 
-## v3.6.0 - Teacher Narrative UX Release
-
-### Added
-
-- Teacher Narrative Engine：技術面、籌碼面、產業消息、支撐壓力、A/B/C 劇本、未持有者策略、已持有者策略與風險提醒。
-- MACD 觀察卡加入 MACD 小型圖表。
-- 每日報告改為使用者導向順序。
-
-### Changed
-
-- 今日可買名單不再只列條件摘要，改為股市老師操作建議。
-- 首頁資料來源說明移到頁尾收合區。
-- 資料來源不再寫入推薦理由，也不因 Yahoo 或官方未同步自動降等。
-- 突破 / 未突破 / 試探突破的老師語句會依現價動態調整。
+## v3.6.1 - Teacher Narrative Fix
 
 ### Fixed
 
-- 修正今日可買與持股分析口吻深度不一致問題。
-- 修正每日報告開頭先顯示資料可信度而非操作結論的 UX 問題。
+- 今日可買名單升級為可見的股市老師完整分析，不再把關鍵分析藏在摘要或模板理由中。
+- 移除「Yahoo 較新 / 官方尚未同步 / 信心略降」等違反 Data Freshness Rule 的語句。
+- 今日可買、持股總教練與觀察清單共用同一套 Teacher Narrative Engine。
+- 持股總教練不再顯示不必要的資料可信度口號。
+- MACD 觀察卡保留 MACD 小圖，不再顯示資料來源大段說明。
+
+### Verification
+
+- CLI 可執行。
+- Tests passed: 23.
+
+## v3.6.0 - Teacher Narrative UX Release
+
+- 首頁資料來源說明移至頁尾。
+- 每日報告改成先給操作結論。
+- 今日可買新增股市老師敘事雛形。

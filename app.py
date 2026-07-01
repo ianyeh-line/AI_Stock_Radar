@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.6.0"
+APP_VERSION = "3.6.1"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -186,38 +186,54 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
 
 
 def render_data_trust(card: dict) -> None:
+    """Only show data warnings inside operating cards.
+
+    Data source is metadata, not a reason to reduce confidence when it is the
+    latest valid data. Keep details in the page footer.
+    """
     trust = card.get("data_trust") or {}
-    status = trust.get("status", "未知")
-    level = trust.get("trust_level", "未知")
-    expected = trust.get("expected_latest_date", "未知")
-    msg = f"資料狀態：{status}｜等級：{level}｜預期資料日：{expected}｜實際資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}"
-    if trust.get("actionable"):
-        st.success(msg)
-    else:
-        st.warning(msg)
-    for warning in trust.get("warnings", []):
-        st.caption(f"⚠️ {warning}")
+    warnings = trust.get("warnings", [])
+    if warnings:
+        with st.expander("資料限制提醒", expanded=False):
+            for warning in warnings:
+                st.warning(warning)
 
 
-def render_teacher_narrative(card: dict) -> None:
+def _teacher_block(title: str, text: str) -> None:
+    if not text:
+        return
+    st.markdown(
+        f"""
+<div class='teacher-section'>
+  <div class='teacher-label'>{title}</div>
+  <div>{text}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def render_teacher_narrative(card: dict, expanded: bool = True) -> None:
     narrative = card.get("teacher_narrative") or {}
     if not narrative:
         st.write("**老師建議：** " + card.get("action", ""))
         return
-    st.markdown(f"<div class='teacher-section'><div class='teacher-label'>老師判斷</div>{narrative.get('teacher_judgement', '')}</div>", unsafe_allow_html=True)
-    with st.expander("展開完整股市老師分析", expanded=False):
-        st.markdown("**技術面**")
-        st.write(narrative.get("technical", ""))
-        st.markdown("**籌碼面**")
-        st.write(narrative.get("chip", ""))
-        st.markdown("**產業 / 消息面**")
-        st.write(narrative.get("news", ""))
-        st.markdown("**支撐 / 壓力**")
-        st.write(narrative.get("support_resistance", ""))
-        st.markdown("**A / B / C 劇本**")
-        st.write("A｜" + narrative.get("scenario_a", ""))
-        st.write("B｜" + narrative.get("scenario_b", ""))
-        st.write("C｜" + narrative.get("scenario_c", ""))
+
+    _teacher_block("老師判斷", narrative.get("teacher_judgement", ""))
+
+    # v3.6.1: 今日可買與持股總教練共用同一套老師分析，並預設顯示主要面向。
+    _teacher_block("技術面", narrative.get("technical", ""))
+    _teacher_block("籌碼 / 法人面", narrative.get("chip", ""))
+    _teacher_block("產業 / 消息面", narrative.get("news", ""))
+    _teacher_block("支撐 / 壓力", narrative.get("support_resistance", ""))
+
+    with st.expander("A / B / C 劇本與操作細節", expanded=expanded):
+        st.markdown("**A 劇本**")
+        st.write(narrative.get("scenario_a", ""))
+        st.markdown("**B 劇本**")
+        st.write(narrative.get("scenario_b", ""))
+        st.markdown("**C 劇本**")
+        st.write(narrative.get("scenario_c", ""))
         st.markdown("**未持有者策略**")
         st.write(narrative.get("no_position_strategy", ""))
         st.markdown("**已持有者策略**")
@@ -235,25 +251,10 @@ def render_card(card: dict, show_trust: bool = False) -> None:
         c2.metric("信心", f"{card['confidence']}%")
         c3.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
         c4.write(f"資料日：{card['latest_date']}")
-        render_teacher_narrative(card)
-        st.write(f"**風險紀律：** {card['risk']}")
+        render_teacher_narrative(card, expanded=False)
         macd = t["macd"]
         st.caption(f"技術摘要：MACD(DIF) {macd['macd']}｜DEA {macd['signal']}｜柱狀體 {macd['hist']}｜0軸 {macd.get('zero_axis_status')}｜量能比 {t.get('volume_ratio')}")
-        st.caption(f"資料來源：{card.get('price_source')}｜資料日：{card.get('latest_date')}")
-        if show_trust:
-            render_data_trust(card)
-
-def _macd_chart_series(closes: list[float]) -> dict:
-    if len(closes) < 35:
-        return {"macd": [], "signal": [], "hist": []}
-    ema12 = ema_series(closes, 12)
-    ema26 = ema_series(closes, 26)
-    dif = [a - b for a, b in zip(ema12[-len(ema26):], ema26)]
-    dea = ema_series(dif, 9)
-    hist = [m - s for m, s in zip(dif[-len(dea):], dea)]
-    n = min(len(dif), len(dea), len(hist))
-    return {"macd": dif[-n:], "signal": dea[-n:], "hist": hist[-n:]}
-
+        render_data_trust(card)
 
 def render_technical_chart(card: dict, key: str) -> None:
     range_label = st.radio("觀察區間", ["1個月", "3個月", "6個月", "1年"], index=1, horizontal=True, key=f"range-{key}")
@@ -475,8 +476,7 @@ elif page == "持股總教練":
                 css = price_class(tech.get("change_pct", 0))
                 st.markdown(price_html(tech["close"], tech["change_pct"], "今日股價"), unsafe_allow_html=True)
                 st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）｜Radar：{card.get('score')}｜等級：{card.get('grade')}")
-                st.write("**老師建議：** " + row["advice"])
-                st.write("**個股動作：** " + row["card"]["action"])
+                render_teacher_narrative(card, expanded=False)
                 render_data_trust(row["card"])
     else:
         st.info("尚未輸入持股。")
@@ -509,7 +509,6 @@ elif page == "MACD觀察":
             render_mini_macd_chart(card, key=card["symbol"])
             st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
             st.write(f"**老師判斷：** {card.get('teacher_narrative', {}).get('teacher_judgement', card['action'])}")
-            st.caption(f"資料來源：{card.get('price_source')}｜資料日：{card.get('latest_date')}")
 
 elif page == "個股線圖":
     st.header("個股技術線圖")

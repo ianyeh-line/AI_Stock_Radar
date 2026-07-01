@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.6.0"
+    assert payload["version"] == "3.6.1"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
 
@@ -158,3 +158,15 @@ def test_premarket_previous_trading_day_is_actionable():
     trust = _data_trust(prices, 90, status)
     assert trust["actionable"] is True
     assert not trust["warnings"]
+
+
+def test_teacher_narrative_has_required_facets_and_no_source_penalty_text():
+    card = build_decision_card(resolve_stock("2330"))
+    narrative = card["teacher_narrative"]
+    required = ["technical", "chip", "news", "support_resistance", "scenario_a", "scenario_b", "scenario_c", "no_position_strategy", "holding_strategy", "risk"]
+    for key in required:
+        assert narrative.get(key)
+    joined = " ".join(str(v) for v in narrative.values()) + " " + " ".join(card.get("reasons", []))
+    assert "信心略降" not in joined
+    assert "官方尚未完全同步" not in joined
+    assert "Yahoo 較新" not in joined
