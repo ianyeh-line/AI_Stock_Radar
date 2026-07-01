@@ -1,30 +1,46 @@
-"""Full-market strong momentum radar.
+"""Full-market strong momentum radar with transparent connector diagnostics.
 
-v3.8.0 changes the strong momentum feature from "classify current AI
-universe cards" to "scan the broader Taiwan market first".
+v3.8.1 fixes the v3.8.0 regression where the UI claimed a full-market scan
+but no market rows were parsed in some environments.
 
-Product intent:
-- 今日可買: controlled swing buy candidates.
-- 今日強勢: stocks that the market is actively chasing today.
-- 可追強勢: subset of strong stocks whose price position is still operational.
-- 已漲不追: strong but too extended; prepare next-day follow-up instead.
+Design rule for this module:
+- Do not claim a full-market scan unless at least one broad market source was
+  actually fetched and parsed.
+- Always expose endpoint-level diagnostics so the user can see exactly which
+  connector succeeded, failed, or parsed zero rows.
+- Prefer official TWSE / TPEx snapshots. If they are unavailable or incomplete,
+  use Yahoo quote data built from the official stock master as a transparent
+  fallback, not as a hidden success.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
-from typing import Callable, Any
+from datetime import datetime, timezone
+from typing import Any, Callable
 
 import requests
 
 from radar.data.stock_master import STOCKS, StockInfo, register_custom_stock
 
 TWSE_STOCK_DAY_ALL_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
+TWSE_PRICE_CHANGE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/TWT84U"
+TWSE_VOLUME_TOP20_URL = "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX20"
+TWSE_STOCK_MASTER_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
+
 TPEX_DAILY_CLOSE_URLS = [
     "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
-    "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes?response=json",
+    "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes",
 ]
+TPEX_STRENGTH_URLS = [
+    "https://www.tpex.org.tw/openapi/v1/tpex_active_advanced",
+    "https://www.tpex.org.tw/openapi/v1/tpex_active_dollar_volume",
+    "https://www.tpex.org.tw/openapi/v1/tpex_volume_rank",
+    "https://www.tpex.org.tw/openapi/v1/tpex_amount_rank",
+]
+TPEX_STOCK_MASTER_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O"
+YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
+YAHOO_QUOTE_URL_BACKUP = "https://query2.finance.yahoo.com/v7/finance/quote"
 
 
 @dataclass(frozen=True)
@@ -69,10 +85,22 @@ class MarketRow:
 def _safe_float(value: Any, default: float = 0.0) -> float:
     if value is None:
         return default
-    text = str(value).strip().replace(",", "")
-    if text in {"", "--", "-", "X", "除權息"}:
+    text = str(value).strip()
+    if not text:
         return default
-    text = text.replace("+", "")
+    text = (
+        text.replace(",", "")
+        .replace("%", "")
+        .replace("％", "")
+        .replace("+", "")
+        .replace("▲", "")
+        .replace("▼", "-")
+        .replace("−", "-")
+        .replace("－", "-")
+        .replace("–", "-")
+    )
+    if text in {"", "--", "-", "X", "除權息", "N/A", "nan", "None"}:
+        return default
     try:
         return float(text)
     except Exception:
@@ -86,22 +114,52 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _normalize_key(key: Any) -> str:
+    return str(key or "").strip().lower().replace(" ", "").replace("_", "")
+
+
 def _get_any(row: dict[str, Any], *keys: str) -> Any:
+    """Get a field by exact key, normalized key, or fuzzy keyword match."""
     for key in keys:
         if key in row:
             return row[key]
-    normalized = {str(k).strip().lower().replace(" ", ""): v for k, v in row.items()}
+    normalized = {_normalize_key(k): v for k, v in row.items()}
     for key in keys:
-        nk = key.strip().lower().replace(" ", "")
+        nk = _normalize_key(key)
         if nk in normalized:
             return normalized[nk]
+    # Fuzzy fallback: useful for official APIs with slightly changing Chinese labels.
+    for key in keys:
+        nk = _normalize_key(key)
+        for rk, value in normalized.items():
+            if nk and (nk in rk or rk in nk):
+                return value
     return None
 
 
 def _normalize_symbol(value: Any) -> str:
     text = str(value or "").strip()
     digits = "".join(ch for ch in text if ch.isdigit())
+    # ETF and stocks are 4 digits in our current scope. Keep first 4 to avoid
+    # parsing securities names like "2330 台積電" into longer strings.
     return digits[:4] if len(digits) >= 4 else ""
+
+
+def _parse_date(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = text.replace(".", "/").replace("-", "/")
+    parts = [p for p in text.split("/") if p]
+    try:
+        if len(parts) >= 3:
+            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+            if y < 1911:
+                y += 1911
+            return f"{y:04d}-{m:02d}-{d:02d}"
+    except Exception:
+        return ""
+    return ""
 
 
 def _calc_change_pct(close: float, change: float) -> float:
@@ -112,24 +170,33 @@ def _calc_change_pct(close: float, change: float) -> float:
 
 
 def _parse_market_row(row: dict[str, Any], market: str, source: str) -> MarketRow | None:
-    symbol = _normalize_symbol(_get_any(row, "Code", "SecuritiesCompanyCode", "證券代號", "有價證券代號", "代號"))
+    symbol = _normalize_symbol(_get_any(row, "Code", "SecuritiesCompanyCode", "證券代號", "股票代號", "有價證券代號", "代號", "公司代號"))
     if not symbol or not symbol.isdigit():
         return None
-    name = str(_get_any(row, "Name", "CompanyName", "證券名稱", "公司名稱", "有價證券名稱", "名稱") or "").strip() or f"待識別{symbol}"
-    close = _safe_float(_get_any(row, "ClosingPrice", "Close", "收盤價", "收盤", "最後成交價"))
+
+    name = str(_get_any(row, "Name", "CompanyName", "證券名稱", "股票名稱", "公司名稱", "有價證券名稱", "名稱") or "").strip()
+    if not name:
+        stock = STOCKS.get(symbol)
+        name = stock.name if stock else f"待識別{symbol}"
+
+    close = _safe_float(_get_any(row, "ClosingPrice", "Close", "close", "收盤價", "收盤", "最新價", "最後成交價", "成交價"))
     if close <= 0:
         return None
-    change = _safe_float(_get_any(row, "Change", "ChangePrice", "漲跌價差", "漲跌", "漲跌點數"))
-    change_pct = _safe_float(_get_any(row, "ChangePercent", "ChangePercentage", "漲跌幅", "漲跌幅(%)"))
+
+    change = _safe_float(_get_any(row, "Change", "ChangePrice", "漲跌價差", "漲跌", "漲跌點數", "漲跌(+/-)", "漲跌元"))
+    change_pct = _safe_float(_get_any(row, "ChangePercent", "ChangePercentage", "ChangePct", "漲跌幅", "漲跌幅(%)", "漲幅", "漲幅(%)"))
     if change_pct == 0 and change != 0:
         change_pct = _calc_change_pct(close, change)
-    open_ = _safe_float(_get_any(row, "OpeningPrice", "Open", "開盤價", "開盤"), 0.0) or None
-    high = _safe_float(_get_any(row, "HighestPrice", "High", "最高價", "最高"), 0.0) or None
-    low = _safe_float(_get_any(row, "LowestPrice", "Low", "最低價", "最低"), 0.0) or None
-    volume = _safe_int(_get_any(row, "TradeVolume", "TradingShares", "Volume", "成交股數", "成交量"))
-    value = _safe_float(_get_any(row, "TradeValue", "TransactionAmount", "成交金額", "成交值"))
+
+    open_ = _safe_float(_get_any(row, "OpeningPrice", "Open", "open", "開盤價", "開盤"), 0.0) or None
+    high = _safe_float(_get_any(row, "HighestPrice", "High", "high", "最高價", "最高"), 0.0) or None
+    low = _safe_float(_get_any(row, "LowestPrice", "Low", "low", "最低價", "最低"), 0.0) or None
+    volume = _safe_int(_get_any(row, "TradeVolume", "TradingShares", "Volume", "volume", "成交股數", "成交量", "成交張數"))
+    value = _safe_float(_get_any(row, "TradeValue", "TransactionAmount", "Turnover", "成交金額", "成交值", "成交金額(元)"))
     if value <= 0 and close > 0 and volume > 0:
         value = close * volume
+    row_date = _parse_date(_get_any(row, "Date", "日期", "資料日期", "交易日期"))
+
     return MarketRow(
         symbol=symbol,
         name=name,
@@ -143,6 +210,7 @@ def _parse_market_row(row: dict[str, Any], market: str, source: str) -> MarketRo
         low=low,
         volume=volume,
         value=round(value, 0),
+        date=row_date,
     )
 
 
@@ -153,54 +221,240 @@ def _fetch_json(url: str, timeout: float) -> list[dict[str, Any]]:
     if isinstance(data, list):
         return [row for row in data if isinstance(row, dict)]
     if isinstance(data, dict):
-        for key in ("data", "result", "items"):
+        for key in ("data", "result", "items", "rows"):
             rows = data.get(key)
             if isinstance(rows, list):
                 return [row for row in rows if isinstance(row, dict)]
     return []
 
 
-def fetch_market_snapshot(timeout: float = 6.0) -> dict[str, Any]:
-    """Fetch broad TWSE / TPEx daily market snapshot.
-
-    This is not a real-time tick feed. It is used to identify the market's
-    current strongest names from the widest official snapshot available. Yahoo
-    price series is still used later for indicators and charts.
-    """
-    rows: list[MarketRow] = []
-    errors: list[str] = []
+def _attempt_endpoint(url: str, market: str, source: str, timeout: float) -> tuple[list[MarketRow], dict[str, Any]]:
+    attempt: dict[str, Any] = {
+        "source": source,
+        "url": url,
+        "status": "pending",
+        "raw_rows": 0,
+        "parsed_rows": 0,
+        "sample_keys": [],
+        "error": "",
+    }
     try:
-        for raw in _fetch_json(TWSE_STOCK_DAY_ALL_URL, timeout):
-            parsed = _parse_market_row(raw, "TW", "TWSE OpenAPI")
+        raw_rows = _fetch_json(url, timeout)
+        attempt["raw_rows"] = len(raw_rows)
+        if raw_rows:
+            attempt["sample_keys"] = list(raw_rows[0].keys())[:18]
+        rows = []
+        for raw in raw_rows:
+            parsed = _parse_market_row(raw, market, source)
             if parsed:
                 rows.append(parsed)
+        attempt["parsed_rows"] = len(rows)
+        attempt["status"] = "ok" if rows else "parsed_zero"
+        if raw_rows and not rows:
+            attempt["error"] = "API 有回傳資料，但欄位未解析成功；請看 sample_keys。"
+        return rows, attempt
     except Exception as exc:
-        errors.append(f"TWSE：{exc}")
-    for url in TPEX_DAILY_CLOSE_URLS:
+        attempt["status"] = "error"
+        attempt["error"] = str(exc)[:500]
+        return [], attempt
+
+
+def _fetch_stock_master(timeout: float) -> tuple[list[StockInfo], list[dict[str, Any]]]:
+    """Fetch official stock master for Yahoo quote fallback.
+
+    This is not used to fabricate full-market strength. It is used only when
+    official daily snapshot endpoints are unavailable, so the system can still
+    scan a broader Taiwan universe via Yahoo quotes and clearly label it.
+    """
+    stocks: dict[str, StockInfo] = {s.symbol: s for s in STOCKS.values()}
+    attempts: list[dict[str, Any]] = []
+    for market, url, source in [
+        ("TW", TWSE_STOCK_MASTER_URL, "TWSE Stock Master"),
+        ("TWO", TPEX_STOCK_MASTER_URL, "TPEx Stock Master"),
+    ]:
+        attempt = {"source": source, "url": url, "status": "pending", "raw_rows": 0, "parsed_rows": 0, "sample_keys": [], "error": ""}
         try:
-            parsed_rows = []
-            for raw in _fetch_json(url, timeout):
-                parsed = _parse_market_row(raw, "TWO", "TPEx OpenAPI")
-                if parsed:
-                    parsed_rows.append(parsed)
-            if parsed_rows:
-                rows.extend(parsed_rows)
-                break
+            raw_rows = _fetch_json(url, timeout)
+            attempt["raw_rows"] = len(raw_rows)
+            if raw_rows:
+                attempt["sample_keys"] = list(raw_rows[0].keys())[:18]
+            parsed_count = 0
+            for raw in raw_rows:
+                symbol = _normalize_symbol(_get_any(raw, "公司代號", "Code", "SecuritiesCompanyCode", "證券代號", "股票代號"))
+                name = str(_get_any(raw, "公司名稱", "Name", "CompanyName", "證券名稱", "股票名稱", "名稱") or "").strip()
+                if symbol and name:
+                    stocks.setdefault(symbol, StockInfo(symbol, name, market, "全市場"))
+                    parsed_count += 1
+            attempt["parsed_rows"] = parsed_count
+            attempt["status"] = "ok" if parsed_count else "parsed_zero"
+            attempts.append(attempt)
         except Exception as exc:
-            errors.append(f"TPEx：{exc}")
-    # Deduplicate: prefer the row with larger traded value, because some sources
-    # may include duplicate securities or alternate classes.
+            attempt["status"] = "error"
+            attempt["error"] = str(exc)[:500]
+            attempts.append(attempt)
+    return list(stocks.values()), attempts
+
+
+def _chunked(items: list[StockInfo], size: int) -> list[list[StockInfo]]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _market_time_to_date(ts: Any) -> str:
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).astimezone().date().isoformat()
+    except Exception:
+        return ""
+
+
+def _row_from_yahoo_quote(quote: dict[str, Any], stock: StockInfo) -> MarketRow | None:
+    close = _safe_float(quote.get("regularMarketPrice") or quote.get("postMarketPrice") or quote.get("preMarketPrice"))
+    if close <= 0:
+        return None
+    change = _safe_float(quote.get("regularMarketChange"))
+    change_pct = _safe_float(quote.get("regularMarketChangePercent"))
+    name = stock.name
+    short_name = str(quote.get("shortName") or quote.get("longName") or "").strip()
+    if (not name or name.startswith("待識別")) and short_name:
+        name = short_name
+    volume = _safe_int(quote.get("regularMarketVolume"))
+    value = round(close * volume, 0) if volume else 0.0
+    return MarketRow(
+        symbol=stock.symbol,
+        name=name,
+        market=stock.market,
+        source="Yahoo Finance Quote",
+        close=round(close, 2),
+        change=round(change, 2),
+        change_pct=round(change_pct, 2),
+        open=_safe_float(quote.get("regularMarketOpen"), 0.0) or None,
+        high=_safe_float(quote.get("regularMarketDayHigh"), 0.0) or None,
+        low=_safe_float(quote.get("regularMarketDayLow"), 0.0) or None,
+        volume=volume,
+        value=value,
+        date=_market_time_to_date(quote.get("regularMarketTime")),
+    )
+
+
+def _fetch_yahoo_quotes(stocks: list[StockInfo], timeout: float = 8.0, max_symbols: int = 1400) -> tuple[list[MarketRow], list[dict[str, Any]]]:
+    """Fetch broad Yahoo quotes in chunks.
+
+    Yahoo is used as a freshness fallback and a wider quote source. If this
+    fails, diagnostics tell the user exactly why the strong momentum radar is
+    empty instead of claiming success.
+    """
+    selected = stocks[:max_symbols]
+    out: list[MarketRow] = []
+    attempts: list[dict[str, Any]] = []
+    stock_by_yahoo = {s.yahoo_symbol: s for s in selected}
+    for chunk in _chunked(selected, 60):
+        symbols = ",".join(s.yahoo_symbol for s in chunk)
+        success = False
+        last_error = ""
+        for base_url in (YAHOO_QUOTE_URL, YAHOO_QUOTE_URL_BACKUP):
+            attempt = {"source": "Yahoo Quote", "url": base_url, "status": "pending", "raw_rows": 0, "parsed_rows": 0, "sample_keys": [], "error": ""}
+            try:
+                response = requests.get(base_url, params={"symbols": symbols}, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                data = response.json()
+                quotes = data.get("quoteResponse", {}).get("result", []) if isinstance(data, dict) else []
+                attempt["raw_rows"] = len(quotes)
+                if quotes:
+                    attempt["sample_keys"] = list(quotes[0].keys())[:18]
+                parsed_count = 0
+                for quote in quotes:
+                    stock = stock_by_yahoo.get(str(quote.get("symbol") or ""))
+                    if not stock:
+                        continue
+                    parsed = _row_from_yahoo_quote(quote, stock)
+                    if parsed:
+                        out.append(parsed)
+                        parsed_count += 1
+                attempt["parsed_rows"] = parsed_count
+                attempt["status"] = "ok" if parsed_count else "parsed_zero"
+                attempts.append(attempt)
+                success = True
+                break
+            except Exception as exc:
+                last_error = str(exc)[:500]
+                attempt["status"] = "error"
+                attempt["error"] = last_error
+                attempts.append(attempt)
+        if not success and last_error:
+            # Continue to next chunk; one chunk failing should not kill the whole radar.
+            continue
+    return out, attempts
+
+
+def _dedupe_rows(rows: list[MarketRow]) -> list[MarketRow]:
     by_symbol: dict[str, MarketRow] = {}
     for row in rows:
         current = by_symbol.get(row.symbol)
-        if current is None or row.value > current.value:
+        if current is None:
             by_symbol[row.symbol] = row
-    rows = list(by_symbol.values())
+            continue
+        # Prefer newer date. If equal or missing, prefer rows with real gain/volume/value.
+        cur_date = current.date or ""
+        row_date = row.date or ""
+        if row_date > cur_date:
+            by_symbol[row.symbol] = row
+        elif row_date == cur_date:
+            current_score = (abs(current.change_pct) > 0, current.value, current.volume)
+            row_score = (abs(row.change_pct) > 0, row.value, row.volume)
+            if row_score > current_score:
+                by_symbol[row.symbol] = row
+    return list(by_symbol.values())
+
+
+def fetch_market_snapshot(timeout: float = 7.0) -> dict[str, Any]:
+    """Fetch a broad market snapshot with transparent diagnostics."""
+    all_rows: list[MarketRow] = []
+    attempts: list[dict[str, Any]] = []
+
+    official_endpoints = [
+        (TWSE_STOCK_DAY_ALL_URL, "TW", "TWSE STOCK_DAY_ALL"),
+        (TWSE_PRICE_CHANGE_URL, "TW", "TWSE TWT84U"),
+        (TWSE_VOLUME_TOP20_URL, "TW", "TWSE MI_INDEX20"),
+    ]
+    official_endpoints.extend((url, "TWO", "TPEx Daily Close") for url in TPEX_DAILY_CLOSE_URLS)
+    official_endpoints.extend((url, "TWO", "TPEx Strength Rank") for url in TPEX_STRENGTH_URLS)
+
+    for url, market, source in official_endpoints:
+        rows, attempt = _attempt_endpoint(url, market, source, timeout)
+        all_rows.extend(rows)
+        attempts.append(attempt)
+
+    official_rows = _dedupe_rows(all_rows)
+
+    stocks, master_attempts = _fetch_stock_master(timeout)
+    attempts.extend(master_attempts)
+    yahoo_rows: list[MarketRow] = []
+    yahoo_attempts: list[dict[str, Any]] = []
+    # If official rows are too few, fetch Yahoo broad quotes. Also fetch Yahoo
+    # when official rows are available but limited, so ranking has a usable fallback.
+    if len(official_rows) < 500:
+        yahoo_rows, yahoo_attempts = _fetch_yahoo_quotes(stocks, timeout=timeout)
+        attempts.extend(yahoo_attempts[:25])
+
+    rows = _dedupe_rows(official_rows + yahoo_rows)
+    sources = sorted({r.source for r in rows})
+    mode = "official_full_market" if len(official_rows) >= 500 else "official_plus_yahoo_fallback" if rows else "no_market_data"
+    message = (
+        "已取得官方全市場快照。"
+        if mode == "official_full_market"
+        else "官方全市場快照不足，已補用官方股票主檔 + Yahoo Quote 做較廣市場掃描。"
+        if mode == "official_plus_yahoo_fallback"
+        else "未取得 TWSE / TPEx / Yahoo 可解析市場資料，強勢股雷達不產生假資料。"
+    )
     return {
         "rows": rows,
         "total": len(rows),
-        "errors": errors[:6],
-        "sources": sorted({r.source for r in rows}),
+        "official_rows": len(official_rows),
+        "yahoo_rows": len(yahoo_rows),
+        "errors": [a for a in attempts if a.get("status") == "error"][:12],
+        "endpoint_attempts": attempts,
+        "sources": sources,
+        "mode": mode,
+        "message": message,
     }
 
 
@@ -246,7 +500,7 @@ def _rank_rows(rows: list[MarketRow]) -> dict[str, list[dict]]:
 def _candidate_market_rows(rows: list[MarketRow]) -> list[MarketRow]:
     ranked = _rank_rows(rows)
     wanted: list[str] = []
-    for key, take in (("limit_like", 20), ("top_gainers", 30), ("top_value", 25), ("top_volume", 15)):
+    for key, take in (("limit_like", 25), ("top_gainers", 40), ("top_value", 30), ("top_volume", 20)):
         wanted.extend([r["symbol"] for r in ranked.get(key, [])[:take]])
     seen = set()
     out: list[MarketRow] = []
@@ -255,7 +509,7 @@ def _candidate_market_rows(rows: list[MarketRow]) -> list[MarketRow]:
         if symbol in row_map and symbol not in seen:
             seen.add(symbol)
             out.append(row_map[symbol])
-    return out[:45]
+    return out[:60]
 
 
 def _theme_of(row: MarketRow) -> str:
@@ -383,6 +637,7 @@ def _classify_market_candidate(row: MarketRow, card: dict | None) -> dict[str, A
         "label": row.label,
         "market": row.market,
         "source": row.source,
+        "date": row.date,
         "strength_score": score,
         "strength_category": category,
         "strength_reasons": reasons[:7],
@@ -423,17 +678,18 @@ def build_market_strength_payload(decision_cards: list[dict], status: dict, buil
         classified.append(_classify_market_candidate(row, card))
 
     if not rows:
-        # Fallback to the existing AI universe cards, but make it explicit that
-        # this is not a full-market scan. Do not pretend we have 漲幅排行.
         from radar.teacher.strength import build_strength_payload  # local import avoids cycle
         fallback = build_strength_payload(decision_cards)
         fallback["data_coverage"] = {
-            "mode": "AI universe fallback",
+            "mode": "no_market_data",
             "total_market_rows": 0,
+            "official_rows": snapshot.get("official_rows", 0),
+            "yahoo_rows": snapshot.get("yahoo_rows", 0),
             "candidate_rows": len(decision_cards),
             "sources": [],
             "errors": snapshot.get("errors", []),
-            "message": "全市場官方排行未取得，本頁暫以核心股票池觀察，不代表全市場強勢股。",
+            "endpoint_attempts": snapshot.get("endpoint_attempts", []),
+            "message": snapshot.get("message") or "未取得全市場強勢資料；不產生假排行。",
         }
         fallback["chaseable_list"] = []
         fallback["ranking_tables"] = rankings
@@ -461,13 +717,16 @@ def build_market_strength_payload(decision_cards: list[dict], status: dict, buil
         "ranking_tables": rankings,
         "sector_strength": _sector_strength(rows),
         "data_coverage": {
-            "mode": "full_market_scan",
+            "mode": snapshot.get("mode") or "full_market_scan",
             "total_market_rows": len(rows),
+            "official_rows": snapshot.get("official_rows", 0),
+            "yahoo_rows": snapshot.get("yahoo_rows", 0),
             "candidate_rows": len(candidates),
             "classified_rows": len(classified),
             "sources": snapshot.get("sources", []),
             "errors": snapshot.get("errors", []),
-            "message": "已用 TWSE / TPEx 全市場快照建立漲幅、成交量、成交值與接近漲停觀察，再對候選股補技術分析。",
+            "endpoint_attempts": snapshot.get("endpoint_attempts", []),
+            "message": snapshot.get("message") or "已建立強勢股雷達資料。",
         },
     }
 

@@ -1,33 +1,25 @@
-# AI Stock Radar v3.8.0
+# AI Stock Radar v3.8.1
 
-AI 股市老師盤前 / 盤後決策系統。
+## Market Strength Connector Fix
 
-## 本版重點：全市場強勢股雷達 v2
+這版修正強勢股雷達資料連接器：不再只是顯示「未取得全市場強勢資料」，而是清楚列出 TWSE / TPEx / Yahoo 每個資料來源的抓取與解析狀態。
 
-v3.8.0 修正 v3.7.0 的核心問題：上一版只是把既有 AI 股票池做強勢分類，沒有真正建立全市場漲幅、成交量、成交值與接近漲停掃描。
-
-本版改為：
-
-1. 先掃描 TWSE / TPEx 全市場快照。
-2. 建立全市場漲幅排行、成交量排行、成交值排行、接近漲停名單。
-3. 從強勢股中補技術分析，判斷哪些「可追」、哪些「已漲不追」、哪些適合「明日接力觀察」。
-4. 今日可買與今日強勢分開顯示。
-
-## Run CLI
+## 執行
 
 ```bash
 PYTHONPATH=src python3 -m radar.cli run
-```
-
-## Run Dashboard
-
-```bash
 python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## Upgrade
+## 升級
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.8.0_MarketStrength_Product_Release/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.8.1_MarketStrengthConnector_Fix/upgrade_to_repo.sh
 ```
+
+## 驗收
+
+- 打開「強勢股雷達」。
+- 若有資料，應看到市場掃描筆數、官方解析筆數、Yahoo 補充筆數。
+- 若沒有資料，打開「資料抓取診斷」確認每個 endpoint 的錯誤或欄位解析狀態。

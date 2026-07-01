@@ -1,12 +1,13 @@
-# Roadmap
+# ROADMAP
 
-## Current: v3.8.0 Market Strength Radar v2
+## Current: v3.8.1 Market Strength Connector Fix
 
-目標：讓 AI Stock Radar 不只給波段買點，也能看見今日市場真正強勢的股票，並判斷哪些可以追、哪些不能追。
+- 修正強勢股雷達資料連接器。
+- 增加 TWSE / TPEx / Yahoo endpoint-level 診斷。
+- 強勢股雷達不再把抓取失敗當成完成。
 
-## Next Candidates
+## Next
 
-1. 盤中資料速度與穩定性優化。
-2. 強勢股族群輪動分析。
-3. 盤後檢討：AI 今日可買 vs 今日強勢 vs 隔日表現。
-4. 持股總教練加入強勢股交叉檢查。
+- 根據實際線上診斷結果補強指定 endpoint 解析。
+- 加入盤後強勢股檢討。
+- 將今日強勢與明日接力觀察更清楚地接到股市老師操作建議。

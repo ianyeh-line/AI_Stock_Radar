@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.8.0"
+APP_VERSION = "3.8.1"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -455,7 +455,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：強勢股雷達改為先掃描全市場漲幅、成交量、成交值與接近漲停，再由 AI 挑出可追、已漲不追與明日接力觀察。")
+st.caption("本版重點：強勢股雷達修正資料連接器，明確顯示 TWSE / TPEx / Yahoo 抓取與解析狀態，不再把抓取失敗當成已完成。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -499,10 +499,35 @@ elif page == "強勢股雷達":
     gap = payload.get("strength_gap_analysis", {})
     coverage = strength.get("data_coverage", {})
     if coverage.get("total_market_rows", 0):
-        st.success(f"全市場掃描：{coverage.get('total_market_rows')} 檔｜候選分析：{coverage.get('classified_rows', coverage.get('candidate_rows', 0))} 檔｜來源：{', '.join(coverage.get('sources', []))}")
+        st.success(
+            f"市場掃描：{coverage.get('total_market_rows')} 檔｜"
+            f"官方解析：{coverage.get('official_rows', 0)} 檔｜"
+            f"Yahoo 補充：{coverage.get('yahoo_rows', 0)} 檔｜"
+            f"候選分析：{coverage.get('classified_rows', coverage.get('candidate_rows', 0))} 檔｜"
+            f"來源：{', '.join(coverage.get('sources', []))}"
+        )
+        if coverage.get("mode") == "official_plus_yahoo_fallback":
+            st.info("官方全市場快照不足，本版已補用官方股票主檔 + Yahoo Quote 擴大掃描；不會把此狀態隱藏成純官方全市場資料。")
     else:
         st.warning(coverage.get("message", "目前未取得全市場強勢資料。"))
     st.info(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
+
+    with st.expander("資料抓取診斷（若強勢股為空，先看這裡）", expanded=not bool(coverage.get("total_market_rows", 0))):
+        attempts = coverage.get("endpoint_attempts", [])
+        if attempts:
+            diag_rows = []
+            for a in attempts:
+                diag_rows.append({
+                    "來源": a.get("source"),
+                    "狀態": a.get("status"),
+                    "原始筆數": a.get("raw_rows", 0),
+                    "解析筆數": a.get("parsed_rows", 0),
+                    "錯誤 / 註記": a.get("error", ""),
+                    "樣本欄位": ", ".join(a.get("sample_keys", [])[:8]),
+                })
+            st.dataframe(diag_rows, use_container_width=True, hide_index=True)
+        else:
+            st.caption("沒有資料抓取診斷。")
 
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["可追強勢", "今日強勢", "漲停/接近漲停", "已漲不追", "明日接力", "全市場排行"])
     with tab0:
