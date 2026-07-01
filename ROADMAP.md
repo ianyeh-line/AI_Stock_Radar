@@ -1,6 +1,6 @@
 # ROADMAP
 
-## Current: v3.8.1 Market Strength Connector Fix
+## Current: v3.8.2 Market Strength Reliability Fix
 
 - 修正強勢股雷達資料連接器。
 - 增加 TWSE / TPEx / Yahoo endpoint-level 診斷。

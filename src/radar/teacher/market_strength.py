@@ -1,6 +1,6 @@
 """Full-market strong momentum radar with transparent connector diagnostics.
 
-v3.8.1 fixes the v3.8.0 regression where the UI claimed a full-market scan
+v3.8.2 fixes the v3.8.0 regression where the UI claimed a full-market scan
 but no market rows were parsed in some environments.
 
 Design rule for this module:
@@ -18,10 +18,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
 from radar.data.stock_master import STOCKS, StockInfo, register_custom_stock
+from radar.core.market_data import fetch_price_series
 
 TWSE_STOCK_DAY_ALL_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
 TWSE_PRICE_CHANGE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/TWT84U"
@@ -335,6 +337,111 @@ def _row_from_yahoo_quote(quote: dict[str, Any], stock: StockInfo) -> MarketRow 
     )
 
 
+def _row_from_price_payload(payload: dict[str, Any], stock: StockInfo, source: str = "Yahoo Finance Chart") -> MarketRow | None:
+    """Convert an existing OHLC payload into a market strength row.
+
+    This is the v3.8.2 safety net: when broad official ranking endpoints or
+    Yahoo quote endpoint are unavailable, use the same latest price payload that
+    powers decision cards and stock charts. This does not pretend to be a full
+    market scan; coverage.mode tells the user exactly which fallback was used.
+    """
+    prices = payload.get("prices") or []
+    if not prices:
+        return None
+    last = prices[-1]
+    prev = prices[-2] if len(prices) >= 2 else {}
+    close = _safe_float(last.get("close"))
+    if close <= 0:
+        return None
+    prev_close = _safe_float(prev.get("close"), close) or close
+    change = round(close - prev_close, 2)
+    change_pct = round((change / prev_close * 100), 2) if prev_close > 0 else 0.0
+    volume = _safe_int(last.get("volume"))
+    name = str(payload.get("name") or stock.name or "").strip() or f"待識別{stock.symbol}"
+    market = str(payload.get("market") or stock.market or "TW")
+    return MarketRow(
+        symbol=stock.symbol,
+        name=name,
+        market=market,
+        source=source if source else str(payload.get("source") or "Yahoo Finance Chart"),
+        close=round(close, 2),
+        change=change,
+        change_pct=change_pct,
+        open=_safe_float(last.get("open"), 0.0) or None,
+        high=_safe_float(last.get("high"), 0.0) or None,
+        low=_safe_float(last.get("low"), 0.0) or None,
+        volume=volume,
+        value=round(close * volume, 0) if volume else 0.0,
+        date=str(last.get("date") or payload.get("latest_date") or ""),
+    )
+
+
+def _rows_from_decision_cards(cards: list[dict[str, Any]]) -> list[MarketRow]:
+    rows: list[MarketRow] = []
+    for card in cards:
+        stock = StockInfo(str(card.get("symbol") or ""), str(card.get("name") or ""), str(card.get("market") or "TW"), "決策股票池")
+        payload = {
+            "prices": card.get("prices") or [],
+            "name": card.get("name"),
+            "market": card.get("market") or "TW",
+            "source": card.get("price_source") or "Decision Card Price Payload",
+            "latest_date": card.get("latest_date"),
+        }
+        row = _row_from_price_payload(payload, stock, source="Decision Card Price Payload")
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _fetch_yahoo_chart_rows(stocks: list[StockInfo], timeout: float = 3.0, max_symbols: int = 180) -> tuple[list[MarketRow], list[dict[str, Any]]]:
+    """Fetch broad Yahoo chart rows as a transparent fallback.
+
+    It is intentionally summarized as one diagnostic row to avoid flooding the
+    UI with hundreds of per-symbol attempts.
+    """
+    selected = stocks[:max_symbols]
+    rows: list[MarketRow] = []
+    errors: list[str] = []
+    attempt: dict[str, Any] = {
+        "source": "Yahoo Chart Broad Scan",
+        "url": "query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+        "status": "pending",
+        "raw_rows": len(selected),
+        "parsed_rows": 0,
+        "sample_keys": ["date", "open", "high", "low", "close", "volume"],
+        "error": "",
+    }
+
+    def load(stock: StockInfo) -> MarketRow | None:
+        payload = fetch_price_series(stock, days=90, timeout=timeout)
+        if str(payload.get("data_quality")) == "fallback":
+            return None
+        return _row_from_price_payload(payload, stock, source=str(payload.get("source") or "Yahoo Finance Chart"))
+
+    try:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_map = {executor.submit(load, stock): stock for stock in selected}
+            for future in as_completed(future_map):
+                try:
+                    row = future.result()
+                    if row:
+                        rows.append(row)
+                except Exception as exc:
+                    if len(errors) < 5:
+                        stock = future_map.get(future)
+                        errors.append(f"{getattr(stock, 'symbol', '')}: {str(exc)[:120]}")
+        attempt["parsed_rows"] = len(rows)
+        attempt["status"] = "ok" if rows else "parsed_zero"
+        if not rows:
+            attempt["error"] = "Yahoo Chart Broad Scan 沒有取得可用資料。" + (" / " + "；".join(errors) if errors else "")
+        elif errors:
+            attempt["error"] = "部分個股抓取失敗：" + "；".join(errors)
+    except Exception as exc:
+        attempt["status"] = "error"
+        attempt["error"] = str(exc)[:500]
+    return rows, [attempt]
+
+
 def _fetch_yahoo_quotes(stocks: list[StockInfo], timeout: float = 8.0, max_symbols: int = 1400) -> tuple[list[MarketRow], list[dict[str, Any]]]:
     """Fetch broad Yahoo quotes in chunks.
 
@@ -429,27 +536,49 @@ def fetch_market_snapshot(timeout: float = 7.0) -> dict[str, Any]:
     attempts.extend(master_attempts)
     yahoo_rows: list[MarketRow] = []
     yahoo_attempts: list[dict[str, Any]] = []
-    # If official rows are too few, fetch Yahoo broad quotes. Also fetch Yahoo
-    # when official rows are available but limited, so ranking has a usable fallback.
+    yahoo_chart_rows: list[MarketRow] = []
+    yahoo_chart_attempts: list[dict[str, Any]] = []
+
+    # If official rows are too few, fetch Yahoo broad quotes. This is still a
+    # broad-market data attempt, not a fabricated result.
     if len(official_rows) < 500:
         yahoo_rows, yahoo_attempts = _fetch_yahoo_quotes(stocks, timeout=timeout)
         attempts.extend(yahoo_attempts[:25])
 
     rows = _dedupe_rows(official_rows + yahoo_rows)
+
+    # v3.8.2: Yahoo quote sometimes returns zero rows on Streamlit Cloud while
+    # the chart endpoint works for individual stocks. In that case, run a
+    # transparent broad Yahoo chart scan over the stock master so 強勢股雷達 has
+    # real market candidates instead of an empty page.
+    if len(rows) < 40:
+        yahoo_chart_rows, yahoo_chart_attempts = _fetch_yahoo_chart_rows(stocks, timeout=min(timeout, 3.0))
+        attempts.extend(yahoo_chart_attempts)
+        rows = _dedupe_rows(rows + yahoo_chart_rows)
+
     sources = sorted({r.source for r in rows})
-    mode = "official_full_market" if len(official_rows) >= 500 else "official_plus_yahoo_fallback" if rows else "no_market_data"
-    message = (
-        "已取得官方全市場快照。"
-        if mode == "official_full_market"
-        else "官方全市場快照不足，已補用官方股票主檔 + Yahoo Quote 做較廣市場掃描。"
-        if mode == "official_plus_yahoo_fallback"
-        else "未取得 TWSE / TPEx / Yahoo 可解析市場資料，強勢股雷達不產生假資料。"
-    )
+    if len(official_rows) >= 500:
+        mode = "official_full_market"
+        message = "已取得官方全市場快照。"
+    elif yahoo_rows:
+        mode = "official_plus_yahoo_quote"
+        message = "官方全市場快照不足，已補用官方股票主檔 + Yahoo Quote 做較廣市場掃描。"
+    elif yahoo_chart_rows:
+        mode = "yahoo_chart_broad_scan"
+        message = "官方快照與 Yahoo Quote 不足，已使用 Yahoo 日線/最新報價對股票主檔進行較廣市場掃描。"
+    elif rows:
+        mode = "partial_market_scan"
+        message = "取得部分市場資料，強勢股雷達以可解析資料產生候選。"
+    else:
+        mode = "no_market_data"
+        message = "未取得 TWSE / TPEx / Yahoo 可解析市場資料，強勢股雷達不產生假資料。"
+
     return {
         "rows": rows,
         "total": len(rows),
         "official_rows": len(official_rows),
         "yahoo_rows": len(yahoo_rows),
+        "yahoo_chart_rows": len(yahoo_chart_rows),
         "errors": [a for a in attempts if a.get("status") == "error"][:12],
         "endpoint_attempts": attempts,
         "sources": sources,
@@ -662,6 +791,16 @@ def _classify_market_candidate(row: MarketRow, card: dict | None) -> dict[str, A
 def build_market_strength_payload(decision_cards: list[dict], status: dict, build_card: Callable[[StockInfo], dict]) -> dict[str, Any]:
     snapshot = fetch_market_snapshot()
     rows: list[MarketRow] = snapshot["rows"]
+
+    # Final safety net: if all market connectors fail, still let the user see a
+    # clearly labelled limited-universe strength scan from the same price payload
+    # used by today's decision cards. This prevents an empty page while making
+    # it explicit that this is not a successful full-market scan.
+    limited_universe_used = False
+    if not rows and decision_cards:
+        rows = _rows_from_decision_cards(decision_cards)
+        limited_universe_used = bool(rows)
+
     rankings = _rank_rows(rows) if rows else {"top_gainers": [], "top_volume": [], "top_value": [], "limit_like": []}
     candidates = _candidate_market_rows(rows) if rows else []
     card_by_symbol = {c.get("symbol"): c for c in decision_cards}
@@ -685,6 +824,7 @@ def build_market_strength_payload(decision_cards: list[dict], status: dict, buil
             "total_market_rows": 0,
             "official_rows": snapshot.get("official_rows", 0),
             "yahoo_rows": snapshot.get("yahoo_rows", 0),
+            "yahoo_chart_rows": snapshot.get("yahoo_chart_rows", 0),
             "candidate_rows": len(decision_cards),
             "sources": [],
             "errors": snapshot.get("errors", []),
@@ -717,16 +857,17 @@ def build_market_strength_payload(decision_cards: list[dict], status: dict, buil
         "ranking_tables": rankings,
         "sector_strength": _sector_strength(rows),
         "data_coverage": {
-            "mode": snapshot.get("mode") or "full_market_scan",
+            "mode": "decision_universe_fallback" if limited_universe_used else (snapshot.get("mode") or "full_market_scan"),
             "total_market_rows": len(rows),
             "official_rows": snapshot.get("official_rows", 0),
             "yahoo_rows": snapshot.get("yahoo_rows", 0),
+            "yahoo_chart_rows": snapshot.get("yahoo_chart_rows", 0),
             "candidate_rows": len(candidates),
             "classified_rows": len(classified),
-            "sources": snapshot.get("sources", []),
+            "sources": sorted({r.get("source") for r in classified if r.get("source")}) if limited_universe_used else snapshot.get("sources", []),
             "errors": snapshot.get("errors", []),
             "endpoint_attempts": snapshot.get("endpoint_attempts", []),
-            "message": snapshot.get("message") or "已建立強勢股雷達資料。",
+            "message": "全市場連接器失敗，已使用今日決策股票池做有限強勢掃描；這不是全市場排行。" if limited_universe_used else (snapshot.get("message") or "已建立強勢股雷達資料。"),
         },
     }
 

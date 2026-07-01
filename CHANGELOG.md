@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## v3.8.1 - Market Strength Connector Fix
+## v3.8.2 - Market Strength Reliability Fix
 
 ### Fixed
 

@@ -1,6 +1,6 @@
-# AI Stock Radar v3.8.1
+# AI Stock Radar v3.8.2
 
-## Market Strength Connector Fix
+## Market Strength Reliability Fix
 
 這版修正強勢股雷達資料連接器：不再只是顯示「未取得全市場強勢資料」，而是清楚列出 TWSE / TPEx / Yahoo 每個資料來源的抓取與解析狀態。
 
@@ -15,7 +15,7 @@ PYTHONPATH=src python3 -m streamlit run app.py
 ## 升級
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.8.1_MarketStrengthConnector_Fix/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.8.2_MarketStrengthReliability_Fix/upgrade_to_repo.sh
 ```
 
 ## 驗收

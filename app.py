@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.8.1"
+APP_VERSION = "3.8.2"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
