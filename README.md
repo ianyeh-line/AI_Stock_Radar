@@ -1,15 +1,17 @@
-# AI Stock Radar v3.7.0
+# AI Stock Radar v3.8.0
 
-AI 股市老師盤前決策系統。
+AI 股市老師盤前 / 盤後決策系統。
 
-## 本版重點：強勢股雷達
+## 本版重點：全市場強勢股雷達 v2
 
-v3.7.0 新增「強勢股雷達」，把產品拆成兩個不同問題：
+v3.8.0 修正 v3.7.0 的核心問題：上一版只是把既有 AI 股票池做強勢分類，沒有真正建立全市場漲幅、成交量、成交值與接近漲停掃描。
 
-1. **今日可買**：股市老師波段買點，重視買進區間、支撐壓力與風險報酬比。
-2. **今日強勢**：市場資金正在追的股票，包含漲停 / 接近漲停、已漲不追、明日接力觀察。
+本版改為：
 
-這版不把「強勢」直接等於「可買」。如果股票已漲太多，系統會標示為「已漲不追」或「明日接力觀察」。
+1. 先掃描 TWSE / TPEx 全市場快照。
+2. 建立全市場漲幅排行、成交量排行、成交值排行、接近漲停名單。
+3. 從強勢股中補技術分析，判斷哪些「可追」、哪些「已漲不追」、哪些適合「明日接力觀察」。
+4. 今日可買與今日強勢分開顯示。
 
 ## Run CLI
 
@@ -27,5 +29,5 @@ PYTHONPATH=src python3 -m streamlit run app.py
 ## Upgrade
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.7.0_StrongMomentum_Product_Release/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.8.0_MarketStrength_Product_Release/upgrade_to_repo.sh
 ```

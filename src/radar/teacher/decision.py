@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.7.0 Data Freshness Rule:
+v3.8.0 Data Freshness Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -20,7 +20,7 @@ from radar.core.indicators import analyze_prices
 from radar.core.market_data import fetch_price_series
 from radar.data.stock_master import StockInfo, ai_universe, register_custom_stock, resolve_stock
 from radar.data.user_store import load_portfolio, load_watchlist
-from radar.teacher.strength import build_gap_analysis, build_strength_payload
+from radar.teacher.market_strength import build_market_strength_payload, build_strength_gap_analysis
 
 
 GENERIC_NAME_PREFIXES = ("待識別", "自訂個股")
@@ -672,7 +672,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.7.0 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.8.0 Data Freshness Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -686,8 +686,8 @@ def run_teacher_pipeline() -> dict:
     wait = [c for c in cards if c["grade"] == "B"][:8]
     avoid = [c for c in cards if c["grade"] == "D"][:8]
     macd_zero = _macd_zero_axis_candidates(cards)
-    strength_payload = build_strength_payload(cards)
-    strength_gap = build_gap_analysis(buy, strength_payload)
+    strength_payload = build_market_strength_payload(cards, status, lambda stock: build_decision_card(stock, status=status))
+    strength_gap = build_strength_gap_analysis(buy, strength_payload)
     cards_by_symbol = {c["symbol"]: c for c in cards}
     watch_items = []
     for item in load_watchlist():
@@ -698,10 +698,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.7.0",
+        "version": "3.8.0",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師先給今天怎麼做，再補技術面、籌碼面、產業消息、支撐壓力與劇本推演；資料來源只作為頁尾說明，不影響最新有效資料的評等。",
+        "teacher_summary": "股市老師先給今天怎麼做，再補技術面、籌碼面、產業消息、支撐壓力與劇本推演；強勢股雷達會先掃描全市場，再挑出可追、已漲不追與明日接力觀察。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,

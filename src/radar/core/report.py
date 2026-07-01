@@ -8,7 +8,7 @@ from pathlib import Path
 from radar.teacher.decision import run_teacher_pipeline
 
 
-REPORT_VERSION = "3.7.0"
+REPORT_VERSION = "3.8.0"
 
 
 def save_outputs(payload: dict) -> None:
@@ -69,10 +69,21 @@ def _strength_lines(payload: dict) -> list[str]:
             )
         lines.append("")
 
+    coverage = strength.get("data_coverage", {})
+    if coverage:
+        lines.append(f"全市場掃描：{coverage.get('total_market_rows', 0)} 檔｜候選分析：{coverage.get('classified_rows', coverage.get('candidate_rows', 0))} 檔｜{coverage.get('message', '')}")
+        lines.append("")
+    add_rows("可追強勢", strength.get("chaseable_list", []), "今日沒有同時符合強勢與合理操作空間的可追名單。")
     add_rows("今日強勢", strength.get("strong_list", []), "今日沒有明確強勢股主線。")
     add_rows("漲停 / 接近漲停觀察", strength.get("limit_watch", []), "今日沒有接近漲停觀察名單。")
     add_rows("已漲不追", strength.get("no_chase_list", []), "今日沒有明顯已漲不追名單。")
     add_rows("明日接力觀察", strength.get("tomorrow_watch", []), "今日沒有明確明日接力名單。")
+    rankings = strength.get("ranking_tables", {})
+    if rankings.get("top_gainers"):
+        lines.extend(["### 全市場漲幅排行 Top 5"])
+        for row in rankings.get("top_gainers", [])[:5]:
+            lines.append(f"- {row.get('label')}｜{row.get('change_pct')}%｜股價 {row.get('close')}｜成交量 {row.get('volume')}")
+        lines.append("")
     return lines
 
 def _data_source_footer(payload: dict) -> list[str]:

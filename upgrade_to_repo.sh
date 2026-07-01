@@ -19,4 +19,4 @@ rsync -av --delete \
   --exclude 'output/dashboard_data.json' \
   "$SOURCE_DIR/" "$TARGET/"
 
-echo "AI Stock Radar v3.7.0 Strong Momentum Radar 已升級到 $TARGET"
+echo "AI Stock Radar v3.8.0 Market Strength Radar v2 已升級到 $TARGET"

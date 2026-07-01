@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.7.0"
+APP_VERSION = "3.8.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -279,6 +279,24 @@ def render_strength_card(row: dict) -> None:
             st.caption(f"對照技術：DIF {macd.get('macd')}｜DEA {macd.get('signal')}｜0軸 {macd.get('zero_axis_status')}｜突破價 {t.get('breakout')}")
 
 
+def render_market_ranking(rows: list[dict], title: str) -> None:
+    st.markdown(f"**{title}**")
+    if not rows:
+        st.caption("尚無資料。")
+        return
+    table = []
+    for row in rows[:12]:
+        table.append({
+            "股票": row.get("label") or f"{row.get('symbol')} {row.get('name')}",
+            "股價": row.get("close"),
+            "漲跌幅%": row.get("change_pct"),
+            "成交量": row.get("volume"),
+            "成交值": row.get("value"),
+            "來源": row.get("source"),
+        })
+    st.dataframe(table, use_container_width=True, hide_index=True)
+
+
 def render_technical_chart(card: dict, key: str) -> None:
     range_label = st.radio("觀察區間", ["1個月", "3個月", "6個月", "1年"], index=1, horizontal=True, key=f"range-{key}")
     days = {"1個月": 30, "3個月": 90, "6個月": 180, "1年": 252}[range_label]
@@ -437,7 +455,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：新增強勢股雷達，區分「今日可買」與「今日市場正在追的股票」，避免把漲停股直接當成可追標的。")
+st.caption("本版重點：強勢股雷達改為先掃描全市場漲幅、成交量、成交值與接近漲停，再由 AI 挑出可追、已漲不追與明日接力觀察。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -476,17 +494,28 @@ if page == "今日可買":
 
 elif page == "強勢股雷達":
     st.header("今日強勢股雷達")
-    st.caption("這裡回答『今天市場正在追什麼』，不等於一定可以追價買進。股市老師會把今日強勢、接近漲停、已漲不追與明日接力觀察分開。")
+    st.caption("先掃全市場漲幅、成交量、成交值與接近漲停，再由 AI 判斷：哪些可追、哪些已漲不追、哪些適合明日接力。")
     strength = payload.get("strong_momentum", {})
     gap = payload.get("strength_gap_analysis", {})
+    coverage = strength.get("data_coverage", {})
+    if coverage.get("total_market_rows", 0):
+        st.success(f"全市場掃描：{coverage.get('total_market_rows')} 檔｜候選分析：{coverage.get('classified_rows', coverage.get('candidate_rows', 0))} 檔｜來源：{', '.join(coverage.get('sources', []))}")
+    else:
+        st.warning(coverage.get("message", "目前未取得全市場強勢資料。"))
     st.info(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
 
-    tab1, tab2, tab3, tab4 = st.tabs(["今日強勢", "漲停/接近漲停", "已漲不追", "明日接力觀察"])
+    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["可追強勢", "今日強勢", "漲停/接近漲停", "已漲不追", "明日接力", "全市場排行"])
+    with tab0:
+        rows = strength.get("chaseable_list", [])
+        if not rows:
+            st.warning("目前沒有符合『強勢且仍有合理操作空間』的可追名單；股市老師不把所有大漲股都列為可追。")
+        for row in rows[:10]:
+            render_strength_card(row)
     with tab1:
         rows = strength.get("strong_list", [])
         if not rows:
             st.warning("目前沒有明確今日強勢名單。")
-        for row in rows[:10]:
+        for row in rows[:12]:
             render_strength_card(row)
     with tab2:
         rows = strength.get("limit_watch", [])
@@ -504,8 +533,17 @@ elif page == "強勢股雷達":
         rows = strength.get("tomorrow_watch", [])
         if not rows:
             st.info("目前沒有明確明日接力觀察名單。")
-        for row in rows[:10]:
+        for row in rows[:12]:
             render_strength_card(row)
+    with tab5:
+        rankings = strength.get("ranking_tables", {})
+        render_market_ranking(rankings.get("top_gainers", []), "全市場漲幅排行")
+        render_market_ranking(rankings.get("top_volume", []), "全市場成交量排行")
+        render_market_ranking(rankings.get("top_value", []), "全市場成交值排行")
+        sectors = strength.get("sector_strength", [])
+        if sectors:
+            st.markdown("**族群強度**")
+            st.dataframe(sectors, use_container_width=True, hide_index=True)
 
 elif page == "等待/避免":
     c1, c2 = st.columns(2)
