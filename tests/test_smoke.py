@@ -5,9 +5,11 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.6.1"
+    assert payload["version"] == "3.7.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
+    assert "strong_momentum" in payload
+    assert "strength_gap_analysis" in payload
 
 
 def test_stock_master_huatong():
@@ -170,3 +172,13 @@ def test_teacher_narrative_has_required_facets_and_no_source_penalty_text():
     assert "信心略降" not in joined
     assert "官方尚未完全同步" not in joined
     assert "Yahoo 較新" not in joined
+
+
+def test_strong_momentum_payload_exists():
+    payload = run_teacher_pipeline()
+    strength = payload["strong_momentum"]
+    assert "strong_list" in strength
+    assert "limit_watch" in strength
+    assert "no_chase_list" in strength
+    assert "tomorrow_watch" in strength
+    assert "summary" in payload["strength_gap_analysis"]

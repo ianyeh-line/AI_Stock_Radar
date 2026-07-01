@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.6.1"
+APP_VERSION = "3.7.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -256,6 +256,29 @@ def render_card(card: dict, show_trust: bool = False) -> None:
         st.caption(f"技術摘要：MACD(DIF) {macd['macd']}｜DEA {macd['signal']}｜柱狀體 {macd['hist']}｜0軸 {macd.get('zero_axis_status')}｜量能比 {t.get('volume_ratio')}")
         render_data_trust(card)
 
+
+def render_strength_card(row: dict) -> None:
+    card = row.get("card") or {}
+    t = card.get("tech") or {}
+    with st.container(border=True):
+        st.subheader(f"{row.get('label')}｜{row.get('strength_category')}｜強勢分 {row.get('strength_score')}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(price_html(float(row.get("close") or 0), float(row.get("change_pct") or 0), "今日股價"), unsafe_allow_html=True)
+        c2.metric("量能比", row.get("volume_ratio"))
+        c3.metric("RSI", row.get("rsi"))
+        c4.write(f"波段判斷：{row.get('linked_decision')} / {row.get('linked_grade')}")
+        st.write(f"**股市老師判斷：** {row.get('teacher_view')}")
+        st.write(f"**明日接力觀察：** {row.get('tomorrow_plan')}")
+        reasons = row.get("strength_reasons") or []
+        if reasons:
+            st.markdown("**強勢理由：**")
+            for reason in reasons:
+                st.markdown(f"- {reason}")
+        if card:
+            macd = t.get("macd", {})
+            st.caption(f"對照技術：DIF {macd.get('macd')}｜DEA {macd.get('signal')}｜0軸 {macd.get('zero_axis_status')}｜突破價 {t.get('breakout')}")
+
+
 def render_technical_chart(card: dict, key: str) -> None:
     range_label = st.radio("觀察區間", ["1個月", "3個月", "6個月", "1年"], index=1, horizontal=True, key=f"range-{key}")
     days = {"1個月": 30, "3個月": 90, "6個月": 180, "1年": 252}[range_label]
@@ -414,7 +437,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：今日可買改用股市老師完整敘事；首頁先給決策，資料來源說明移到頁尾。")
+st.caption("本版重點：新增強勢股雷達，區分「今日可買」與「今日市場正在追的股票」，避免把漲停股直接當成可追標的。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -428,17 +451,18 @@ st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--
 source_summary = payload.get("data_source_summary", {})
 store = storage_status()
 
-mcol, k2, k3, k4 = st.columns([2.2, 1, 1, 1])
+mcol, k2, k3, k4, k5 = st.columns([2.2, 1, 1, 1, 1])
 with mcol:
     st.markdown(
         f"<div class='market-card'><div class='market-title'>市場結論</div><div class='market-view'>{payload['market_view']}</div></div>",
         unsafe_allow_html=True,
     )
 k2.metric("今日可買", len(payload["buy_list"]))
-k3.metric("等待突破", len(payload["wait_list"]))
-k4.metric("避免名單", len(payload["avoid_list"]))
+k3.metric("今日強勢", len(payload.get("strong_momentum", {}).get("strong_list", [])))
+k4.metric("等待突破", len(payload["wait_list"]))
+k5.metric("避免名單", len(payload["avoid_list"]))
 
-PAGES = ["今日可買", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
+PAGES = ["今日可買", "強勢股雷達", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
 st.session_state.setdefault("active_page", "今日可買")
 page = st.radio("功能", PAGES, horizontal=True, key="active_page")
 st.divider()
@@ -449,6 +473,39 @@ if page == "今日可買":
         st.warning("今日沒有 A 級可買進名單。資料不足或買點不佳時，股市老師不硬給買進。")
     for card in payload["buy_list"][:8]:
         render_card(card)
+
+elif page == "強勢股雷達":
+    st.header("今日強勢股雷達")
+    st.caption("這裡回答『今天市場正在追什麼』，不等於一定可以追價買進。股市老師會把今日強勢、接近漲停、已漲不追與明日接力觀察分開。")
+    strength = payload.get("strong_momentum", {})
+    gap = payload.get("strength_gap_analysis", {})
+    st.info(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
+
+    tab1, tab2, tab3, tab4 = st.tabs(["今日強勢", "漲停/接近漲停", "已漲不追", "明日接力觀察"])
+    with tab1:
+        rows = strength.get("strong_list", [])
+        if not rows:
+            st.warning("目前沒有明確今日強勢名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
+    with tab2:
+        rows = strength.get("limit_watch", [])
+        if not rows:
+            st.info("目前沒有接近漲停的觀察名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
+    with tab3:
+        rows = strength.get("no_chase_list", [])
+        if not rows:
+            st.info("目前沒有明顯已漲不追名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
+    with tab4:
+        rows = strength.get("tomorrow_watch", [])
+        if not rows:
+            st.info("目前沒有明確明日接力觀察名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
 
 elif page == "等待/避免":
     c1, c2 = st.columns(2)

@@ -8,7 +8,7 @@ from pathlib import Path
 from radar.teacher.decision import run_teacher_pipeline
 
 
-REPORT_VERSION = "3.6.1"
+REPORT_VERSION = "3.7.0"
 
 
 def save_outputs(payload: dict) -> None:
@@ -48,6 +48,33 @@ def _card_teacher_lines(card: dict) -> list[str]:
     return lines
 
 
+
+def _strength_lines(payload: dict) -> list[str]:
+    strength = payload.get("strong_momentum") or {}
+    gap = payload.get("strength_gap_analysis") or {}
+    lines = ["", "## 今日強勢股雷達", gap.get("summary", "今日強勢股雷達尚未產生落差分析。"), ""]
+
+    def add_rows(title: str, rows: list[dict], empty: str) -> None:
+        lines.extend([f"### {title}"])
+        if not rows:
+            lines.append(empty)
+            lines.append("")
+            return
+        for row in rows[:8]:
+            reasons = "；".join(row.get("strength_reasons", [])[:3])
+            lines.append(
+                f"- {row.get('label')}｜強勢分 {row.get('strength_score')}｜{row.get('strength_category')}｜"
+                f"今日股價 {row.get('close')}（{row.get('change_pct')}%）｜量能比 {row.get('volume_ratio')}｜"
+                f"老師判斷：{row.get('teacher_view')}｜理由：{reasons}"
+            )
+        lines.append("")
+
+    add_rows("今日強勢", strength.get("strong_list", []), "今日沒有明確強勢股主線。")
+    add_rows("漲停 / 接近漲停觀察", strength.get("limit_watch", []), "今日沒有接近漲停觀察名單。")
+    add_rows("已漲不追", strength.get("no_chase_list", []), "今日沒有明顯已漲不追名單。")
+    add_rows("明日接力觀察", strength.get("tomorrow_watch", []), "今日沒有明確明日接力名單。")
+    return lines
+
 def _data_source_footer(payload: dict) -> list[str]:
     summary = payload.get("data_source_summary") or {}
     return [
@@ -80,6 +107,8 @@ def build_markdown(payload: dict) -> str:
         lines.append("今日沒有 A 級可買進名單；老師不硬湊推薦，先等價格、量能與結構條件更完整。")
     for c in payload.get("buy_list", [])[:8]:
         lines.extend(_card_teacher_lines(c))
+
+    lines += _strength_lines(payload)
 
     lines += ["", "## 等待突破 / 拉回觀察"]
     if not payload.get("wait_list"):
