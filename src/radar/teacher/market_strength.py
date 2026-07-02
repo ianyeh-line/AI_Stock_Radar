@@ -733,20 +733,28 @@ def _classify_market_candidate(row: MarketRow, card: dict | None) -> dict[str, A
 
     score = max(0, min(100, int(round(score))))
     card_actionable = bool((card or {}).get("data_trust", {}).get("actionable", True))
-    too_hot = change_pct >= 8.2 or rsi >= 78 or volume_ratio >= 4.0
-    chaseable = card_actionable and score >= 70 and 1.8 <= change_pct <= 7.8 and volume_ratio >= 1.15 and not too_hot and (new_high or (breakout and close >= breakout * 0.97) or (ma20 and close > ma20))
+    # v3.8.3: 強勢股可追條件要明確，不再單純用 RSI 過熱一刀切。
+    # 可追條件：漲幅 2%~8%、量能 1.2~3.8、RSI 45~76、接近或突破短期新高，且資料可操作。
+    too_hot = change_pct >= 8.8 or rsi >= 82 or volume_ratio >= 4.5
+    chase_setup = (
+        2.0 <= change_pct <= 8.0
+        and 1.2 <= volume_ratio <= 3.8
+        and 45 <= rsi <= 76
+        and (new_high or (breakout and close >= breakout * 0.96) or (ma20 and close > ma20))
+    )
+    chaseable = card_actionable and score >= 68 and chase_setup and not too_hot
 
     if chaseable:
         category = "可追強勢"
-        teacher_view = "屬於今日強勢股中相對仍有操作空間者；可追不是無條件追價，老師建議以小量試單或等盤中回測不破再介入。"
-        action_plan = "若站穩當日轉強區且量能不縮，可小量試單；若急拉過熱，改列明日接力觀察。"
+        teacher_view = "今日漲幅、量能與價格位置同時轉強，且尚未到失控過熱區；老師判斷可列為強勢追蹤標的，但仍以回測不破或盤中站穩為執行條件。"
+        action_plan = "可用小部位試單；若急拉超過當日轉強區、量能暴衝或跌回突破區下方，改列明日接力觀察。"
     elif change_pct >= 8.2:
         category = "已漲不追"
-        teacher_view = "資金很強，但漲幅已大；老師不把強勢等同於現在可買，空手者等隔日換手或回測。"
+        teacher_view = "資金很強，但漲幅已大或量價過熱；空手者不追，等隔日換手或回測支撐。"
         action_plan = "明日觀察是否開高不爆量、量縮整理不破今日高檔支撐。"
     elif score >= 68:
         category = "今日強勢"
-        teacher_view = "今日量價與價格位置轉強，但是否可追仍取決於是否離買點太遠。"
+        teacher_view = "今日量價與價格位置轉強，但尚未同時滿足可追條件；先觀察是否站穩與量能是否延續。"
         action_plan = "若未追高，等回測或突破確認；已持有者觀察量能是否延續。"
     elif score >= 55:
         category = "明日接力觀察"

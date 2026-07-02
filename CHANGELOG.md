@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## v3.8.2 - Market Strength Reliability Fix
+## v3.8.3 - Teacher Logic and Momentum Fix
 
 ### Fixed
 

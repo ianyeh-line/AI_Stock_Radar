@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.8.2"
+APP_VERSION = "3.8.3"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -183,6 +183,36 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
         f"<div class='{price_class(change_pct)}' style='font-size:1.05rem'>"
         f"{price:.2f}（{symbol} {change_pct}%）</div>"
     )
+
+
+def _macd_chart_series(values: list[float]) -> dict:
+    """Return DIF / DEA / histogram series for mini and full charts.
+
+    v3.8.3 fixes a production NameError where the UI called this helper but
+    it was missing from app.py. Keep the implementation local to the UI so
+    mini MACD charts can render without importing additional modules.
+    """
+    clean = []
+    for value in values:
+        try:
+            v = float(value)
+            if v > 0:
+                clean.append(v)
+        except Exception:
+            continue
+    if len(clean) < 35:
+        return {"macd": [], "signal": [], "hist": []}
+    ema12 = ema_series(clean, 12)
+    ema26 = ema_series(clean, 26)
+    macd_line = [a - b for a, b in zip(ema12[-len(ema26):], ema26)]
+    signal_line = ema_series(macd_line, 9)
+    hist = [m - s for m, s in zip(macd_line[-len(signal_line):], signal_line)]
+    n = min(len(macd_line), len(signal_line), len(hist))
+    return {
+        "macd": [round(x, 4) for x in macd_line[-n:]],
+        "signal": [round(x, 4) for x in signal_line[-n:]],
+        "hist": [round(x, 4) for x in hist[-n:]],
+    }
 
 
 def render_data_trust(card: dict) -> None:
@@ -455,7 +485,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：強勢股雷達修正資料連接器，明確顯示 TWSE / TPEx / Yahoo 抓取與解析狀態，不再把抓取失敗當成已完成。")
+st.caption("本版重點：修正股市老師語句邏輯、今日可買價格狀態判斷、強勢股可追條件與 MACD 小圖錯誤。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):

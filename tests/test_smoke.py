@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.8.2"
+    assert payload["version"] == "3.8.3"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
     assert "strong_momentum" in payload
@@ -165,7 +165,7 @@ def test_premarket_previous_trading_day_is_actionable():
 def test_teacher_narrative_has_required_facets_and_no_source_penalty_text():
     card = build_decision_card(resolve_stock("2330"))
     narrative = card["teacher_narrative"]
-    required = ["technical", "chip", "news", "support_resistance", "scenario_a", "scenario_b", "scenario_c", "no_position_strategy", "holding_strategy", "risk"]
+    required = ["technical", "news", "support_resistance", "scenario_a", "scenario_b", "scenario_c", "no_position_strategy", "holding_strategy", "risk"]
     for key in required:
         assert narrative.get(key)
     joined = " ".join(str(v) for v in narrative.values()) + " " + " ".join(card.get("reasons", []))
@@ -182,3 +182,43 @@ def test_strong_momentum_payload_exists():
     assert "no_chase_list" in strength
     assert "tomorrow_watch" in strength
     assert "summary" in payload["strength_gap_analysis"]
+
+
+def test_teacher_narrative_omits_fake_chip_template_when_no_flow_data():
+    card = build_decision_card(resolve_stock("2330"))
+    chip = card["teacher_narrative"].get("chip", "")
+    assert "籌碼面目前以量能" not in chip
+    assert "分點主力" not in chip
+
+
+def test_action_logic_does_not_buy_below_zone_when_price_extended():
+    from radar.teacher.decision import _action_text
+    tech = {
+        "close": 5200.0,
+        "support_low": 4876.73,
+        "support_high": 5025.26,
+        "breakout": 5797.40,
+        "stop": 4836.0,
+        "trim1": 5500.0,
+        "trim2": 5700.0,
+        "change_pct": 10.0,
+        "volume_ratio": 1.4,
+    }
+    text = _action_text("今日可買", tech)
+    assert "可在 4876.73～5025.26 分批" not in text
+    assert "已離理想買點" in text or "不追" in text
+
+
+def test_breakout_unreachable_today_not_used_as_current_condition():
+    from radar.teacher.decision import _breakout_context
+    tech = {
+        "close": 5200.0,
+        "support_low": 4876.73,
+        "support_high": 5025.26,
+        "breakout": 5797.40,
+        "stop": 4836.0,
+        "change_pct": 10.0,
+        "volume_ratio": 1.4,
+    }
+    text = _breakout_context(tech)
+    assert "今日不能把突破當成可執行條件" in text
