@@ -1,4 +1,4 @@
-# Release v3.8.3 - Teacher Logic and Momentum Fix
+# Release v3.9.0 - Decision Quality Gate
 
 ## Fixed
 

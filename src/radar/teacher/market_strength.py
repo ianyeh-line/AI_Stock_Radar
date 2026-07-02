@@ -733,7 +733,7 @@ def _classify_market_candidate(row: MarketRow, card: dict | None) -> dict[str, A
 
     score = max(0, min(100, int(round(score))))
     card_actionable = bool((card or {}).get("data_trust", {}).get("actionable", True))
-    # v3.8.3: 強勢股可追條件要明確，不再單純用 RSI 過熱一刀切。
+    # v3.9.0: 強勢股可追條件要明確，不再單純用 RSI 過熱一刀切。
     # 可追條件：漲幅 2%~8%、量能 1.2~3.8、RSI 45~76、接近或突破短期新高，且資料可操作。
     too_hot = change_pct >= 8.8 or rsi >= 82 or volume_ratio >= 4.5
     chase_setup = (

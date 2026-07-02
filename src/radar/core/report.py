@@ -8,7 +8,7 @@ from pathlib import Path
 from radar.teacher.decision import run_teacher_pipeline
 
 
-REPORT_VERSION = "3.8.3"
+REPORT_VERSION = "3.9.0"
 
 
 def save_outputs(payload: dict) -> None:
@@ -30,7 +30,7 @@ def _card_teacher_lines(card: dict) -> list[str]:
     t = card.get("tech", {})
     lines = [
         f"### {card['label']}｜{card['setup']}｜Radar {card['score']}｜等級 {card['grade']}",
-        f"- {_price_line(card)}｜資料日：{card.get('latest_date')}｜來源：{card.get('price_source')}",
+        f"- {_price_line(card)}｜資料日：{card.get('latest_date')}",
         f"- 老師判斷：{narrative.get('teacher_judgement', card.get('action', ''))}",
         f"- 技術面：{narrative.get('technical', '')}",
         f"- 籌碼面：{narrative.get('chip', '')}",

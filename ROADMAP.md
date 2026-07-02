@@ -1,13 +1,23 @@
 # ROADMAP
 
-## Current: v3.8.3 Teacher Logic and Momentum Fix
+## Current: v3.9.0 Decision Quality Gate
 
-- 修正強勢股雷達資料連接器。
-- 增加 TWSE / TPEx / Yahoo endpoint-level 診斷。
-- 強勢股雷達不再把抓取失敗當成完成。
+產品重點從「功能更多」轉為「推薦更可信」。
 
-## Next
+## Next Candidates
 
-- 根據實際線上診斷結果補強指定 endpoint 解析。
-- 加入盤後強勢股檢討。
-- 將今日強勢與明日接力觀察更清楚地接到股市老師操作建議。
+### v4.0.0 Teacher Product Consolidation
+
+- 將主頁收斂為四個核心入口：今天怎麼做、今日強勢與接力、我的持股、個股研究。
+- 建立更清楚的股市老師早會格式。
+- 把資料與系統資訊退到幕後。
+
+### v4.1.0 Institutional Flow Upgrade
+
+- 補上連續法人買賣超資料。
+- 讓籌碼面能真正作為加分或扣分，而不是只顯示資料限制。
+
+### v4.2.0 Feedback Loop
+
+- 盤後追蹤今日推薦與實際市場強勢差距。
+- 記錄哪些推薦有效、哪些失誤、為什麼失誤。

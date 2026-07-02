@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.8.3"
+    assert payload["version"] == "3.9.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
     assert "strong_momentum" in payload
@@ -222,3 +222,58 @@ def test_breakout_unreachable_today_not_used_as_current_condition():
     }
     text = _breakout_context(tech)
     assert "今日不能把突破當成可執行條件" in text
+
+
+def test_quality_gate_blocks_extended_price_from_a_grade():
+    from radar.teacher.decision import _quality_gate
+    tech = {
+        "close": 5200.0,
+        "support_low": 4876.73,
+        "support_high": 5025.26,
+        "breakout": 5797.40,
+        "stop": 4836.0,
+        "change_pct": 10.0,
+        "volume_ratio": 1.4,
+        "rsi": 62,
+    }
+    gate = _quality_gate(90, tech, {"actionable": True})
+    assert gate["passed"] is False
+    assert any("高於拉回買點" in x for x in gate["failures"])
+
+
+def test_teacher_narrative_price_state_not_low_zone_buy_when_extended():
+    from radar.teacher.decision import _teacher_narrative
+    from radar.data.stock_master import resolve_stock
+    stock = resolve_stock("6669")
+    card = {
+        "decision": "等待突破",
+        "score": 88,
+        "grade": "B",
+        "quality_gate": {"passed": False, "failures": ["現價已高於拉回買點"]},
+        "tech": {
+            "close": 5200.0,
+            "support_low": 4876.73,
+            "support_high": 5025.26,
+            "breakout": 5797.40,
+            "stop": 4836.0,
+            "trim1": 5512.0,
+            "trim2": 5720.0,
+            "change_pct": 10.0,
+            "volume_ratio": 1.4,
+            "rsi": 62,
+            "ma20": 4950.0,
+            "ma60": 4800.0,
+            "macd": {"macd": 12.3, "signal": 10.1, "hist": 2.2, "zero_axis_status": "0軸上方延續", "hist_status": "柱狀體已翻正延續"},
+        },
+    }
+    narrative = _teacher_narrative(stock, card)
+    joined = " ".join(str(v) for v in narrative.values())
+    assert "可在 4876.73～5025.26" not in joined
+    assert "高於拉回買點" in joined or "不追" in joined
+
+
+def test_no_yahoo_source_penalty_words_in_pipeline_payload():
+    payload = run_teacher_pipeline()
+    blob = str(payload.get("buy_list", "")) + str(payload.get("wait_list", "")) + str(payload.get("portfolio_coach", ""))
+    assert "信心略降" not in blob
+    assert "官方尚未完全同步" not in blob

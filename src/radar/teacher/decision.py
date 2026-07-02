@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.8.3 Teacher Logic Rule:
+v3.9.0 Decision Quality Gate Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -319,6 +319,14 @@ def _breakout_context(tech: dict) -> str:
 
 
 def _action_text(label: str, tech: dict) -> str:
+    """Return an executable teacher action.
+
+    Decision Quality Gate rule:
+    - If price has already moved above the pullback buy zone, never say the
+      user can still buy inside that lower zone.
+    - If breakout is already reached, wording must say it is already reached.
+    - If breakout is unreachable today, do not use it as today's action.
+    """
     ctx = _price_context(tech)
     close = ctx["close"]
     low = ctx["low"]
@@ -327,23 +335,59 @@ def _action_text(label: str, tech: dict) -> str:
     stop = ctx["stop"]
     trim1 = tech["trim1"]
     trim2 = tech["trim2"]
-    breakout_context = _breakout_context(tech)
+    vr = ctx["volume_ratio"]
+
     if label == "今日可買":
         if ctx["breakout_reached"]:
-            return f"{breakout_context} 未持有者不追高，等回測 {breakout:.2f} 附近不破，或量縮回到 {low:.2f}～{high:.2f} 再規劃。跌破 {stop:.2f} 則本次波段劇本失效。"
+            if vr >= 1.2:
+                return (
+                    f"股價已站上 {breakout:.2f}，量能比 {vr:.2f} 有配合；已持有者可續抱。"
+                    f"空手者不追高，等回測 {breakout:.2f} 附近守穩，或量縮回到 {low:.2f}～{high:.2f} 再評估。"
+                    f"跌破 {stop:.2f} 則波段劇本失效。"
+                )
+            return (
+                f"股價已站上 {breakout:.2f}，但量能比 {vr:.2f} 尚未確認；持股可看，不建議空手追價。"
+                f"若回測 {breakout:.2f} 仍守住，再評估第二買點；跌破 {stop:.2f} 轉弱。"
+            )
         if ctx["near_buy_zone"]:
-            return f"目前仍接近老師規劃的拉回買點，可在 {low:.2f}～{high:.2f} 分批；跌破 {stop:.2f} 失效。若突破價 {breakout:.2f} 今日不可及，則不把突破當成今天的買進條件。"
-        return f"分數達標但現價 {close:.2f} 已離理想買點 {low:.2f}～{high:.2f} 太遠；今日不追，等回測或下一次量價確認。"
+            return (
+                f"股價仍在老師規劃的拉回買點附近，可在 {low:.2f}～{high:.2f} 以分批方式布局；"
+                f"跌破 {stop:.2f} 停止加碼並檢討。"
+            )
+        return (
+            f"分數雖達標，但今日股價 {close:.2f} 已高於理想買點 {low:.2f}～{high:.2f}；"
+            f"今日不追價，等待回測支撐或重新站穩新的整理平台。"
+        )
+
     if label == "等待突破":
         if ctx["breakout_reached"]:
-            return f"{breakout_context} 由等待突破轉為觀察站穩；不急著加碼，先看是否回測不破。"
+            if vr >= 1.2:
+                return (
+                    f"股價已突破 {breakout:.2f}，但尚未通過今日可買的完整條件；先觀察能否站穩，"
+                    f"不要在第一時間追高加碼。"
+                )
+            return f"股價雖已碰到突破區，但量能比 {vr:.2f} 不足；先視為試探突破，等待站穩。"
         if ctx["extended_above_buy_zone"]:
-            return f"現價 {close:.2f} 已高於拉回買點 {low:.2f}～{high:.2f}，但尚未突破 {breakout:.2f}；此處風險報酬比不佳，等待拉回或下一根確認。"
+            return (
+                f"今日股價 {close:.2f} 已高於拉回買點 {low:.2f}～{high:.2f}，但尚未突破 {breakout:.2f}；"
+                f"此處風險報酬比不佳，等回測或下一根確認。"
+            )
+        if ctx["breakout_unreachable_today"]:
+            return (
+                f"關鍵突破價 {breakout:.2f} 今日不可作為執行條件；"
+                f"先看股價能否守住 {low:.2f}～{high:.2f} 或建立新的整理平台。"
+            )
         return f"等待站上 {breakout:.2f}，或回測 {low:.2f}～{high:.2f} 守穩再評估。"
-    if label == "只觀察":
-        return f"尚未形成高勝率買點；必須站回 {high:.2f} 且量能改善才提高評級，跌破 {stop:.2f} 轉弱。"
-    return f"暫不建立新部位；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向減碼或避開。"
 
+    if label == "只觀察":
+        if close > high:
+            return (
+                f"股價 {close:.2f} 高於拉回區但缺少足夠轉強條件，不追；"
+                f"等回測 {low:.2f}～{high:.2f} 或放量站上 {breakout:.2f}。"
+            )
+        return f"尚未形成高勝率買點；必須站回 {high:.2f} 且量能改善才提高評級，跌破 {stop:.2f} 轉弱。"
+
+    return f"暫不建立新部位；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能不足，偏向減碼或避開。"
 
 def _format_num(value) -> str:
     try:
@@ -413,6 +457,60 @@ def _macd_teacher_sentence(macd: dict) -> str:
     return f"{tone}（DIF {_format_num(dif)}、DEA {_format_num(dea)}、柱狀體 {_format_num(hist)}）"
 
 
+def _chip_teacher_sentence(card: dict) -> str:
+    """Explain chip/fund-flow honestly without fabricating data."""
+    flow = card.get("institutional_flow") or card.get("flow") or {}
+    if flow:
+        summary = flow.get("summary") or flow.get("teacher_summary") or ""
+        if summary:
+            return f"籌碼 / 法人面：{summary}"
+    return (
+        "籌碼 / 法人面：本卡目前沒有足夠的連續法人買賣超資料，"
+        "所以不把籌碼面列為買進加分。老師只會把它視為待補資料；若後續看到外資、投信連續買超且換手健康，才會提高追價信心。"
+    )
+
+
+def _quality_gate(score: int, tech: dict, trust: dict) -> dict:
+    """Hard gate before a stock can be shown as actionable buy.
+
+    This is the core of v3.9.0. It prevents the most common trust-breaking
+    mistakes: recommending a lower buy zone after price has already moved away,
+    using unreachable breakout prices as today's condition, or pretending a
+    weak data card is an A-grade recommendation.
+    """
+    ctx = _price_context(tech)
+    failures: list[str] = []
+    warnings: list[str] = []
+    notes: list[str] = []
+    rsi = tech.get("rsi") or 50
+    vr = tech.get("volume_ratio") or 0
+
+    if not trust.get("actionable", True):
+        failures.append("資料不足或資料失效，不可列為今日可買。")
+    if score < 78:
+        failures.append(f"Radar {score} 未達 A 級推薦門檻。")
+    if ctx["extended_above_buy_zone"] and not ctx["breakout_reached"]:
+        failures.append("現價已高於拉回買點且尚未突破，不能列為今日可買。")
+    if ctx["breakout_reached"] and vr < 1.15:
+        failures.append("雖已突破，但量能不足，不列為追價買點。")
+    if rsi >= 78:
+        failures.append("RSI 過熱，不列為追價買點。")
+    if vr >= 4.5:
+        failures.append("量能過度爆量，容易是短線換手高風險區。")
+    if ctx["breakout_unreachable_today"]:
+        warnings.append("突破價高於今日可執行範圍，本日不把突破視為操作條件。")
+    if ctx["near_buy_zone"]:
+        notes.append("現價仍接近拉回買點，可規劃分批。")
+    if ctx["breakout_reached"]:
+        notes.append("股價已突破，重點轉為是否站穩與量能是否支持。")
+    return {
+        "passed": not failures,
+        "failures": failures,
+        "warnings": warnings,
+        "notes": notes,
+    }
+
+
 def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
     tech = card["tech"]
     close = float(tech["close"])
@@ -427,77 +525,84 @@ def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
     ma20 = tech.get("ma20")
     ma60 = tech.get("ma60")
     macd = tech.get("macd", {})
-    theme = stock.theme or "未分類"
-
     ctx = _price_context(tech)
-    if ctx["breakout_reached"]:
-        if (tech.get("volume_ratio") or 0) >= 1.2:
-            position_sentence = f"今日股價 {close:.2f} 已突破 {breakout:.2f}，量能也有配合，波段結構偏向轉強；重點是站穩，不是追高。"
-        else:
-            position_sentence = f"今日股價 {close:.2f} 已突破 {breakout:.2f}，但量能尚未明顯放大，先視為試探突破，持股可看，空手不急追。"
-    elif ctx["near_buy_zone"]:
-        position_sentence = f"今日股價 {close:.2f} 接近拉回買點 {low:.2f}～{high:.2f}，若量能不失控，可用分批方式規劃。"
-    elif close < stop:
-        position_sentence = f"今日股價 {close:.2f} 已跌破失效價 {stop:.2f}，原本波段劇本失效，不能用攤平取代停損紀律。"
-    elif ctx["extended_above_buy_zone"]:
-        position_sentence = f"今日股價 {close:.2f} 已高於拉回買點 {low:.2f}～{high:.2f}，但尚未突破關鍵壓力 {breakout:.2f}；此處不適合追價，只能等回測或下一根確認。"
-    else:
-        position_sentence = f"今日股價 {close:.2f} 尚未落在老師定義的高勝率買點，需先觀察價量是否重新轉強。"
+    gate = card.get("quality_gate") or {}
 
     trend_parts = []
     if ma20:
-        trend_parts.append("站上 MA20" if close > ma20 else "低於 MA20")
+        trend_parts.append("站上 MA20" if close > ma20 else "跌破 MA20")
     if ma60:
-        trend_parts.append("站上 MA60" if close > ma60 else "低於 MA60")
+        trend_parts.append("站上 MA60" if close > ma60 else "跌破 MA60")
     trend_text = "、".join(trend_parts) if trend_parts else "均線資料不足"
 
+    if ctx["breakout_reached"]:
+        if (vr or 0) >= 1.2:
+            price_state = f"今日股價 {close:.2f} 已突破 {breakout:.2f}，量能比 {float(vr or 0):.2f} 有配合，重點是能否站穩，而不是追高。"
+        else:
+            price_state = f"今日股價 {close:.2f} 已突破 {breakout:.2f}，但量能尚未確認，先視為試探突破。"
+    elif ctx["near_buy_zone"]:
+        price_state = f"今日股價 {close:.2f} 仍在 {low:.2f}～{high:.2f} 拉回買點附近，屬於可以規劃分批的位置。"
+    elif close < stop:
+        price_state = f"今日股價 {close:.2f} 已跌破失效價 {stop:.2f}，原本波段劇本失效。"
+    elif ctx["extended_above_buy_zone"]:
+        price_state = f"今日股價 {close:.2f} 已高於拉回買點 {low:.2f}～{high:.2f}，但尚未突破 {breakout:.2f}；這裡不是好的追價位置。"
+    else:
+        price_state = f"今日股價 {close:.2f} 尚未落在老師定義的高勝率買點，等待價量重新轉強。"
+
     technical = (
-        f"{position_sentence} 均線結構顯示股價目前{trend_text}。"
+        f"技術面：{price_state} 均線結構為{trend_text}。"
         f"{_macd_teacher_sentence(macd)} {_rsi_teacher_sentence(rsi)} {_volume_teacher_sentence(vr)}"
     )
-
-    chip = ""
-
+    chip = _chip_teacher_sentence(card)
     news = (
-        f"產業 / 消息面：{_theme_teacher_context(stock)} 本次不因題材本身直接給買進，仍要求價格位置、量能與 MACD 結構同時支持。"
+        f"產業 / 消息面：{_theme_teacher_context(stock)} "
+        "若未偵測到直接催化消息，本次不把消息面作為買進加分，而是以價量、支撐壓力與趨勢位置決定操作。"
     )
-
     support = (
-        f"支撐觀察區 {low:.2f}～{high:.2f}；突破確認價 {breakout:.2f}；"
+        f"支撐 / 壓力：拉回觀察區 {low:.2f}～{high:.2f}；突破確認價 {breakout:.2f}；"
         f"失效價 {stop:.2f}；第一減碼區 {trim1:.2f}；第二減碼區 {trim2:.2f}。"
     )
 
-    base_action = _action_text(card["decision"], tech)
-    if card.get("decision") == "今日可買":
-        teacher_judgement = f"老師判斷：{base_action}"
+    action = _action_text(card["decision"], tech)
+    if card.get("decision") == "今日可買" and gate.get("passed", True):
+        teacher_judgement = f"老師判斷：{action}"
+    elif card.get("decision") == "今日可買" and not gate.get("passed", True):
+        teacher_judgement = f"老師判斷：分數達標但未通過可執行檢查；{action}"
     elif card.get("decision") == "等待突破":
-        teacher_judgement = f"老師判斷：目前不是立刻買點，等價格與量能確認。{base_action}"
+        teacher_judgement = f"老師判斷：目前以等待為主，不急著買；{action}"
     elif card.get("decision") == "只觀察":
-        teacher_judgement = f"老師判斷：條件尚未完整，只適合觀察。{base_action}"
+        teacher_judgement = f"老師判斷：條件尚未完整，只適合觀察；{action}"
     else:
-        teacher_judgement = f"老師判斷：目前不適合建立新部位。{base_action}"
+        teacher_judgement = f"老師判斷：目前不適合建立新部位；{action}"
 
     if ctx["breakout_reached"]:
-        scenario_a = f"A 劇本：股價已突破 {breakout:.2f} 且量能維持，持股續抱；空手等回測突破價附近不破再找第二買點。"
-        scenario_b = f"B 劇本：突破後量能無法延續，股價回測 {breakout:.2f}，若守住可觀察，跌回則降低評等。"
+        scenario_a = f"A 劇本：股價站穩 {breakout:.2f} 且量能不縮，持股續抱，空手等待回測突破價附近再找第二買點。"
+        scenario_b = f"B 劇本：突破後量能退潮，股價回測 {breakout:.2f}；守住可觀察，跌回則視為假突破。"
     elif ctx["extended_above_buy_zone"]:
-        scenario_a = f"A 劇本：股價不追，等待回測 {low:.2f}～{high:.2f} 守穩後再規劃。"
-        scenario_b = f"B 劇本：若後續挑戰 {breakout:.2f}，必須量能同步放大；若突破價高於今日漲停附近，則把條件留到下一交易日評估。"
+        scenario_a = f"A 劇本：不追價，等待回測 {low:.2f}～{high:.2f} 守穩後再規劃。"
+        scenario_b = f"B 劇本：若後續挑戰 {breakout:.2f}，必須量能同步放大；若突破價今日不可及，就留到下一交易日評估。"
+    elif ctx["near_buy_zone"]:
+        scenario_a = f"A 劇本：拉回 {low:.2f}～{high:.2f} 守穩，量能不失控，分批布局或續抱。"
+        scenario_b = f"B 劇本：未拉回直接上攻，等站上 {breakout:.2f} 且量能確認，不提前追。"
     else:
-        scenario_a = f"A 劇本：拉回 {low:.2f}～{high:.2f} 守穩，量能不失控，分批買進或續抱。"
-        scenario_b = f"B 劇本：直接挑戰 {breakout:.2f}，必須量能同步放大才視為有效突破；量能不足不追。"
+        scenario_a = f"A 劇本：重新站回 {high:.2f} 並形成量價改善，再恢復觀察。"
+        scenario_b = f"B 劇本：股價在現價附近震盪但量能不足，持續觀察不急著買。"
     scenario_c = f"C 劇本：跌破 {stop:.2f}，代表波段結構轉弱，停止加碼並檢討部位。"
 
     if ctx["breakout_reached"]:
-        no_position = f"未持有者：不在突破後急追，等待回測 {breakout:.2f} 附近守穩，或回到 {low:.2f}～{high:.2f} 再規劃。"
+        no_position = f"未持有者：不追高，等回測 {breakout:.2f} 守穩，或回到 {low:.2f}～{high:.2f} 才重新規劃。"
     elif ctx["near_buy_zone"]:
-        no_position = f"未持有者：可在 {low:.2f}～{high:.2f} 區間分批，單筆不重壓，跌破 {stop:.2f} 停止加碼。"
+        no_position = f"未持有者：可在 {low:.2f}～{high:.2f} 分批，不重壓；跌破 {stop:.2f} 停止加碼。"
     elif ctx["extended_above_buy_zone"]:
-        no_position = f"未持有者：今日股價 {close:.2f} 已高於拉回買點，不追價；等回測 {low:.2f}～{high:.2f} 或下一次有效突破再評估。"
+        no_position = f"未持有者：現價已高於拉回區，不追；等回測 {low:.2f}～{high:.2f} 或下一次有效突破。"
     else:
-        no_position = f"未持有者：現價不在理想買點，等拉回 {low:.2f}～{high:.2f} 或突破 {breakout:.2f} 後再評估。"
-    holding = f"已持有者：未跌破 {stop:.2f} 前可續抱；若進入 {trim1:.2f}～{trim2:.2f} 且量能轉弱，可分批減碼。"
-    risk = f"風險提醒：跌破 {stop:.2f} 就不是原本的波段劇本；若族群轉弱、量價背離或 MACD 轉弱，不要用攤平取代紀律。"
+        no_position = f"未持有者：還不是理想買點，等拉回 {low:.2f}～{high:.2f} 或量價站上 {breakout:.2f} 後再評估。"
+
+    if ctx["breakout_reached"]:
+        holding = f"已持有者：已突破者以續抱為主，但若跌回 {breakout:.2f} 且量能轉弱，先減碼觀察；跌破 {stop:.2f} 則波段失效。"
+    else:
+        holding = f"已持有者：未跌破 {stop:.2f} 前可續抱；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能背離，可分批調節。"
+    risk = f"風險提醒：跌破 {stop:.2f} 或量價背離時，不能用攤平取代停損紀律；若缺少籌碼與消息支持，部位要更保守。"
 
     return {
         "teacher_judgement": teacher_judgement,
@@ -511,8 +616,9 @@ def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
         "no_position_strategy": no_position,
         "holding_strategy": holding,
         "risk": risk,
+        "quality_gate": gate,
         "conclusion": teacher_judgement,
-        "summary_reasons": [technical, chip, news][:3],
+        "summary_reasons": [technical, chip, news],
     }
 
 def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
@@ -527,11 +633,20 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         score = min(score, 64)
         reasons = trust["warnings"] + reasons
 
+    gate = _quality_gate(score, tech, trust)
     label, setup, grade = _decision(score, tech)
+
+    # v3.9.0 Recommendation Quality Gate:
+    # Any stock that does not pass the execution gate cannot remain A-grade
+    # even if the numeric score is high.
+    if grade == "A" and not gate["passed"]:
+        label, setup, grade = "等待突破", "未通過可執行檢查", "B"
     if not trust["actionable"] and grade in {"A", "B"}:
         label, setup, grade = "只觀察", "資料不足不給買進", "C"
 
     confidence_penalty = 0 if trust["actionable"] else -18
+    if not gate["passed"]:
+        confidence_penalty -= 6
     confidence = min(96, max(40, score + confidence_penalty))
     card = {
         "symbol": stock.symbol,
@@ -553,7 +668,8 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         "setup": setup,
         "grade": grade,
         "confidence": confidence,
-        "reasons": reasons,
+        "reasons": [r for r in reasons if "Yahoo" not in r and "官方" not in r and "信心略降" not in r],
+        "quality_gate": gate,
         "action": _action_text(label, tech),
         "risk": f"跌破 {tech['stop']:.2f} 代表波段結構轉弱，不建議用攤平取代停損紀律。",
     }
@@ -726,7 +842,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.8.3 Teacher Logic Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.9.0 Decision Quality Gate Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -752,7 +868,7 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     return {
-        "version": "3.8.3",
+        "version": "3.9.0",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "股市老師先給今天怎麼做，再補技術面、籌碼面、產業消息、支撐壓力與劇本推演；強勢股雷達會先掃描全市場，再挑出可追、已漲不追與明日接力觀察。",

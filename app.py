@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.8.3"
+APP_VERSION = "3.9.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -188,7 +188,7 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
 def _macd_chart_series(values: list[float]) -> dict:
     """Return DIF / DEA / histogram series for mini and full charts.
 
-    v3.8.3 fixes a production NameError where the UI called this helper but
+    v3.9.0 fixes a production NameError where the UI called this helper but
     it was missing from app.py. Keep the implementation local to the UI so
     mini MACD charts can render without importing additional modules.
     """
@@ -284,6 +284,13 @@ def render_card(card: dict, show_trust: bool = False) -> None:
         render_teacher_narrative(card, expanded=False)
         macd = t["macd"]
         st.caption(f"技術摘要：MACD(DIF) {macd['macd']}｜DEA {macd['signal']}｜柱狀體 {macd['hist']}｜0軸 {macd.get('zero_axis_status')}｜量能比 {t.get('volume_ratio')}")
+        gate = card.get("quality_gate") or {}
+        if gate.get("failures") or gate.get("warnings"):
+            with st.expander("推薦品質檢查", expanded=False):
+                for item in gate.get("failures", []):
+                    st.warning(item)
+                for item in gate.get("warnings", []):
+                    st.info(item)
         render_data_trust(card)
 
 
@@ -485,7 +492,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：修正股市老師語句邏輯、今日可買價格狀態判斷、強勢股可追條件與 MACD 小圖錯誤。")
+st.caption("本版重點：Decision Quality Gate：推薦前先檢查價格可執行性、資料有效性與老師語句邏輯；今日可買與持股總教練共用老師敘事。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):

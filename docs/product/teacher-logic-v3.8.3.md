@@ -1,4 +1,4 @@
-# Teacher Logic v3.8.3
+# Teacher Logic v3.9.0
 
 本版強化三個規則：
 
