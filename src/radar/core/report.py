@@ -9,7 +9,7 @@ from radar.teacher.decision import run_teacher_pipeline
 from radar.teacher.decision_loop import save_decision_journal
 
 
-REPORT_VERSION = "3.10.0"
+REPORT_VERSION = "3.11.0"
 
 
 def save_outputs(payload: dict) -> None:

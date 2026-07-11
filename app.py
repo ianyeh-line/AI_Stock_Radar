@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.10.0"
+APP_VERSION = "3.11.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -42,6 +42,19 @@ st.markdown(
     .teacher-section { border-left:4px solid #2563EB; padding:8px 12px; margin:8px 0; background:#F8FAFC; border-radius:8px; }
     .teacher-label { color:#1F2937; font-weight:750; margin-bottom:4px; }
     .footer-note { color:#6B7280; font-size:0.88rem; }
+    .decision-hero { border:1px solid #DBEAFE; border-radius:18px; padding:18px 20px; background:linear-gradient(135deg,#EFF6FF,#FFFFFF); margin-bottom:12px; }
+    .decision-hero h3 { margin:0 0 6px 0; }
+    .quick-card { border:1px solid #E5E7EB; border-radius:14px; padding:14px 16px; background:#FFFFFF; margin-bottom:10px; }
+    .next-step { border-left:4px solid #F59E0B; padding:8px 12px; background:#FFFBEB; border-radius:8px; margin-top:8px; }
+    .chip-badge { display:inline-block; padding:4px 8px; border-radius:999px; background:#F3F4F6; font-size:0.82rem; color:#374151; margin-right:6px; }
+    @media (max-width: 768px) {
+        .block-container { padding:0.75rem 0.75rem 2rem 0.75rem; }
+        .market-card { min-height:auto; padding:12px; }
+        .market-view { font-size:1.1rem; }
+        .teacher-section { padding:8px 10px; }
+        .quick-card { padding:12px; }
+        div[data-testid="stHorizontalBlock"] { gap:0.5rem; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -188,7 +201,7 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
 def _macd_chart_series(values: list[float]) -> dict:
     """Return DIF / DEA / histogram series for mini and full charts.
 
-    v3.10.0 fixes a production NameError where the UI called this helper but
+    v3.11.0 keeps the production fix where the UI called this helper but
     it was missing from app.py. Keep the implementation local to the UI so
     mini MACD charts can render without importing additional modules.
     """
@@ -272,16 +285,21 @@ def render_teacher_narrative(card: dict, expanded: bool = True) -> None:
         st.write(narrative.get("risk", ""))
 
 
-def render_card(card: dict, show_trust: bool = False) -> None:
+def render_card(card: dict, show_trust: bool = False, compact: bool = False) -> None:
     t = card["tech"]
     with st.container(border=True):
         st.subheader(f"{card['label']}｜{card['setup']}｜等級 {card['grade']}")
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns([0.9, 0.9, 1.4])
         c1.metric("Radar", card["score"])
         c2.metric("信心", f"{card['confidence']}%")
         c3.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
-        c4.write(f"資料日：{card['latest_date']}")
-        render_teacher_narrative(card, expanded=False)
+        chip = card.get("chip_flow") or {}
+        if chip.get("available"):
+            st.markdown(f"<span class='chip-badge'>籌碼：{chip.get('bias')}｜合計 {chip.get('total_net_lot', 0):,} 張</span>", unsafe_allow_html=True)
+        else:
+            st.markdown("<span class='chip-badge'>籌碼：資料不足，不納入加分</span>", unsafe_allow_html=True)
+        st.markdown(f"<div class='next-step'><b>下一步：</b>{card.get('action','')}</div>", unsafe_allow_html=True)
+        render_teacher_narrative(card, expanded=False if compact else True)
         macd = t["macd"]
         st.caption(f"技術摘要：MACD(DIF) {macd['macd']}｜DEA {macd['signal']}｜柱狀體 {macd['hist']}｜0軸 {macd.get('zero_axis_status')}｜量能比 {t.get('volume_ratio')}")
         gate = card.get("quality_gate") or {}
@@ -546,8 +564,9 @@ def add_portfolio_ui() -> None:
 ensure_user_mode_defaults()
 render_beta_access()
 
+
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：Daily Decision Loop：依交易狀態切換盤前計畫、盤中觀察、盤後檢討與明日準備，並開始保存決策紀錄。")
+st.caption("本版重點：Responsive Decision UX：手機與電腦都先看決策；資料來源、診斷與版本資訊預設收合；籌碼資料有就納入，沒有就明確標示不加分。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -557,57 +576,119 @@ else:
     payload = load_payload()
 
 status = payload["trading_status"]
-st.caption(f"日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜星期{status['weekday']}｜交易狀態：{status['session']}｜版本：{APP_VERSION}")
 source_summary = payload.get("data_source_summary", {})
 store = storage_status()
 
-mcol, k2, k3, k4, k5 = st.columns([2.2, 1, 1, 1, 1])
-with mcol:
-    st.markdown(
-        f"<div class='market-card'><div class='market-title'>市場結論</div><div class='market-view'>{payload['market_view']}</div></div>",
-        unsafe_allow_html=True,
-    )
-k2.metric("今日可買", len(payload["buy_list"]))
-k3.metric("今日強勢", len(payload.get("strong_momentum", {}).get("strong_list", [])))
-k4.metric("等待突破", len(payload["wait_list"]))
-k5.metric("避免名單", len(payload["avoid_list"]))
+st.markdown(
+    f"""
+<div class='decision-hero'>
+  <h3>今天怎麼做？</h3>
+  <div style='font-size:1.25rem;font-weight:750;line-height:1.6'>{payload['market_view']}</div>
+  <div class='small-muted'>日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜交易狀態：{status['session']}｜版本：{APP_VERSION}</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
-PAGES = ["決策閉環", "今日可買", "強勢股雷達", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
-st.session_state.setdefault("active_page", "決策閉環")
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("今日可操作", len(payload.get("buy_list", [])))
+k2.metric("強勢觀察", len(payload.get("strong_momentum", {}).get("strong_list", [])))
+k3.metric("等待條件", len(payload.get("wait_list", [])))
+k4.metric("避免 / 控風險", len(payload.get("avoid_list", [])))
+
+PAGES = ["今天怎麼做", "今日強勢", "我的持股", "個股研究", "每日報告", "設定與資料說明"]
+st.session_state.setdefault("active_page", "今天怎麼做")
 page = st.radio("功能", PAGES, horizontal=True, key="active_page")
 st.divider()
 
-if page == "決策閉環":
-    render_decision_loop(payload.get("decision_loop") or {})
+if page == "今天怎麼做":
+    st.header("今天怎麼做")
+    loop = payload.get("decision_loop") or {}
+    session = loop.get("session_mode") or {}
+    st.info(f"{session.get('headline', '')}｜老師問題：{session.get('primary_question', '')}")
 
-elif page == "今日可買":
-    st.header("今日可買進名單")
-    if not payload["buy_list"]:
-        st.warning("今日沒有 A 級可買進名單。資料不足或買點不佳時，股市老師不硬給買進。")
-    for card in payload["buy_list"][:8]:
-        render_card(card)
+    st.subheader("一句話結論")
+    st.write(payload.get("teacher_summary", "今天先看可操作名單、強勢但不追標的，以及自己的持股策略是否需要改變。"))
 
-elif page == "強勢股雷達":
-    st.header("今日強勢股雷達")
-    st.caption("先掃全市場漲幅、成交量、成交值與接近漲停，再由 AI 判斷：哪些可追、哪些已漲不追、哪些適合明日接力。")
+    c1, c2 = st.columns([1.2, 1])
+    with c1:
+        st.subheader("今日可操作名單")
+        buy_list = payload.get("buy_list", [])
+        if not buy_list:
+            st.warning("今日沒有通過品質閘門的 A 級買進名單；先以等待條件與持股管理為主。")
+        for card in buy_list[:4]:
+            render_card(card, compact=True)
+
+        st.subheader("等待突破 / 拉回觀察")
+        for card in payload.get("wait_list", [])[:4]:
+            render_card(card, compact=True)
+
+    with c2:
+        st.subheader("今天不要追")
+        strength = payload.get("strong_momentum", {})
+        no_chase = strength.get("no_chase_list", [])[:5]
+        if not no_chase:
+            st.caption("目前沒有明確已漲不追名單。")
+        for row in no_chase:
+            with st.container(border=True):
+                st.markdown(f"**{row.get('label')}｜{row.get('strength_category')}**")
+                st.write(row.get("teacher_view", ""))
+                st.caption("下一步：" + str(row.get("tomorrow_plan", "")))
+
+        st.subheader("我的持股重點提醒")
+        updates = (payload.get("decision_loop") or {}).get("portfolio_strategy_updates") or []
+        if not updates:
+            st.caption("尚未建立持股；可先到『我的持股』新增。")
+        for row in updates[:4]:
+            with st.container(border=True):
+                st.markdown(f"**{row.get('stock')}｜{row.get('status')}**")
+                st.write(row.get("action", ""))
+                st.caption(row.get("risk_line", ""))
+
+    st.subheader("決策閉環")
+    with st.expander("前次推薦檢討 / 明日準備", expanded=False):
+        render_decision_loop(payload.get("decision_loop") or {})
+
+elif page == "今日強勢":
+    st.header("今日強勢與明日接力")
+    st.info("這頁不是單純列出大漲股，而是把強勢股分成：可追、強但不追、明日接力。")
     strength = payload.get("strong_momentum", {})
     gap = payload.get("strength_gap_analysis", {})
-    coverage = strength.get("data_coverage", {})
-    if coverage.get("total_market_rows", 0):
-        st.success(
-            f"市場掃描：{coverage.get('total_market_rows')} 檔｜"
-            f"官方解析：{coverage.get('official_rows', 0)} 檔｜"
-            f"Yahoo 補充：{coverage.get('yahoo_rows', 0)} 檔｜"
-            f"候選分析：{coverage.get('classified_rows', coverage.get('candidate_rows', 0))} 檔｜"
-            f"來源：{', '.join(coverage.get('sources', []))}"
-        )
-        if coverage.get("mode") == "official_plus_yahoo_fallback":
-            st.info("官方全市場快照不足，本版已補用官方股票主檔 + Yahoo Quote 擴大掃描；不會把此狀態隱藏成純官方全市場資料。")
-    else:
-        st.warning(coverage.get("message", "目前未取得全市場強勢資料。"))
-    st.info(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
+    st.write(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
 
-    with st.expander("資料抓取診斷（若強勢股為空，先看這裡）", expanded=not bool(coverage.get("total_market_rows", 0))):
+    tab0, tab1, tab2, tab3 = st.tabs(["可追強勢", "今日強勢", "已漲不追", "明日接力"])
+    with tab0:
+        rows = strength.get("chaseable_list", [])
+        if not rows:
+            st.warning("目前沒有符合『強勢且仍有合理操作空間』的可追名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
+    with tab1:
+        rows = strength.get("strong_list", [])
+        if not rows:
+            st.warning("目前沒有明確今日強勢名單。")
+        for row in rows[:12]:
+            render_strength_card(row)
+    with tab2:
+        rows = strength.get("no_chase_list", [])
+        if not rows:
+            st.info("目前沒有明顯已漲不追名單。")
+        for row in rows[:10]:
+            render_strength_card(row)
+    with tab3:
+        rows = strength.get("tomorrow_watch", [])
+        if not rows:
+            st.info("目前沒有明確明日接力觀察名單。")
+        for row in rows[:12]:
+            render_strength_card(row)
+
+    with st.expander("全市場排行與資料抓取診斷", expanded=False):
+        rankings = strength.get("ranking_tables", {})
+        render_market_ranking(rankings.get("top_gainers", []), "全市場漲幅排行")
+        render_market_ranking(rankings.get("top_volume", []), "全市場成交量排行")
+        render_market_ranking(rankings.get("top_value", []), "全市場成交值排行")
+        coverage = strength.get("data_coverage", {})
+        st.write(coverage)
         attempts = coverage.get("endpoint_attempts", [])
         if attempts:
             diag_rows = []
@@ -621,63 +702,9 @@ elif page == "強勢股雷達":
                     "樣本欄位": ", ".join(a.get("sample_keys", [])[:8]),
                 })
             st.dataframe(diag_rows, use_container_width=True, hide_index=True)
-        else:
-            st.caption("沒有資料抓取診斷。")
 
-    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["可追強勢", "今日強勢", "漲停/接近漲停", "已漲不追", "明日接力", "全市場排行"])
-    with tab0:
-        rows = strength.get("chaseable_list", [])
-        if not rows:
-            st.warning("目前沒有符合『強勢且仍有合理操作空間』的可追名單；股市老師不把所有大漲股都列為可追。")
-        for row in rows[:10]:
-            render_strength_card(row)
-    with tab1:
-        rows = strength.get("strong_list", [])
-        if not rows:
-            st.warning("目前沒有明確今日強勢名單。")
-        for row in rows[:12]:
-            render_strength_card(row)
-    with tab2:
-        rows = strength.get("limit_watch", [])
-        if not rows:
-            st.info("目前沒有接近漲停的觀察名單。")
-        for row in rows[:10]:
-            render_strength_card(row)
-    with tab3:
-        rows = strength.get("no_chase_list", [])
-        if not rows:
-            st.info("目前沒有明顯已漲不追名單。")
-        for row in rows[:10]:
-            render_strength_card(row)
-    with tab4:
-        rows = strength.get("tomorrow_watch", [])
-        if not rows:
-            st.info("目前沒有明確明日接力觀察名單。")
-        for row in rows[:12]:
-            render_strength_card(row)
-    with tab5:
-        rankings = strength.get("ranking_tables", {})
-        render_market_ranking(rankings.get("top_gainers", []), "全市場漲幅排行")
-        render_market_ranking(rankings.get("top_volume", []), "全市場成交量排行")
-        render_market_ranking(rankings.get("top_value", []), "全市場成交值排行")
-        sectors = strength.get("sector_strength", [])
-        if sectors:
-            st.markdown("**族群強度**")
-            st.dataframe(sectors, use_container_width=True, hide_index=True)
-
-elif page == "等待/避免":
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("等待突破 / 拉回")
-        for card in payload["wait_list"][:8]:
-            render_card(card)
-    with c2:
-        st.subheader("今日避免")
-        for card in payload["avoid_list"][:8]:
-            render_card(card)
-
-elif page == "持股總教練":
-    st.header("個人持股分析｜股市老師總教練")
+elif page == "我的持股":
+    st.header("我的持股｜股市老師總教練")
     add_portfolio_ui()
     coach = payload["portfolio_coach"]
     st.write(coach["summary"])
@@ -688,52 +715,49 @@ elif page == "持股總教練":
                 st.subheader(row["stock"])
                 card = row["card"]
                 tech = card["tech"]
-                css = price_class(tech.get("change_pct", 0))
                 st.markdown(price_html(tech["close"], tech["change_pct"], "今日股價"), unsafe_allow_html=True)
                 st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）｜Radar：{card.get('score')}｜等級：{card.get('grade')}")
+                st.markdown(f"<div class='next-step'><b>持股下一步：</b>{row.get('advice','')}</div>", unsafe_allow_html=True)
                 render_teacher_narrative(card, expanded=False)
-                render_data_trust(row["card"])
+                with st.expander("技術圖與資料限制", expanded=False):
+                    render_technical_chart(card, key=f"portfolio-{card['symbol']}")
+                    render_data_trust(card)
     else:
         st.info("尚未輸入持股。")
 
-elif page == "觀察清單":
-    st.header("指定觀察個股")
+elif page == "個股研究":
+    st.header("個股研究")
     add_watchlist_ui()
-    items = load_watchlist()
-    if not items:
-        st.info("尚未加入觀察清單。")
-    for item in items:
-        try:
-            card = build_decision_card(resolve_stock(item.get("symbol") or item.get("name")))
-            render_card(card)
-        except Exception as exc:
-            st.error(str(exc))
+    st.caption("手機版建議先看老師結論；需要細節時再展開技術圖。")
+    dynamic_cards = payload["all_cards"][:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
+    choices = {card["label"]: card for card in dynamic_cards if card}
+    if not choices:
+        st.info("尚無可研究個股。")
+    else:
+        selected = st.selectbox("選擇個股", list(choices.keys()))
+        card = choices[selected]
+        render_card(card, compact=True)
+        with st.expander("展開完整技術圖", expanded=False):
+            render_technical_chart(card, key=card["symbol"])
 
-elif page == "MACD觀察":
-    st.header("MACD 0軸觀察名單")
-    st.caption("本頁已整合原本 MACD 與 0軸MACD；只關注 MACD/DIF 從 0 軸下方即將翻正，或剛站上 0 軸的股票。若資料不新、fallback 或樣本不足，不列入推薦。")
-    zero_items = payload.get("macd_zero_axis_list", [])[:10]
+    st.subheader("MACD 0軸觀察")
+    zero_items = payload.get("macd_zero_axis_list", [])[:8]
     if not zero_items:
-        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單；沒有訊號時不硬湊推薦。")
+        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單。")
     for card in zero_items:
-        t = card["tech"]
-        css = price_class(t.get("change_pct", 0))
         with st.container(border=True):
-            st.subheader(f"{card['label']}｜{t['macd'].get('zero_axis_status')}")
+            t = card["tech"]
+            st.markdown(f"**{card['label']}｜{t['macd'].get('zero_axis_status')}**")
             st.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
             render_mini_macd_chart(card, key=card["symbol"])
-            st.write(f"MACD(DIF)：{t['macd']['macd']}｜DEA：{t['macd']['signal']}｜柱狀體：{t['macd']['hist']}｜RSI：{t['rsi']}")
-            st.write(f"**老師判斷：** {card.get('teacher_narrative', {}).get('teacher_judgement', card['action'])}")
+            st.write(f"老師判斷：{card.get('teacher_narrative', {}).get('teacher_judgement', card['action'])}")
 
-elif page == "個股線圖":
-    st.header("個股技術線圖")
-    dynamic_cards = payload["all_cards"][:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
-    choices = {card["label"]: card for card in dynamic_cards}
-    selected = st.selectbox("選擇個股", list(choices.keys()))
-    render_technical_chart(choices[selected], key=choices[selected]["symbol"])
+elif page == "每日報告":
+    st.markdown(current_report(payload))
 
-elif page == "Supabase設定":
-    st.header("Supabase 設定助手")
+elif page == "設定與資料說明":
+    st.header("設定與資料說明")
+    st.subheader("Supabase 設定助手")
     cloud_info = cloud_status()
     st.write(f"目前狀態：**{cloud_info.get('status')}**")
     st.write(f"資料表：`{cloud_info.get('table')}`")
@@ -762,23 +786,7 @@ elif page == "Supabase設定":
         st.success("Supabase 已設定。朋友使用 Email + 自訂存取碼後，持股與觀察清單會保存到雲端。")
     else:
         st.warning("Supabase 尚未設定，所以朋友資料目前只會暫存在本次瀏覽。")
-        st.markdown("""
-<div class='setup-box'>
-<b>你需要完成三件事：</b><br>
-1. 在 Supabase 建立 <code>user_profiles</code> 資料表。<br>
-2. 複製 Supabase Project URL 與 Secret / service_role key。<br>
-3. 到 Streamlit Cloud → Manage app → Settings → Secrets 貼上設定。<br><br>
-完整步驟請看 repo 內：<code>docs/deploy/supabase-beginner-guide.md</code>
-</div>
-""", unsafe_allow_html=True)
-        st.code("""[supabase]
-url = "https://你的專案.supabase.co"
-service_role_key = "你的 Supabase Secret 或 service_role key"
-table = "user_profiles""" , language="toml")
-
-elif page == "每日報告":
-    st.markdown(current_report(payload))
-
+        st.markdown("完整步驟請看 repo 內：`docs/deploy/supabase-beginner-guide.md`")
 
 st.divider()
 with st.expander("資料來源與更新說明", expanded=False):
@@ -786,3 +794,4 @@ with st.expander("資料來源與更新說明", expanded=False):
     st.write(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
     st.write(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo 採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
     st.write(f"使用者資料：{store['label']}｜{store['detail']}")
+    st.caption("資料來源是用來確認可用性，不應擋在主要決策前面；本區預設收合。")

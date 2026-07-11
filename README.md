@@ -1,43 +1,40 @@
-# AI Stock Radar v3.10.0
+# AI Stock Radar v3.11.0
 
-## Daily Decision Loop
+AI 股市老師決策工具。
 
-這版目標不是新增更多頁籤，而是把 AI Stock Radar 從「產生一次建議」升級成每天可循環使用的股市老師流程：
+v3.11.0 的重點是 **Responsive Decision UX + Chip Data Foundation**：
 
-```text
-盤前計畫 → 盤中觀察 → 盤後檢討 → 明日準備
-```
+- 手機與電腦都以「先看決策」為主。
+- 主導覽收斂成：今天怎麼做、今日強勢、我的持股、個股研究、每日報告、設定與資料說明。
+- 資料來源、診斷、版本資訊預設收合，避免干擾使用者決策。
+- 今日可買、強勢股、持股都以卡片式呈現。
+- 籌碼資料基礎版：若 TWSE T86 三大法人資料可取得，會納入每張決策卡；若不可得，明確標示「籌碼資料不足，不納入加分」，不再用量能假裝籌碼。
 
-## 本版重點
-
-- 新增「決策閉環」首頁。
-- 依交易狀態切換老師任務：盤前、盤中、盤後、非交易日。
-- 新增前次推薦檢討：若本機已有前次 journal，會比較前次推薦與本次股價。
-- 新增 AI 沒選到強勢股的原因。
-- 新增明日接力與等待突破準備清單。
-- 新增持股策略是否改變。
-- 每次 CLI / Dashboard 產生資料時會建立 runtime decision journal。
-- `data/journal/` 已加入 `.gitignore`，不會提交個人決策歷史。
-
-## 執行
+## 安裝 / 升級
 
 ```bash
+bash ~/Desktop/AI_Stock_Radar_v3.11.0_ResponsiveUX_ChipFoundation/upgrade_to_repo.sh
+```
+
+## 產生決策資料
+
+```bash
+cd ~/Desktop/AI_Stock_Radar
 PYTHONPATH=src python3 -m radar.cli run
+```
+
+## 啟動 Dashboard
+
+```bash
 python3 -m pip install -r requirements.txt
 PYTHONPATH=src python3 -m streamlit run app.py
 ```
 
-## 升級
+## 提交
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.10.0_DailyDecisionLoop/upgrade_to_repo.sh
+bash scripts/cleanup_repo.sh
+git add .
+git commit -m "Release v3.11.0 Responsive UX and Chip Data Foundation"
+git push
 ```
-
-## 驗收重點
-
-- 首頁第一個功能應為「決策閉環」。
-- 盤前 / 盤中 / 盤後 / 非交易日應顯示不同老師任務。
-- 每日報告應新增「決策閉環」段落。
-- 第一次執行若沒有前次紀錄，應說明會建立基準。
-- 第二次以後應可讀取 `data/journal/` 做推薦檢討。
-- 今日可買、強勢股、持股建議仍保留 v3.9.0 Decision Quality Gate。

@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.10.0 Daily Decision Loop + Decision Quality Gate Rule:
+v3.11.0 Responsive UX + Chip Data Foundation:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover
 
 from radar.core.indicators import analyze_prices
 from radar.core.market_data import fetch_price_series
+from radar.core.chip_data import fetch_chip_flow
 from radar.data.stock_master import StockInfo, ai_universe, register_custom_stock, resolve_stock
 from radar.data.user_store import load_portfolio, load_watchlist
 from radar.teacher.market_strength import build_market_strength_payload, build_strength_gap_analysis
@@ -460,15 +461,41 @@ def _macd_teacher_sentence(macd: dict) -> str:
 
 def _chip_teacher_sentence(card: dict) -> str:
     """Explain chip/fund-flow honestly without fabricating data."""
-    flow = card.get("institutional_flow") or card.get("flow") or {}
-    if flow:
-        summary = flow.get("summary") or flow.get("teacher_summary") or ""
-        if summary:
-            return f"籌碼 / 法人面：{summary}"
-    return (
-        "籌碼 / 法人面：本卡目前沒有足夠的連續法人買賣超資料，"
-        "所以不把籌碼面列為買進加分。老師只會把它視為待補資料；若後續看到外資、投信連續買超且換手健康，才會提高追價信心。"
-    )
+    flow = card.get("chip_flow") or {}
+    if flow.get("available"):
+        message = flow.get("message") or ""
+        latest_date = flow.get("latest_date") or ""
+        source = flow.get("source") or ""
+        return f"籌碼 / 法人面：{message}（資料日 {latest_date}｜{source}）"
+    message = flow.get("message") or "目前沒有足夠的連續法人買賣超資料，本次不以籌碼面加分。"
+    return f"籌碼 / 法人面：{message}"
+
+
+def _chip_score_adjustment(chip_flow: dict) -> tuple[int, list[str]]:
+    """Small score adjustment when official chip data is available.
+
+    The adjustment is deliberately modest in v3.11.0 because this is the chip
+    data foundation, not the full consecutive-flow engine.
+    """
+    if not chip_flow.get("available"):
+        return 0, []
+    total = int(chip_flow.get("total_net_lot") or 0)
+    trust = int(chip_flow.get("investment_trust_net_lot") or 0)
+    reasons: list[str] = []
+    adj = 0
+    if total >= 3000 or trust >= 800:
+        adj += 6
+        reasons.append("三大法人籌碼明顯偏多")
+    elif total >= 800 or trust >= 300:
+        adj += 3
+        reasons.append("三大法人籌碼偏多")
+    elif total <= -3000 or trust <= -800:
+        adj -= 6
+        reasons.append("三大法人籌碼明顯偏空")
+    elif total <= -800 or trust <= -300:
+        adj -= 3
+        reasons.append("三大法人籌碼偏空")
+    return adj, reasons
 
 
 def _quality_gate(score: int, tech: dict, trust: dict) -> dict:
@@ -628,6 +655,10 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
     stock = _stock_with_discovered_name(stock, prices)
     tech = analyze_prices(prices)
     score, reasons = _score(stock, tech)
+    chip_flow = fetch_chip_flow(stock).as_dict()
+    chip_adj, chip_reasons = _chip_score_adjustment(chip_flow)
+    score = max(0, min(100, score + chip_adj))
+    reasons = reasons + chip_reasons
     trust = _data_trust(prices, len(prices.get("prices", [])), status)
 
     if not trust["actionable"]:
@@ -660,6 +691,7 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         "official_lagging": bool(prices.get("official_lagging")),
         "official_snapshot": prices.get("official_snapshot", {}),
         "source_selection": prices.get("source_selection", {}),
+        "chip_flow": chip_flow,
         "data_trust": trust,
         "latest_date": prices["latest_date"],
         "prices": prices["prices"],
@@ -843,7 +875,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.10.0 Daily Decision Loop + Decision Quality Gate Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.11.0 Responsive UX + Chip Data Foundation：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -869,10 +901,10 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     payload = {
-        "version": "3.10.0",
+        "version": "3.11.0",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師先給今天怎麼做，再依交易狀態切換盤前計畫、盤中觀察、盤後檢討與明日準備；每次執行會建立決策紀錄，讓下一次可以檢討推薦表現。",
+        "teacher_summary": "股市老師先給今天怎麼做；本版將 UI 收斂成四個核心頁，並加入籌碼資料基礎檢查：有官方三大法人資料就納入，沒有就明確說明不以籌碼面加分。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,

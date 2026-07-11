@@ -1,22 +1,22 @@
 # ROADMAP
 
-## Current: v3.10.0 Daily Decision Loop
+## Current: v3.11.0 Responsive Decision UX + Chip Data Foundation
 
-AI Stock Radar 已從單次推薦工具進入每日決策閉環階段。
+目標：讓 AI Stock Radar 更像可分享給朋友使用的決策工具，而不是工程展示頁。
 
-## Next Candidate: v3.11.0 Decision Journal Review
+完成：
 
-建議下一版強化：
+- Responsive card layout.
+- Four-core-product mental model：今天怎麼做、今日強勢、我的持股、個股研究。
+- Data/source diagnostics moved behind expanders.
+- Chip data foundation using TWSE T86 when available.
 
-1. 盤後檢討頁更完整呈現前次推薦表現。
-2. 支援多日 journal 趨勢。
-3. 顯示最近 5 次推薦命中 / 失敗原因。
-4. 將「明日接力觀察」與隔日表現連結。
-5. 對持股策略變更建立歷史紀錄。
+## Next: v3.12.0 Chip Trend Engine
 
-## Long-term
+建議下一版：
 
-- 更穩定的官方 / Yahoo / 補充資料源整合。
-- 強勢股全市場資料源可靠性強化。
-- 個人化策略模式：積極波段、穩健波段、防守型。
-- LINE / Email 每日盤前摘要。
+- 三大法人連買 / 連賣天數。
+- 投信連買權重。
+- 法人資料加入歷史趨勢，不只看單日。
+- TPEx 上櫃籌碼資料補齊。
+- 持股總教練加入籌碼策略變化。

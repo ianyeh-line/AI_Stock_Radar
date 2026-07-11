@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.10.0"
+    assert payload["version"] == "3.11.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
     assert "strong_momentum" in payload
@@ -293,3 +293,18 @@ def test_journal_runtime_output_is_gitignored():
     from pathlib import Path
     ignore = Path(".gitignore").read_text(encoding="utf-8")
     assert "data/journal/" in ignore
+
+from radar.core.chip_data import fetch_chip_flow
+
+
+def test_chip_flow_object_has_explicit_availability():
+    flow = fetch_chip_flow(resolve_stock("2330")).as_dict()
+    assert "available" in flow
+    assert "message" in flow
+    assert "source" in flow
+
+
+def test_decision_card_contains_chip_flow():
+    card = build_decision_card(resolve_stock("2330"))
+    assert "chip_flow" in card
+    assert "available" in card["chip_flow"]

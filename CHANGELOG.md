@@ -1,28 +1,24 @@
 # CHANGELOG
 
-## v3.10.0 - Daily Decision Loop
+## v3.11.0 - Responsive Decision UX + Chip Data Foundation
 
 ### Added
 
-- 新增 Daily Decision Loop：盤前計畫、盤中觀察、盤後檢討、明日準備。
-- 新增決策紀錄 journal：每次產生 payload 後保存 compact snapshot。
-- 新增前次推薦檢討：比較前次推薦與本次價格變化。
-- 新增 AI 沒選到強勢股的原因。
-- 新增明日準備清單。
-- 新增持股策略是否改變。
-- 新增 Streamlit「決策閉環」功能頁。
-- 新增 tests，確認 daily decision loop 與 journal ignore 規則。
+- 新增手機 / 電腦友善的決策頁面結構。
+- 新增籌碼資料基礎版，嘗試抓取 TWSE T86 三大法人資料。
+- 每張決策卡新增籌碼狀態 badge。
+- 個股卡新增「下一步」區塊。
+- 個股研究頁將技術圖預設收合，手機閱讀更順。
+- 主導覽收斂成六個核心入口。
 
 ### Changed
 
-- Dashboard 預設首頁改為「決策閉環」。
-- 每日報告順序改為先顯示股市老師今日結論，再顯示決策閉環。
-- CLI 版本更新至 v3.10.0。
+- 資料來源與診斷資訊預設移到頁尾或設定頁，不再搶首頁版面。
+- 今日可買、持股、強勢股都改成先結論、再原因、最後細節。
+- 籌碼資料不可得時，不再用量能或模板句假裝籌碼判斷。
 
-### Preserved
+### Verified
 
-- v3.9.0 Decision Quality Gate。
-- 今日可買與持股總教練共用老師敘事。
-- Data Freshness Rule。
-- Beta Access / Supabase 架構。
-- 強勢股雷達與可追 / 已漲不追 / 明日接力分類。
+- CLI 可執行。
+- 測試通過。
+- Release package 不包含 `__pycache__`、runtime output 或 journal runtime 檔案。
