@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 from radar.teacher.decision import run_teacher_pipeline
+from radar.teacher.decision_loop import save_decision_journal
 
 
-REPORT_VERSION = "3.9.0"
+REPORT_VERSION = "3.10.0"
 
 
 def save_outputs(payload: dict) -> None:
@@ -16,6 +17,7 @@ def save_outputs(payload: dict) -> None:
     out.mkdir(exist_ok=True)
     (out / "dashboard_data.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "daily_report.md").write_text(build_markdown(payload), encoding="utf-8")
+    save_decision_journal(payload)
 
 
 def _price_line(card: dict) -> str:
@@ -86,6 +88,49 @@ def _strength_lines(payload: dict) -> list[str]:
         lines.append("")
     return lines
 
+
+def _decision_loop_lines(payload: dict) -> list[str]:
+    loop = payload.get("decision_loop") or {}
+    session = loop.get("session_mode") or {}
+    lines = [
+        "",
+        "## 決策閉環：盤前計畫 → 盤中觀察 → 盤後檢討 → 明日準備",
+        f"**目前模式：{session.get('mode', '未判斷')}**",
+        session.get("headline", ""),
+        "",
+        "### 今日作戰計畫",
+    ]
+    plan = loop.get("pre_market_plan") or []
+    if not plan:
+        lines.append("目前沒有通過品質閘門的 A 級作戰標的；先以等待突破、強勢接力與持股管理為主。")
+    for row in plan[:5]:
+        lines.append(f"- {row.get('label')}｜{row.get('type')}｜{row.get('watch_price')}｜{row.get('action')}")
+
+    review = loop.get("recommendation_review") or {}
+    lines += ["", "### 前次推薦檢討"]
+    lines.append(review.get("summary", "尚無檢討資料。"))
+    for row in review.get("rows", [])[:8]:
+        lines.append(
+            f"- {row.get('label')}｜前次 {row.get('previous_close')} → 本次 {row.get('current_close')}｜"
+            f"變化 {row.get('change_since')}%｜{row.get('review')}"
+        )
+
+    strength_loop = loop.get("strength_loop") or {}
+    lines += ["", "### AI 沒選到強勢股的原因"]
+    missed = strength_loop.get("missed_strength") or []
+    if not missed:
+        lines.append("目前沒有明確『強勢但未列入可買』的落差，或強勢資料尚不足。")
+    for row in missed[:8]:
+        lines.append(f"- {row.get('label')}｜漲跌 {row.get('change_pct')}%｜{row.get('reason')}｜下一步：{row.get('next_step')}")
+
+    tomorrow = loop.get("tomorrow_preparation") or {}
+    lines += ["", "### 明日準備"]
+    lines.append(tomorrow.get("summary", ""))
+    for row in tomorrow.get("rows", [])[:10]:
+        lines.append(f"- {row.get('label')}｜{row.get('source')}｜{row.get('plan')}")
+    lines.append("")
+    return lines
+
 def _data_source_footer(payload: dict) -> list[str]:
     summary = payload.get("data_source_summary") or {}
     return [
@@ -111,9 +156,9 @@ def build_markdown(payload: dict) -> str:
         "",
         "## 股市老師今日結論",
         payload.get("market_view", ""),
-        "",
-        "## 今日可買進名單",
     ]
+    lines += _decision_loop_lines(payload)
+    lines += ["", "## 今日可買進名單"]
     if not payload.get("buy_list"):
         lines.append("今日沒有 A 級可買進名單；老師不硬湊推薦，先等價格、量能與結構條件更完整。")
     for c in payload.get("buy_list", [])[:8]:

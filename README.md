@@ -1,20 +1,23 @@
-# AI Stock Radar v3.9.0
+# AI Stock Radar v3.10.0
 
-## Decision Quality Gate
+## Daily Decision Loop
 
-這版目標不是新增更多頁面，而是讓 AI Stock Radar 的推薦更可靠、更像股市老師。
+這版目標不是新增更多頁籤，而是把 AI Stock Radar 從「產生一次建議」升級成每天可循環使用的股市老師流程：
 
-v3.9.0 新增推薦前置檢查：每一檔股票要進入「今日可買」前，必須先通過價格可執行性、資料有效性、量能與過熱風險檢查。
+```text
+盤前計畫 → 盤中觀察 → 盤後檢討 → 明日準備
+```
 
 ## 本版重點
 
-- 今日可買不再只看分數，必須通過 Decision Quality Gate。
-- 若現價已高於拉回買點且尚未有效突破，不再列 A 級可買。
-- 若已突破，老師語句會改成「已突破，觀察是否站穩」，不再寫「若突破」。
-- 今日可買與持股總教練共用股市老師敘事邏輯。
-- 資料來源退到頁尾，不再干擾主要決策。
-- 推薦理由避免資料來源口號，聚焦技術、量能、價格位置、籌碼資料限制、產業消息與操作劇本。
-- 新增 regression tests，防止舊錯誤再次回歸。
+- 新增「決策閉環」首頁。
+- 依交易狀態切換老師任務：盤前、盤中、盤後、非交易日。
+- 新增前次推薦檢討：若本機已有前次 journal，會比較前次推薦與本次股價。
+- 新增 AI 沒選到強勢股的原因。
+- 新增明日接力與等待突破準備清單。
+- 新增持股策略是否改變。
+- 每次 CLI / Dashboard 產生資料時會建立 runtime decision journal。
+- `data/journal/` 已加入 `.gitignore`，不會提交個人決策歷史。
 
 ## 執行
 
@@ -27,13 +30,14 @@ PYTHONPATH=src python3 -m streamlit run app.py
 ## 升級
 
 ```bash
-bash ~/Desktop/AI_Stock_Radar_v3.9.0_DecisionQualityGate/upgrade_to_repo.sh
+bash ~/Desktop/AI_Stock_Radar_v3.10.0_DailyDecisionLoop/upgrade_to_repo.sh
 ```
 
 ## 驗收重點
 
-- 今日可買名單的老師建議是否像持股總教練一樣完整。
-- 若股價已高於買進區，不應再建議在較低買進區分批。
-- 若股價已突破，不應再寫「若突破」。
-- 資料來源說明應在頁尾或折疊區，不應出現在推薦理由。
-- 強勢股雷達仍應區分可追、已漲不追、明日接力。
+- 首頁第一個功能應為「決策閉環」。
+- 盤前 / 盤中 / 盤後 / 非交易日應顯示不同老師任務。
+- 每日報告應新增「決策閉環」段落。
+- 第一次執行若沒有前次紀錄，應說明會建立基準。
+- 第二次以後應可讀取 `data/journal/` 做推薦檢討。
+- 今日可買、強勢股、持股建議仍保留 v3.9.0 Decision Quality Gate。

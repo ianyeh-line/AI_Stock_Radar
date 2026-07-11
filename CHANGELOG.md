@@ -1,27 +1,28 @@
 # CHANGELOG
 
-## v3.9.0 - Decision Quality Gate
+## v3.10.0 - Daily Decision Loop
 
 ### Added
 
-- 新增 Recommendation Quality Gate。
-- 今日可買推薦前先檢查價格位置、量能、RSI、資料有效性與突破可執行性。
-- 每張決策卡新增品質檢查資訊。
-- 今日可買與持股總教練共用 Teacher Narrative Engine。
-- 新增 regression tests，涵蓋：
-  - 現價高於拉回區時不可再建議低位分批。
-  - 已修正資料來源文字不可再出現在推薦理由。
-  - 今日可買需具備完整老師分析面向。
+- 新增 Daily Decision Loop：盤前計畫、盤中觀察、盤後檢討、明日準備。
+- 新增決策紀錄 journal：每次產生 payload 後保存 compact snapshot。
+- 新增前次推薦檢討：比較前次推薦與本次價格變化。
+- 新增 AI 沒選到強勢股的原因。
+- 新增明日準備清單。
+- 新增持股策略是否改變。
+- 新增 Streamlit「決策閉環」功能頁。
+- 新增 tests，確認 daily decision loop 與 journal ignore 規則。
 
 ### Changed
 
-- 今日可買的語氣從簡化理由升級為股市老師分析。
-- 資料來源資訊退到頁尾與折疊區。
-- 若資料不足，明確說明限制，不硬補籌碼或消息判斷。
-- 若已突破，老師語句改成站穩與量能確認，不再寫「若突破」。
+- Dashboard 預設首頁改為「決策閉環」。
+- 每日報告順序改為先顯示股市老師今日結論，再顯示決策閉環。
+- CLI 版本更新至 v3.10.0。
 
-### Fixed
+### Preserved
 
-- 修正高於買點仍建議分批買進的邏輯。
-- 修正突破價不可執行時仍當作今日條件的問題。
-- 移除「Yahoo 較新 / 官方尚未同步 / 信心略降」等違反 Data Freshness Rule 的文字。
+- v3.9.0 Decision Quality Gate。
+- 今日可買與持股總教練共用老師敘事。
+- Data Freshness Rule。
+- Beta Access / Supabase 架構。
+- 強勢股雷達與可追 / 已漲不追 / 明日接力分類。

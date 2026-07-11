@@ -15,8 +15,9 @@ rsync -av --delete \
   --exclude 'config/portfolio.json' \
   --exclude 'config/user_watchlist.json' \
   --exclude 'data/cache/' \
+  --exclude 'data/journal/' \
   --exclude 'output/daily_report.md' \
   --exclude 'output/dashboard_data.json' \
   "$SOURCE_DIR/" "$TARGET/"
 
-echo "AI Stock Radar v3.9.0 Decision Quality Gate 已升級到 $TARGET"
+echo "AI Stock Radar v3.10.0 Daily Decision Loop 已升級到 $TARGET"

@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.9.0 Decision Quality Gate Rule:
+v3.10.0 Daily Decision Loop + Decision Quality Gate Rule:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -21,6 +21,7 @@ from radar.core.market_data import fetch_price_series
 from radar.data.stock_master import StockInfo, ai_universe, register_custom_stock, resolve_stock
 from radar.data.user_store import load_portfolio, load_watchlist
 from radar.teacher.market_strength import build_market_strength_payload, build_strength_gap_analysis
+from radar.teacher.decision_loop import build_decision_loop
 
 
 GENERIC_NAME_PREFIXES = ("待識別", "自訂個股")
@@ -842,7 +843,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.9.0 Decision Quality Gate Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.10.0 Daily Decision Loop + Decision Quality Gate Rule：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -867,11 +868,11 @@ def run_teacher_pipeline() -> dict:
         except Exception:
             continue
     data_source_summary = _data_source_summary(cards, status)
-    return {
-        "version": "3.9.0",
+    payload = {
+        "version": "3.10.0",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
-        "teacher_summary": "股市老師先給今天怎麼做，再補技術面、籌碼面、產業消息、支撐壓力與劇本推演；強勢股雷達會先掃描全市場，再挑出可追、已漲不追與明日接力觀察。",
+        "teacher_summary": "股市老師先給今天怎麼做，再依交易狀態切換盤前計畫、盤中觀察、盤後檢討與明日準備；每次執行會建立決策紀錄，讓下一次可以檢討推薦表現。",
         "buy_list": buy,
         "wait_list": wait,
         "avoid_list": avoid,
@@ -884,3 +885,5 @@ def run_teacher_pipeline() -> dict:
         "data_source_summary": data_source_summary,
         "all_cards": cards,
     }
+    payload["decision_loop"] = build_decision_loop(payload)
+    return payload

@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.9.0"
+    assert payload["version"] == "3.10.0"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
     assert "strong_momentum" in payload
@@ -277,3 +277,19 @@ def test_no_yahoo_source_penalty_words_in_pipeline_payload():
     blob = str(payload.get("buy_list", "")) + str(payload.get("wait_list", "")) + str(payload.get("portfolio_coach", ""))
     assert "信心略降" not in blob
     assert "官方尚未完全同步" not in blob
+
+
+def test_daily_decision_loop_exists():
+    payload = run_teacher_pipeline()
+    loop = payload.get("decision_loop")
+    assert loop
+    assert "session_mode" in loop
+    assert "pre_market_plan" in loop
+    assert "recommendation_review" in loop
+    assert "tomorrow_preparation" in loop
+
+
+def test_journal_runtime_output_is_gitignored():
+    from pathlib import Path
+    ignore = Path(".gitignore").read_text(encoding="utf-8")
+    assert "data/journal/" in ignore

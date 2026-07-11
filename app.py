@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.9.0"
+APP_VERSION = "3.10.0"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -188,7 +188,7 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
 def _macd_chart_series(values: list[float]) -> dict:
     """Return DIF / DEA / histogram series for mini and full charts.
 
-    v3.9.0 fixes a production NameError where the UI called this helper but
+    v3.10.0 fixes a production NameError where the UI called this helper but
     it was missing from app.py. Keep the implementation local to the UI so
     mini MACD charts can render without importing additional modules.
     """
@@ -314,6 +314,61 @@ def render_strength_card(row: dict) -> None:
         if card:
             macd = t.get("macd", {})
             st.caption(f"對照技術：DIF {macd.get('macd')}｜DEA {macd.get('signal')}｜0軸 {macd.get('zero_axis_status')}｜突破價 {t.get('breakout')}")
+
+
+def render_decision_loop(loop: dict) -> None:
+    session = loop.get("session_mode") or {}
+    st.header("決策閉環｜盤前計畫 → 盤中觀察 → 盤後檢討 → 明日準備")
+    st.info(f"目前模式：{session.get('mode', '未判斷')}｜{session.get('headline', '')}")
+    st.caption(session.get("primary_question", ""))
+
+    p1, p2 = st.columns(2)
+    with p1:
+        st.subheader("今日作戰計畫")
+        plan = loop.get("pre_market_plan") or []
+        if not plan:
+            st.warning("目前沒有通過品質閘門的 A 級作戰標的；先以等待突破、強勢接力與持股管理為主。")
+        for row in plan[:5]:
+            with st.container(border=True):
+                st.markdown(f"**{row.get('label')}｜{row.get('type')}**")
+                st.write(row.get("teacher_view", ""))
+                st.write(row.get("action", ""))
+                st.caption(row.get("watch_price", ""))
+    with p2:
+        st.subheader("前次推薦檢討")
+        review = loop.get("recommendation_review") or {}
+        st.write(review.get("summary", "尚無檢討資料。"))
+        rows = review.get("rows") or []
+        if rows:
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    st.subheader("AI 沒選到強勢股的原因")
+    missed = (loop.get("strength_loop") or {}).get("missed_strength") or []
+    if not missed:
+        st.caption("目前沒有明確『強勢但未列入可買』的落差，或強勢資料尚不足。")
+    else:
+        for row in missed[:8]:
+            with st.container(border=True):
+                st.markdown(f"**{row.get('label')}｜漲跌 {row.get('change_pct')}%｜量能比 {row.get('volume_ratio', '--')}**")
+                st.write(row.get("reason", ""))
+                st.caption("下一步：" + str(row.get("next_step", "")))
+
+    st.subheader("持股策略是否改變")
+    updates = loop.get("portfolio_strategy_updates") or []
+    if not updates:
+        st.caption("尚未建立個人持股，暫無策略變更檢討。")
+    else:
+        for row in updates:
+            with st.container(border=True):
+                st.markdown(f"**{row.get('stock')}｜{row.get('status')}｜今日股價 {row.get('today_price')}｜損益 {row.get('pnl_pct')}%**")
+                st.write(row.get("action", ""))
+                st.caption(row.get("risk_line", ""))
+
+    st.subheader("明日準備")
+    tomorrow = loop.get("tomorrow_preparation") or {}
+    st.write(tomorrow.get("summary", ""))
+    for row in (tomorrow.get("rows") or [])[:10]:
+        st.markdown(f"- **{row.get('label')}**｜{row.get('source')}｜{row.get('plan')}")
 
 
 def render_market_ranking(rows: list[dict], title: str) -> None:
@@ -492,7 +547,7 @@ ensure_user_mode_defaults()
 render_beta_access()
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：Decision Quality Gate：推薦前先檢查價格可執行性、資料有效性與老師語句邏輯；今日可買與持股總教練共用老師敘事。")
+st.caption("本版重點：Daily Decision Loop：依交易狀態切換盤前計畫、盤中觀察、盤後檢討與明日準備，並開始保存決策紀錄。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -517,12 +572,15 @@ k3.metric("今日強勢", len(payload.get("strong_momentum", {}).get("strong_lis
 k4.metric("等待突破", len(payload["wait_list"]))
 k5.metric("避免名單", len(payload["avoid_list"]))
 
-PAGES = ["今日可買", "強勢股雷達", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
-st.session_state.setdefault("active_page", "今日可買")
+PAGES = ["決策閉環", "今日可買", "強勢股雷達", "等待/避免", "每日報告", "持股總教練", "觀察清單", "MACD觀察", "個股線圖", "Supabase設定"]
+st.session_state.setdefault("active_page", "決策閉環")
 page = st.radio("功能", PAGES, horizontal=True, key="active_page")
 st.divider()
 
-if page == "今日可買":
+if page == "決策閉環":
+    render_decision_loop(payload.get("decision_loop") or {})
+
+elif page == "今日可買":
     st.header("今日可買進名單")
     if not payload["buy_list"]:
         st.warning("今日沒有 A 級可買進名單。資料不足或買點不佳時，股市老師不硬給買進。")

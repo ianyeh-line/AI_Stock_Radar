@@ -10,3 +10,6 @@ config/portfolio.json
 config/user_watchlist.json
 data/cache/
 .streamlit/secrets.toml
+
+# Runtime decision journals
+data/journal/
