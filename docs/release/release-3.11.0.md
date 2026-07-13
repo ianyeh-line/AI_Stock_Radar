@@ -1,8 +1,8 @@
-# Release v3.11.0
+# Release v3.11.1
 
 ## Name
 
-Responsive Decision UX + Chip Data Foundation
+Action Precision + MACD Restore + Chip Quiet Mode
 
 ## Goals
 

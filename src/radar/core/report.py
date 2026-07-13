@@ -9,7 +9,7 @@ from radar.teacher.decision import run_teacher_pipeline
 from radar.teacher.decision_loop import save_decision_journal
 
 
-REPORT_VERSION = "3.11.0"
+REPORT_VERSION = "3.11.1"
 
 
 def save_outputs(payload: dict) -> None:
@@ -182,13 +182,13 @@ def build_markdown(payload: dict) -> str:
         narrative = c.get("teacher_narrative") or {}
         lines.append(f"- {c['label']}｜Radar {c['score']}：{narrative.get('teacher_judgement', c.get('action', ''))}")
 
-    lines += ["", "## MACD 0軸觀察"]
+    lines += ["", "## 0軸轉強雷達"]
     macd_zero_items = payload.get("macd_zero_axis_list", [])[:10]
     if not macd_zero_items:
         lines.append("目前沒有符合『DIF 從 0 軸下方即將或剛翻正』且資料有效的名單；沒有訊號時不硬湊。")
     for c in macd_zero_items:
         t = c["tech"]
-        lines.append(f"- {c['label']}：{t['macd'].get('zero_axis_status')}｜DIF {t['macd']['macd']}｜DEA {t['macd']['signal']}｜今日股價 {t['close']}｜{c.get('teacher_narrative', {}).get('teacher_judgement', c['action'])}")
+        lines.append(f"- {c['label']}：{t['macd'].get('zero_axis_status')}｜DIF {t['macd']['macd']}｜DEA {t['macd']['signal']}｜今日股價 {t['close']}｜{c.get('macd_zero_action', c.get('action', ''))}")
 
     lines += ["", "## 持股總教練"]
     lines.append(payload.get("portfolio_coach", {}).get("summary", "尚未建立持股。"))

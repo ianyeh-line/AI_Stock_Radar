@@ -14,7 +14,7 @@ def main() -> None:
     if args.command != "run":
         raise SystemExit("Usage: python -m radar.cli run")
     payload = run_and_save()
-    print("🚀 AI Stock Radar v3.11.0")
+    print("🚀 AI Stock Radar v3.11.1")
     print(f"交易狀態：{payload['trading_status']['session']}")
     print(f"市場結論：{payload['market_view']}")
     source = payload.get("data_source_summary", {})

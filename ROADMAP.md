@@ -1,15 +1,15 @@
 # ROADMAP
 
-## Current: v3.11.0 Responsive Decision UX + Chip Data Foundation
+## Current: v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode
 
-目標：讓 AI Stock Radar 更像可分享給朋友使用的決策工具，而不是工程展示頁。
+目標：讓 AI Stock Radar 的建議更像可執行的股市老師建議。
 
 完成：
 
-- Responsive card layout.
-- Four-core-product mental model：今天怎麼做、今日強勢、我的持股、個股研究。
-- Data/source diagnostics moved behind expanders.
-- Chip data foundation using TWSE T86 when available.
+- 無數字不建議：所有操作語句都應有具體價格或區間。
+- 籌碼安靜模式：沒有籌碼資料就簡短說沒有，不用長篇模板。
+- 恢復 0 軸轉強雷達：專注找 DIF 即將或剛從 0 軸翻正的標的。
+- 手機與桌面仍維持 v3.11.0 的決策導向 UX。
 
 ## Next: v3.12.0 Chip Trend Engine
 

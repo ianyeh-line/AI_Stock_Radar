@@ -23,7 +23,7 @@ from radar.data.user_store import load_portfolio, save_portfolio, load_watchlist
 from radar.integrations.cloud_user_store import cloud_status, is_cloud_store_configured, check_cloud_connection, last_cloud_error, last_cloud_response
 from radar.teacher.decision import build_decision_card, run_teacher_pipeline
 
-APP_VERSION = "3.11.0"
+APP_VERSION = "3.11.1"
 
 st.set_page_config(page_title=f"AI Stock Radar {APP_VERSION}", page_icon="🚀", layout="wide")
 
@@ -201,7 +201,7 @@ def price_html(price: float, change_pct: float, label: str = "今日股價") -> 
 def _macd_chart_series(values: list[float]) -> dict:
     """Return DIF / DEA / histogram series for mini and full charts.
 
-    v3.11.0 keeps the production fix where the UI called this helper but
+    v3.11.1 keeps the production fix where the UI called this helper but
     it was missing from app.py. Keep the implementation local to the UI so
     mini MACD charts can render without importing additional modules.
     """
@@ -297,7 +297,7 @@ def render_card(card: dict, show_trust: bool = False, compact: bool = False) -> 
         if chip.get("available"):
             st.markdown(f"<span class='chip-badge'>籌碼：{chip.get('bias')}｜合計 {chip.get('total_net_lot', 0):,} 張</span>", unsafe_allow_html=True)
         else:
-            st.markdown("<span class='chip-badge'>籌碼：資料不足，不納入加分</span>", unsafe_allow_html=True)
+            st.markdown("<span class='chip-badge'>法人籌碼：未取得</span>", unsafe_allow_html=True)
         st.markdown(f"<div class='next-step'><b>下一步：</b>{card.get('action','')}</div>", unsafe_allow_html=True)
         render_teacher_narrative(card, expanded=False if compact else True)
         macd = t["macd"]
@@ -566,7 +566,7 @@ render_beta_access()
 
 
 st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption("本版重點：Responsive Decision UX：手機與電腦都先看決策；資料來源、診斷與版本資訊預設收合；籌碼資料有就納入，沒有就明確標示不加分。")
+st.caption("本版重點：Action Precision + MACD Restore + Chip Quiet Mode：建議必須有具體價格；籌碼沒資料就一句話帶過；恢復 0 軸轉強雷達。")
 
 if st.button("重新產生今日決策資料"):
     with st.spinner("股市老師重新抓取與分析中..."):
@@ -740,17 +740,20 @@ elif page == "個股研究":
         with st.expander("展開完整技術圖", expanded=False):
             render_technical_chart(card, key=card["symbol"])
 
-    st.subheader("MACD 0軸觀察")
+    st.subheader("0軸轉強雷達")
+    st.caption("專注找 DIF 從 0 軸下方即將翻正或剛翻正的標的；不是一般紅柱轉強名單。")
     zero_items = payload.get("macd_zero_axis_list", [])[:8]
     if not zero_items:
-        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單。")
+        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單；沒有訊號時不硬湊。")
     for card in zero_items:
         with st.container(border=True):
             t = card["tech"]
-            st.markdown(f"**{card['label']}｜{t['macd'].get('zero_axis_status')}**")
+            macd = t.get("macd", {})
+            st.markdown(f"**{card['label']}｜{macd.get('zero_axis_status')}**")
             st.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
+            st.caption(f"DIF {macd.get('macd')}｜DEA {macd.get('signal')}｜柱狀體 {macd.get('hist')}｜RSI {t.get('rsi')}｜量能比 {t.get('volume_ratio')}")
             render_mini_macd_chart(card, key=card["symbol"])
-            st.write(f"老師判斷：{card.get('teacher_narrative', {}).get('teacher_judgement', card['action'])}")
+            st.write(f"老師判斷：{card.get('macd_zero_action', card.get('action', ''))}")
 
 elif page == "每日報告":
     st.markdown(current_report(payload))

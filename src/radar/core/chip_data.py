@@ -1,6 +1,6 @@
 """Chip / institutional flow foundation for Taiwan stocks.
 
-v3.11.0 scope is intentionally conservative:
+v3.11.1 scope is intentionally conservative:
 - Try to fetch official TWSE T86 three-institution flow for listed stocks.
 - Do not fabricate chip conclusions when official data is unavailable.
 - Return explicit availability and status so the teacher narrative can say what

@@ -5,7 +5,7 @@ from radar.core.indicators import macd
 
 def test_pipeline_runs():
     payload = run_teacher_pipeline()
-    assert payload["version"] == "3.11.0"
+    assert payload["version"] == "3.11.1"
     assert "buy_list" in payload
     assert "macd_zero_axis_list" in payload
     assert "strong_momentum" in payload
@@ -308,3 +308,26 @@ def test_decision_card_contains_chip_flow():
     card = build_decision_card(resolve_stock("2330"))
     assert "chip_flow" in card
     assert "available" in card["chip_flow"]
+
+
+def test_chip_quiet_mode_when_unavailable():
+    card = build_decision_card(resolve_stock("2330"))
+    chip = card["teacher_narrative"].get("chip", "")
+    if not card.get("chip_flow", {}).get("available"):
+        assert chip == "法人籌碼：未取得，不列入本次判斷。"
+
+
+def test_action_text_contains_concrete_prices_and_no_vague_support():
+    card = build_decision_card(resolve_stock("2330"))
+    action = card.get("action", "")
+    assert "等待回測支撐" not in action
+    assert any(ch.isdigit() for ch in action)
+
+
+def test_macd_zero_action_has_price_condition():
+    payload = run_teacher_pipeline()
+    for card in payload.get("macd_zero_axis_list", [])[:3]:
+        text = card.get("macd_zero_action", "")
+        assert text
+        assert any(ch.isdigit() for ch in text)
+        assert "DIF" in text

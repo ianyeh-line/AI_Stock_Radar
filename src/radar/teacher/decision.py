@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.11.0 Responsive UX + Chip Data Foundation:
+v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -357,8 +357,9 @@ def _action_text(label: str, tech: dict) -> str:
                 f"跌破 {stop:.2f} 停止加碼並檢討。"
             )
         return (
-            f"分數雖達標，但今日股價 {close:.2f} 已高於理想買點 {low:.2f}～{high:.2f}；"
-            f"今日不追價，等待回測支撐或重新站穩新的整理平台。"
+            f"今日股價 {close:.2f} 已高於理想買點 {low:.2f}～{high:.2f}，但尚未站上突破確認價 {breakout:.2f}；"
+            f"今日不追價。下一步只看兩個條件：一是回測 {low:.2f}～{high:.2f} 守穩，二是放量站上 {breakout:.2f}。"
+            f"若跌破 {stop:.2f}，本次波段劇本失效。"
         )
 
     if label == "等待突破":
@@ -460,21 +461,25 @@ def _macd_teacher_sentence(macd: dict) -> str:
 
 
 def _chip_teacher_sentence(card: dict) -> str:
-    """Explain chip/fund-flow honestly without fabricating data."""
+    """Explain chip/fund-flow honestly without fabricating data.
+
+    v3.11.1: quiet mode. If chip data is unavailable, say it plainly in
+    one short sentence. Do not write a long substitute analysis and do not
+    use volume as a fake chip proxy.
+    """
     flow = card.get("chip_flow") or {}
     if flow.get("available"):
         message = flow.get("message") or ""
         latest_date = flow.get("latest_date") or ""
         source = flow.get("source") or ""
-        return f"籌碼 / 法人面：{message}（資料日 {latest_date}｜{source}）"
-    message = flow.get("message") or "目前沒有足夠的連續法人買賣超資料，本次不以籌碼面加分。"
-    return f"籌碼 / 法人面：{message}"
+        return f"法人籌碼：{message}（資料日 {latest_date}｜{source}）"
+    return "法人籌碼：未取得，不列入本次判斷。"
 
 
 def _chip_score_adjustment(chip_flow: dict) -> tuple[int, list[str]]:
     """Small score adjustment when official chip data is available.
 
-    The adjustment is deliberately modest in v3.11.0 because this is the chip
+    The adjustment is deliberately modest in v3.11.1 because this is the chip
     data foundation, not the full consecutive-flow engine.
     """
     if not chip_flow.get("available"):
@@ -630,7 +635,7 @@ def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
         holding = f"已持有者：已突破者以續抱為主，但若跌回 {breakout:.2f} 且量能轉弱，先減碼觀察；跌破 {stop:.2f} 則波段失效。"
     else:
         holding = f"已持有者：未跌破 {stop:.2f} 前可續抱；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能背離，可分批調節。"
-    risk = f"風險提醒：跌破 {stop:.2f} 或量價背離時，不能用攤平取代停損紀律；若缺少籌碼與消息支持，部位要更保守。"
+    risk = f"風險提醒：跌破 {stop:.2f} 代表波段結構轉弱；若反彈到 {trim1:.2f}～{trim2:.2f} 但量能無法延續，先調節而不是加碼。"
 
     return {
         "teacher_judgement": teacher_judgement,
@@ -648,6 +653,41 @@ def _teacher_narrative(stock: StockInfo, card: dict) -> dict:
         "conclusion": teacher_judgement,
         "summary_reasons": [technical, chip, news],
     }
+
+def _macd_zero_action(stock: StockInfo, tech: dict) -> str:
+    """Concrete teacher wording for the 0-axis MACD radar."""
+    macd = tech.get("macd", {})
+    status = macd.get("zero_axis_status", "")
+    dif = float(macd.get("macd") or 0.0)
+    dea = float(macd.get("signal") or 0.0)
+    close = float(tech.get("close") or 0.0)
+    low = float(tech.get("support_low") or 0.0)
+    high = float(tech.get("support_high") or 0.0)
+    breakout = float(tech.get("breakout") or 0.0)
+    stop = float(tech.get("stop") or 0.0)
+    rsi = tech.get("rsi")
+    vr = tech.get("volume_ratio")
+    if status == "即將從0軸翻正":
+        return (
+            f"DIF {dif:.4f} 仍在 0 軸附近、DEA {dea:.4f}，屬於提前觀察，不是立即追價訊號。"
+            f"若下一交易日 DIF 站上 0 且股價守住 {low:.2f}～{high:.2f}，可列入轉強觀察；"
+            f"若跌破 {stop:.2f}，0軸翻正劇本失效。RSI {rsi}、量能比 {vr}。"
+        )
+    if status == "剛從0軸翻正":
+        return (
+            f"DIF {dif:.4f} 已剛站上 0 軸，DEA {dea:.4f} 同步觀察，波段動能開始轉強。"
+            f"若股價站穩 {high:.2f} 或放量突破 {breakout:.2f}，可提高觀察優先；"
+            f"若跌回 {stop:.2f} 以下，代表訊號失敗。RSI {rsi}、量能比 {vr}。"
+        )
+    if status == "0軸上方延續":
+        return (
+            f"DIF {dif:.4f} 已在 0 軸上方延續，這不是初翻訊號，適合搭配價格位置看續抱。"
+            f"若回測 {low:.2f}～{high:.2f} 守穩可觀察；若跌破 {stop:.2f}，轉弱。"
+        )
+    return (
+        f"目前 DIF {dif:.4f} 尚未形成有效 0 軸轉強訊號；"
+        f"等 DIF 接近 0 軸且股價守住 {low:.2f}～{high:.2f} 再評估。"
+    )
 
 def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
     status = status or trading_status()
@@ -705,6 +745,7 @@ def build_decision_card(stock: StockInfo, status: dict | None = None) -> dict:
         "quality_gate": gate,
         "action": _action_text(label, tech),
         "risk": f"跌破 {tech['stop']:.2f} 代表波段結構轉弱，不建議用攤平取代停損紀律。",
+        "macd_zero_action": _macd_zero_action(stock, tech),
     }
     card["teacher_narrative"] = _teacher_narrative(stock, card)
     return card
@@ -875,7 +916,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.11.0 Responsive UX + Chip Data Foundation：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": "v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -901,7 +942,7 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     payload = {
-        "version": "3.11.0",
+        "version": "3.11.1",
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "股市老師先給今天怎麼做；本版將 UI 收斂成四個核心頁，並加入籌碼資料基礎檢查：有官方三大法人資料就納入，沒有就明確說明不以籌碼面加分。",
