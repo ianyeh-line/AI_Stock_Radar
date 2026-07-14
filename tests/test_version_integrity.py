@@ -17,4 +17,4 @@ def test_daily_report_title_uses_single_source():
 
 def test_current_version_is_not_hardcoded_in_multiple_runtime_files():
     # Smoke check for the trust issue that caused mixed versions in the UI.
-    assert APP_VERSION == "3.11.2"
+    assert APP_VERSION == "3.12.0"

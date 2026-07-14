@@ -27,4 +27,4 @@ rm -f "$TARGET/output/daily_report.md" "$TARGET/output/dashboard_data.json"
 mkdir -p "$TARGET/output"
 touch "$TARGET/output/.gitkeep"
 
-echo "AI Stock Radar v3.11.2 Version Integrity + Report Sync 已升級到 $TARGET"
+echo "AI Stock Radar v3.12.0 Responsive Decision UX 已升級到 $TARGET"

@@ -579,102 +579,298 @@ def add_portfolio_ui() -> None:
         except Exception as exc:
             st.error(str(exc))
 
+
+def _safe_text(value: object, default: str = "—") -> str:
+    text = str(value or "").strip()
+    return text if text else default
+
+
+def _pill(text: str, tone: str = "neutral") -> str:
+    tone_class = {
+        "good": "pill-good",
+        "warn": "pill-warn",
+        "bad": "pill-bad",
+        "info": "pill-info",
+    }.get(tone, "pill-neutral")
+    return f"<span class='ux-pill {tone_class}'>{text}</span>"
+
+
+def _decision_tone(card: dict) -> str:
+    grade = str(card.get("grade", ""))
+    setup = str(card.get("setup", ""))
+    if grade == "A" or "買" in setup:
+        return "good"
+    if "避" in setup or "減" in setup:
+        return "bad"
+    if "等" in setup or "觀察" in setup:
+        return "warn"
+    return "info"
+
+
+def _format_key_prices(card: dict) -> str:
+    tech = card.get("tech", {})
+    support = tech.get("pullback_low") or tech.get("support") or tech.get("ma20")
+    support_high = tech.get("pullback_high") or tech.get("ma60") or support
+    invalid = tech.get("invalid") or tech.get("stop_loss") or tech.get("risk_line")
+    breakout = tech.get("breakout")
+    parts = []
+    try:
+        if support and support_high:
+            parts.append(f"觀察區 {float(support):.2f}～{float(support_high):.2f}")
+    except Exception:
+        pass
+    try:
+        if breakout:
+            parts.append(f"突破 {float(breakout):.2f}")
+    except Exception:
+        pass
+    try:
+        if invalid:
+            parts.append(f"失效 {float(invalid):.2f}")
+    except Exception:
+        pass
+    return "｜".join(parts) if parts else "關鍵價位待補足"
+
+
+def _compact_next_step(card: dict) -> str:
+    action = str(card.get("action") or "").strip()
+    if action:
+        return action
+    tech = card.get("tech", {})
+    try:
+        close = float(tech.get("close") or 0)
+        low = float(tech.get("pullback_low") or tech.get("support") or 0)
+        high = float(tech.get("pullback_high") or low)
+        breakout = float(tech.get("breakout") or 0)
+        invalid = float(tech.get("invalid") or tech.get("stop_loss") or 0)
+        if low <= close <= high:
+            return f"股價在 {low:.2f}～{high:.2f} 觀察區內，可依量能分批；跌破 {invalid:.2f} 停止加碼。"
+        if close > high and breakout and close < breakout:
+            return f"現價已高於拉回區，不追價；等回測 {high:.2f} 附近守穩，或放量站上 {breakout:.2f} 再評估。"
+        if breakout and close >= breakout:
+            return f"已站上 {breakout:.2f}，持股可續抱；未持有者等回測不破再找買點。"
+    except Exception:
+        pass
+    return "先觀察價格是否回到可執行區，再決定是否動作。"
+
+
+def _render_summary_card(card: dict, *, key: str, detail_open: bool = False, show_chart: bool = False) -> None:
+    tech = card.get("tech", {})
+    tone = _decision_tone(card)
+    label = _safe_text(card.get("label"))
+    setup = _safe_text(card.get("setup"))
+    grade = _safe_text(card.get("grade"))
+    score = _safe_text(card.get("score"))
+    confidence = _safe_text(card.get("confidence"))
+    price = float(tech.get("close") or 0)
+    change = float(tech.get("change_pct") or 0)
+    title = f"{label}｜{setup}｜等級 {grade}"
+    with st.container(border=True):
+        st.markdown(
+            f"""
+<div class='ux-card-head'>
+  <div>
+    <div class='ux-card-title'>{title}</div>
+    <div class='ux-card-sub'>{_format_key_prices(card)}</div>
+  </div>
+  <div>{_pill('Radar ' + str(score), tone)} {_pill('信心 ' + str(confidence) + '%', 'info')}</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        c1, c2 = st.columns([0.9, 2.1])
+        with c1:
+            st.markdown(price_html(price, change, "今日股價"), unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"<div class='ux-next'><b>下一步</b><br>{_compact_next_step(card)}</div>", unsafe_allow_html=True)
+
+        with st.expander("展開股市老師完整分析", expanded=detail_open):
+            render_teacher_narrative(card, expanded=False)
+            gate = card.get("quality_gate") or {}
+            if gate.get("failures") or gate.get("warnings"):
+                with st.expander("推薦品質檢查", expanded=False):
+                    for item in gate.get("failures", []):
+                        st.warning(item)
+                    for item in gate.get("warnings", []):
+                        st.info(item)
+            render_data_trust(card)
+        if show_chart:
+            with st.expander("技術圖", expanded=False):
+                render_technical_chart(card, key=key)
+
+
+def _render_list(cards: list[dict], empty: str, limit: int = 5, prefix: str = "card") -> None:
+    if not cards:
+        st.info(empty)
+        return
+    for i, card in enumerate(cards[:limit], start=1):
+        _render_summary_card(card, key=f"{prefix}-{card.get('symbol', i)}", detail_open=False)
+
+
+def _render_mobile_intro(payload: dict) -> None:
+    status = payload.get("trading_status", {})
+    st.markdown(
+        f"""
+<div class='ux-hero'>
+  <div class='ux-eyebrow'>AI 股市老師｜{status.get('session', '交易狀態')}｜{status.get('date', '')} {status.get('time', '')}</div>
+  <div class='ux-hero-title'>{payload.get('market_view', '今日策略待產生')}</div>
+  <div class='ux-hero-text'>先看今天怎麼做，再展開個股細節。資料來源、診斷與版本資訊已移至頁尾。</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_kpis(payload: dict) -> None:
+    strength = payload.get("strong_momentum", {})
+    k1, k2, k3, k4 = st.columns(4)
+    k1.markdown(f"<div class='ux-kpi'><span>今日可操作</span><b>{len(payload.get('buy_list', []))}</b></div>", unsafe_allow_html=True)
+    k2.markdown(f"<div class='ux-kpi'><span>強勢觀察</span><b>{len(strength.get('strong_list', []))}</b></div>", unsafe_allow_html=True)
+    k3.markdown(f"<div class='ux-kpi'><span>等待條件</span><b>{len(payload.get('wait_list', []))}</b></div>", unsafe_allow_html=True)
+    k4.markdown(f"<div class='ux-kpi'><span>避開/控風險</span><b>{len(payload.get('avoid_list', []))}</b></div>", unsafe_allow_html=True)
+
+
+def _render_clean_daily_report(payload: dict) -> None:
+    st.header("每日報告")
+    st.caption("摘要優先；完整個股分析預設收合。")
+    st.subheader("股市老師今日結論")
+    st.markdown(f"<div class='ux-callout'>{payload.get('market_view', '今日策略待產生')}</div>", unsafe_allow_html=True)
+
+    st.subheader("今日可買進摘要")
+    buy_list = payload.get("buy_list", [])
+    if not buy_list:
+        st.info("今日沒有通過品質閘門的 A 級可買名單。")
+    for i, card in enumerate(buy_list[:6], start=1):
+        with st.expander(f"{i}. {card.get('label')}｜{card.get('setup')}｜Radar {card.get('score')}｜等級 {card.get('grade')}", expanded=False):
+            _render_summary_card(card, key=f"report-buy-{card.get('symbol', i)}", detail_open=True)
+
+    st.subheader("等待 / 避免摘要")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**等待條件**")
+        for card in payload.get("wait_list", [])[:5]:
+            st.markdown(f"- **{card.get('label')}**｜{card.get('setup')}｜{_format_key_prices(card)}")
+    with c2:
+        st.markdown("**避免 / 控風險**")
+        for card in payload.get("avoid_list", [])[:5]:
+            st.markdown(f"- **{card.get('label')}**｜{card.get('setup')}｜{_compact_next_step(card)}")
+
+    with st.expander("完整 Markdown 報告", expanded=False):
+        st.markdown(current_report(payload))
+
+
+def _render_footer(payload: dict) -> None:
+    source_summary = payload.get("data_source_summary", {})
+    store = storage_status()
+    with st.expander("資料來源、更新狀態與系統資訊", expanded=False):
+        st.write(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
+        st.write(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo 採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
+        st.write(f"使用者資料：{store['label']}｜{store['detail']}")
+        st.write(f"版本：{APP_VERSION}｜{APP_RELEASE_NAME}")
+
+
+st.markdown(
+    """
+<style>
+    .main .block-container { max-width: 1120px; padding-top: 1.25rem; padding-bottom: 3rem; }
+    h1, h2, h3 { letter-spacing:-0.02em; }
+    .ux-topbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.6rem; }
+    .ux-brand { font-size:2.1rem; font-weight:850; color:#0F172A; line-height:1.15; }
+    .ux-version { color:#64748B; font-weight:650; }
+    .ux-hero { border:1px solid #DBEAFE; border-radius:24px; padding:24px; background:linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 72%); box-shadow:0 12px 36px rgba(15,23,42,0.06); margin:0.7rem 0 1rem 0; }
+    .ux-eyebrow { color:#2563EB; font-size:0.9rem; font-weight:800; margin-bottom:8px; }
+    .ux-hero-title { font-size:1.8rem; line-height:1.35; font-weight:900; color:#0F172A; }
+    .ux-hero-text { color:#64748B; margin-top:8px; line-height:1.55; }
+    .ux-kpi { border:1px solid #E5E7EB; border-radius:18px; padding:16px; background:#FFFFFF; box-shadow:0 6px 22px rgba(15,23,42,0.05); }
+    .ux-kpi span { display:block; color:#64748B; font-size:0.9rem; margin-bottom:8px; }
+    .ux-kpi b { font-size:2rem; color:#0F172A; }
+    .ux-card-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:12px; }
+    .ux-card-title { font-size:1.35rem; font-weight:850; color:#0F172A; line-height:1.35; }
+    .ux-card-sub { color:#64748B; margin-top:4px; }
+    .ux-pill { display:inline-block; padding:5px 10px; border-radius:999px; font-weight:800; font-size:0.82rem; margin:2px; white-space:nowrap; }
+    .pill-good { background:#DCFCE7; color:#166534; }
+    .pill-warn { background:#FEF3C7; color:#92400E; }
+    .pill-bad { background:#FEE2E2; color:#991B1B; }
+    .pill-info { background:#DBEAFE; color:#1D4ED8; }
+    .pill-neutral { background:#F1F5F9; color:#334155; }
+    .ux-next { border-left:4px solid #F59E0B; background:#FFFBEB; padding:10px 12px; border-radius:12px; line-height:1.55; }
+    .ux-callout { border:1px solid #E2E8F0; background:#F8FAFC; border-radius:18px; padding:18px; font-size:1.15rem; font-weight:750; line-height:1.6; }
+    .teacher-section { border-left:4px solid #2563EB; padding:10px 12px; margin:8px 0; background:#F8FAFC; border-radius:10px; }
+    .teacher-label { color:#0F172A; font-weight:850; margin-bottom:4px; }
+    div[data-testid="stExpander"] { border-radius:16px; }
+    section[data-testid="stSidebar"] { background:#F8FAFC; }
+    @media (max-width: 768px) {
+        .main .block-container { padding:0.8rem 0.8rem 2.5rem 0.8rem; }
+        .ux-brand { font-size:1.55rem; }
+        .ux-hero { padding:18px; border-radius:20px; }
+        .ux-hero-title { font-size:1.35rem; }
+        .ux-card-head { display:block; }
+        .ux-card-title { font-size:1.15rem; }
+        .ux-kpi { padding:12px; margin-bottom:8px; }
+        .ux-kpi b { font-size:1.55rem; }
+        div[data-testid="stHorizontalBlock"] { gap:0.5rem; }
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 ensure_user_mode_defaults()
 render_beta_access()
 
+st.markdown(
+    f"""
+<div class='ux-topbar'>
+  <div>
+    <div class='ux-brand'>🚀 AI Stock Radar</div>
+    <div class='ux-version'>v{APP_VERSION}｜AI 股市老師｜{APP_RELEASE_NAME}</div>
+  </div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
-st.title(f"🚀 AI Stock Radar {APP_VERSION}｜AI 股市老師")
-st.caption(f"本版重點：{APP_RELEASE_NAME}：版本單一來源、舊報告自動失效、每日報告與 App 版本同步。")
-
-if st.button("重新產生今日決策資料"):
+if st.button("重新產生今日決策資料", use_container_width=False):
     with st.spinner("股市老師重新抓取與分析中..."):
         payload = run_pipeline()
     st.success("已完成更新")
 else:
     payload = load_payload()
 
-status = payload["trading_status"]
-source_summary = payload.get("data_source_summary", {})
-store = storage_status()
+_render_mobile_intro(payload)
+_render_kpis(payload)
 
-st.markdown(
-    f"""
-<div class='decision-hero'>
-  <h3>今天怎麼做？</h3>
-  <div style='font-size:1.25rem;font-weight:750;line-height:1.6'>{payload['market_view']}</div>
-  <div class='small-muted'>日期：{status['date']}｜台灣時間 {status.get('time', '--:--')}｜交易狀態：{status['session']}｜版本：{APP_VERSION}</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("今日可操作", len(payload.get("buy_list", [])))
-k2.metric("強勢觀察", len(payload.get("strong_momentum", {}).get("strong_list", [])))
-k3.metric("等待條件", len(payload.get("wait_list", [])))
-k4.metric("避免 / 控風險", len(payload.get("avoid_list", [])))
-
-PAGES = ["今天怎麼做", "今日強勢", "我的持股", "個股研究", "每日報告", "設定與資料說明"]
+PAGES = ["今天怎麼做", "今日強勢", "我的持股", "個股研究", "每日報告", "設定"]
 st.session_state.setdefault("active_page", "今天怎麼做")
-page = st.radio("功能", PAGES, horizontal=True, key="active_page")
+page = st.radio("功能", PAGES, horizontal=True, key="active_page", label_visibility="collapsed")
 st.divider()
 
 if page == "今天怎麼做":
     st.header("今天怎麼做")
-    loop = payload.get("decision_loop") or {}
-    session = loop.get("session_mode") or {}
-    st.info(f"{session.get('headline', '')}｜老師問題：{session.get('primary_question', '')}")
+    st.markdown(f"<div class='ux-callout'>{payload.get('teacher_summary') or payload.get('market_view')}</div>", unsafe_allow_html=True)
+    st.subheader("今日可操作")
+    _render_list(payload.get("buy_list", []), "今日沒有通過品質閘門的 A 級買進名單；先看等待條件與持股策略。", limit=4, prefix="home-buy")
 
-    st.subheader("一句話結論")
-    st.write(payload.get("teacher_summary", "今天先看可操作名單、強勢但不追標的，以及自己的持股策略是否需要改變。"))
-
-    c1, c2 = st.columns([1.2, 1])
-    with c1:
-        st.subheader("今日可操作名單")
-        buy_list = payload.get("buy_list", [])
-        if not buy_list:
-            st.warning("今日沒有通過品質閘門的 A 級買進名單；先以等待條件與持股管理為主。")
-        for card in buy_list[:4]:
-            render_card(card, compact=True)
-
-        st.subheader("等待突破 / 拉回觀察")
-        for card in payload.get("wait_list", [])[:4]:
-            render_card(card, compact=True)
-
-    with c2:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("等待條件")
+        _render_list(payload.get("wait_list", []), "目前沒有等待突破 / 拉回觀察名單。", limit=3, prefix="home-wait")
+    with col_b:
         st.subheader("今天不要追")
-        strength = payload.get("strong_momentum", {})
-        no_chase = strength.get("no_chase_list", [])[:5]
+        no_chase = payload.get("strong_momentum", {}).get("no_chase_list", [])[:4]
         if not no_chase:
-            st.caption("目前沒有明確已漲不追名單。")
+            st.info("目前沒有明確已漲不追名單。")
         for row in no_chase:
             with st.container(border=True):
                 st.markdown(f"**{row.get('label')}｜{row.get('strength_category')}**")
                 st.write(row.get("teacher_view", ""))
                 st.caption("下一步：" + str(row.get("tomorrow_plan", "")))
 
-        st.subheader("我的持股重點提醒")
-        updates = (payload.get("decision_loop") or {}).get("portfolio_strategy_updates") or []
-        if not updates:
-            st.caption("尚未建立持股；可先到『我的持股』新增。")
-        for row in updates[:4]:
-            with st.container(border=True):
-                st.markdown(f"**{row.get('stock')}｜{row.get('status')}**")
-                st.write(row.get("action", ""))
-                st.caption(row.get("risk_line", ""))
-
-    st.subheader("決策閉環")
-    with st.expander("前次推薦檢討 / 明日準備", expanded=False):
-        render_decision_loop(payload.get("decision_loop") or {})
-
 elif page == "今日強勢":
-    st.header("今日強勢與明日接力")
-    st.info("這頁不是單純列出大漲股，而是把強勢股分成：可追、強但不追、明日接力。")
+    st.header("今日強勢")
+    st.caption("分清楚：可追強勢、強但不追、明日接力。")
     strength = payload.get("strong_momentum", {})
-    gap = payload.get("strength_gap_analysis", {})
-    st.write(gap.get("summary", "今日強勢股雷達尚未產生落差分析。"))
-
-    tab0, tab1, tab2, tab3 = st.tabs(["可追強勢", "今日強勢", "已漲不追", "明日接力"])
+    tab0, tab1, tab2, tab3 = st.tabs(["可追", "強勢", "已漲不追", "明日接力"])
     with tab0:
         rows = strength.get("chaseable_list", [])
         if not rows:
@@ -685,7 +881,7 @@ elif page == "今日強勢":
         rows = strength.get("strong_list", [])
         if not rows:
             st.warning("目前沒有明確今日強勢名單。")
-        for row in rows[:12]:
+        for row in rows[:10]:
             render_strength_card(row)
     with tab2:
         rows = strength.get("no_chase_list", [])
@@ -697,96 +893,78 @@ elif page == "今日強勢":
         rows = strength.get("tomorrow_watch", [])
         if not rows:
             st.info("目前沒有明確明日接力觀察名單。")
-        for row in rows[:12]:
+        for row in rows[:10]:
             render_strength_card(row)
-
-    with st.expander("全市場排行與資料抓取診斷", expanded=False):
+    with st.expander("資料抓取診斷與全市場排行", expanded=False):
         rankings = strength.get("ranking_tables", {})
         render_market_ranking(rankings.get("top_gainers", []), "全市場漲幅排行")
         render_market_ranking(rankings.get("top_volume", []), "全市場成交量排行")
         render_market_ranking(rankings.get("top_value", []), "全市場成交值排行")
         coverage = strength.get("data_coverage", {})
         st.write(coverage)
-        attempts = coverage.get("endpoint_attempts", [])
-        if attempts:
-            diag_rows = []
-            for a in attempts:
-                diag_rows.append({
-                    "來源": a.get("source"),
-                    "狀態": a.get("status"),
-                    "原始筆數": a.get("raw_rows", 0),
-                    "解析筆數": a.get("parsed_rows", 0),
-                    "錯誤 / 註記": a.get("error", ""),
-                    "樣本欄位": ", ".join(a.get("sample_keys", [])[:8]),
-                })
-            st.dataframe(diag_rows, use_container_width=True, hide_index=True)
 
 elif page == "我的持股":
-    st.header("我的持股｜股市老師總教練")
+    st.header("我的持股")
     add_portfolio_ui()
-    coach = payload["portfolio_coach"]
-    st.write(coach["summary"])
-    if coach["rows"]:
-        st.metric("總損益", f"{coach['total_pnl']:.0f}", f"{coach['total_pnl_pct']}%")
+    coach = payload.get("portfolio_coach", {})
+    st.markdown(f"<div class='ux-callout'>{coach.get('summary', '尚未建立持股。')}</div>", unsafe_allow_html=True)
+    if coach.get("rows"):
+        c1, c2 = st.columns(2)
+        c1.metric("總損益", f"{coach.get('total_pnl', 0):.0f}", f"{coach.get('total_pnl_pct', 0)}%")
+        c2.metric("持股檔數", len(coach.get("rows", [])))
         for row in coach["rows"]:
             with st.container(border=True):
-                st.subheader(row["stock"])
-                card = row["card"]
-                tech = card["tech"]
-                st.markdown(price_html(tech["close"], tech["change_pct"], "今日股價"), unsafe_allow_html=True)
-                st.write(f"股數：{row['shares']}｜成本：{row['cost']}｜市值：{row['value']}｜損益：{row['pnl']}（{row['pnl_pct']}%）｜Radar：{card.get('score')}｜等級：{card.get('grade')}")
-                st.markdown(f"<div class='next-step'><b>持股下一步：</b>{row.get('advice','')}</div>", unsafe_allow_html=True)
-                render_teacher_narrative(card, expanded=False)
-                with st.expander("技術圖與資料限制", expanded=False):
-                    render_technical_chart(card, key=f"portfolio-{card['symbol']}")
-                    render_data_trust(card)
+                st.subheader(row.get("stock"))
+                card = row.get("card")
+                if card:
+                    tech = card.get("tech", {})
+                    st.markdown(price_html(float(tech.get("close") or 0), float(tech.get("change_pct") or 0), "今日股價"), unsafe_allow_html=True)
+                    st.write(f"股數：{row.get('shares')}｜成本：{row.get('cost')}｜市值：{row.get('value')}｜損益：{row.get('pnl')}（{row.get('pnl_pct')}%）｜Radar：{card.get('score')}｜等級：{card.get('grade')}")
+                    st.markdown(f"<div class='ux-next'><b>持股下一步</b><br>{row.get('advice','')}</div>", unsafe_allow_html=True)
+                    with st.expander("展開股市老師分析", expanded=False):
+                        render_teacher_narrative(card, expanded=False)
+                    with st.expander("技術圖", expanded=False):
+                        render_technical_chart(card, key=f"portfolio-{card.get('symbol')}")
     else:
         st.info("尚未輸入持股。")
 
 elif page == "個股研究":
     st.header("個股研究")
     add_watchlist_ui()
-    st.caption("手機版建議先看老師結論；需要細節時再展開技術圖。")
-    dynamic_cards = payload["all_cards"][:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
+    dynamic_cards = payload.get("all_cards", [])[:30] + payload.get("watchlist_analysis", []) + [row.get("card") for row in payload.get("portfolio_coach", {}).get("rows", []) if row.get("card")]
     choices = {card["label"]: card for card in dynamic_cards if card}
-    if not choices:
-        st.info("尚無可研究個股。")
-    else:
+    if choices:
         selected = st.selectbox("選擇個股", list(choices.keys()))
         card = choices[selected]
-        render_card(card, compact=True)
-        with st.expander("展開完整技術圖", expanded=False):
-            render_technical_chart(card, key=card["symbol"])
+        _render_summary_card(card, key=f"study-{card.get('symbol')}", detail_open=False, show_chart=True)
+    else:
+        st.info("尚無可研究個股。")
 
     st.subheader("0軸轉強雷達")
-    st.caption("專注找 DIF 從 0 軸下方即將翻正或剛翻正的標的；不是一般紅柱轉強名單。")
     zero_items = payload.get("macd_zero_axis_list", [])[:8]
     if not zero_items:
-        st.info("目前沒有符合『即將或剛從 0 軸轉強』且資料可信的名單；沒有訊號時不硬湊。")
+        st.info("目前沒有符合 0 軸轉強條件且資料可用的名單。")
     for card in zero_items:
         with st.container(border=True):
-            t = card["tech"]
+            t = card.get("tech", {})
             macd = t.get("macd", {})
-            st.markdown(f"**{card['label']}｜{macd.get('zero_axis_status')}**")
-            st.markdown(price_html(t["close"], t["change_pct"], "今日股價"), unsafe_allow_html=True)
+            st.markdown(f"**{card.get('label')}｜{macd.get('zero_axis_status')}**")
+            st.markdown(price_html(float(t.get("close") or 0), float(t.get("change_pct") or 0), "今日股價"), unsafe_allow_html=True)
             st.caption(f"DIF {macd.get('macd')}｜DEA {macd.get('signal')}｜柱狀體 {macd.get('hist')}｜RSI {t.get('rsi')}｜量能比 {t.get('volume_ratio')}")
-            render_mini_macd_chart(card, key=card["symbol"])
-            st.write(f"老師判斷：{card.get('macd_zero_action', card.get('action', ''))}")
+            render_mini_macd_chart(card, key=str(card.get("symbol")))
+            st.write(_compact_next_step(card))
 
 elif page == "每日報告":
-    st.markdown(current_report(payload))
+    _render_clean_daily_report(payload)
 
-elif page == "設定與資料說明":
-    st.header("設定與資料說明")
-    st.subheader("Supabase 設定助手")
+elif page == "設定":
+    st.header("設定")
+    st.subheader("Supabase 狀態")
     cloud_info = cloud_status()
-    st.write(f"目前狀態：**{cloud_info.get('status')}**")
+    st.write(f"狀態：**{cloud_info.get('status')}**")
     st.write(f"資料表：`{cloud_info.get('table')}`")
-    if cloud_info.get('url'):
-        st.write(f"Project URL：`{cloud_info.get('url')}`")
-    if cloud_info.get('key_preview'):
-        st.write(f"Key：`{cloud_info.get('key_preview')}`")
-
+    if cloud_info.get('warning'):
+        st.warning(cloud_info.get('warning'))
     if st.button("測試 Supabase 連線與權限", key="supabase_connection_test"):
         check = check_cloud_connection()
         if check.ok:
@@ -795,24 +973,8 @@ elif page == "設定與資料說明":
             st.error(check.message)
             if check.detail:
                 st.code(check.detail)
-
-    err = last_cloud_error()
-    if err:
-        st.warning(f"最近一次雲端保存錯誤：{err}")
-        detail = last_cloud_response()
-        if detail:
-            st.code(detail)
-
-    if is_cloud_store_configured():
-        st.success("Supabase 已設定。朋友使用 Email + 自訂存取碼後，持股與觀察清單會保存到雲端。")
-    else:
-        st.warning("Supabase 尚未設定，所以朋友資料目前只會暫存在本次瀏覽。")
-        st.markdown("完整步驟請看 repo 內：`docs/deploy/supabase-beginner-guide.md`")
+    with st.expander("部署與資料保存說明", expanded=False):
+        st.markdown("完整設定請看 `docs/deploy/supabase-beginner-guide.md`。朋友若使用 Email + 自訂存取碼，設定 Supabase 後可跨次保存持股。")
 
 st.divider()
-with st.expander("資料來源與更新說明", expanded=False):
-    st.caption(payload.get("teacher_summary", ""))
-    st.write(f"資料基準：預期 {source_summary.get('expected_latest_date', '未知')}｜實際 {source_summary.get('price_date_min', '未知')}～{source_summary.get('price_date_max', '未知')}｜狀態：{source_summary.get('truth_status', '未知')}")
-    st.write(f"資料來源：官方採用 {source_summary.get('official_confirmed', 0)} 檔｜Yahoo 採用 {source_summary.get('yahoo_selected', source_summary.get('yahoo_only', 0) + source_summary.get('yahoo_newer_than_official', 0))} 檔｜Fallback {source_summary.get('fallback', 0)} 檔")
-    st.write(f"使用者資料：{store['label']}｜{store['detail']}")
-    st.caption("資料來源是用來確認可用性，不應擋在主要決策前面；本區預設收合。")
+_render_footer(payload)
