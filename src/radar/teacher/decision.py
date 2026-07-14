@@ -1,6 +1,6 @@
 """Stock teacher decision engine.
 
-v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode:
+v3.11.2 Version Integrity + Report Sync:
 - Compare official TWSE / TPEx daily snapshot vs Yahoo daily data.
 - Use the newest valid data source as the price basis.
 - Do not downgrade solely because the source is Yahoo or because official data is unavailable.
@@ -8,6 +8,8 @@ v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode:
 """
 
 from __future__ import annotations
+
+from radar.version import APP_VERSION
 
 from datetime import datetime, date, timezone, timedelta
 
@@ -463,7 +465,7 @@ def _macd_teacher_sentence(macd: dict) -> str:
 def _chip_teacher_sentence(card: dict) -> str:
     """Explain chip/fund-flow honestly without fabricating data.
 
-    v3.11.1: quiet mode. If chip data is unavailable, say it plainly in
+    v3.11.2: quiet mode. If chip data is unavailable, say it plainly in
     one short sentence. Do not write a long substitute analysis and do not
     use volume as a fake chip proxy.
     """
@@ -479,7 +481,7 @@ def _chip_teacher_sentence(card: dict) -> str:
 def _chip_score_adjustment(chip_flow: dict) -> tuple[int, list[str]]:
     """Small score adjustment when official chip data is available.
 
-    The adjustment is deliberately modest in v3.11.1 because this is the chip
+    The adjustment is deliberately modest in v3.11.2 because this is the chip
     data foundation, not the full consecutive-flow engine.
     """
     if not chip_flow.get("available"):
@@ -916,7 +918,7 @@ def _data_source_summary(cards: list[dict], status: dict) -> dict:
         "price_date_min": min_date,
         "price_date_max": max_date,
         "truth_status": truth_status,
-        "description": "v3.11.1 Action Precision + MACD Restore + Chip Quiet Mode：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
+        "description": f"v{APP_VERSION} Version Integrity + Report Sync：只要資料是目前交易狀態下可取得的最新有效資料，就不因來源或來源不同步而降等；僅在資料過舊、fallback、缺失或樣本不足時限制強推薦。",
     }
 
 
@@ -942,7 +944,7 @@ def run_teacher_pipeline() -> dict:
             continue
     data_source_summary = _data_source_summary(cards, status)
     payload = {
-        "version": "3.11.1",
+        "version": APP_VERSION,
         "trading_status": status,
         "market_view": "偏多但不追高" if buy or wait else "中性偏保守",
         "teacher_summary": "股市老師先給今天怎麼做；本版將 UI 收斂成四個核心頁，並加入籌碼資料基礎檢查：有官方三大法人資料就納入，沒有就明確說明不以籌碼面加分。",

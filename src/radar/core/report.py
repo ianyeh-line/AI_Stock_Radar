@@ -7,9 +7,8 @@ from pathlib import Path
 
 from radar.teacher.decision import run_teacher_pipeline
 from radar.teacher.decision_loop import save_decision_journal
+from radar.version import APP_VERSION
 
-
-REPORT_VERSION = "3.11.1"
 
 
 def save_outputs(payload: dict) -> None:
@@ -150,7 +149,7 @@ def _data_source_footer(payload: dict) -> list[str]:
 def build_markdown(payload: dict) -> str:
     status = payload["trading_status"]
     lines = [
-        f"# AI Stock Radar {REPORT_VERSION} 股市老師每日報告",
+        f"# AI Stock Radar {APP_VERSION} 股市老師每日報告",
         "",
         f"日期：{status['date']}（星期{status['weekday']}）｜交易狀態：{status['session']}｜台灣時間：{status.get('time', '--:--')}",
         "",

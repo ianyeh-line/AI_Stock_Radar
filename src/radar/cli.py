@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from radar.core.report import run_and_save
+from radar.version import APP_VERSION
 
 
 def main() -> None:
@@ -14,7 +15,7 @@ def main() -> None:
     if args.command != "run":
         raise SystemExit("Usage: python -m radar.cli run")
     payload = run_and_save()
-    print("🚀 AI Stock Radar v3.11.1")
+    print(f"🚀 AI Stock Radar v{APP_VERSION}")
     print(f"交易狀態：{payload['trading_status']['session']}")
     print(f"市場結論：{payload['market_view']}")
     source = payload.get("data_source_summary", {})

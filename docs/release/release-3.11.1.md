@@ -1,8 +1,8 @@
-# Release v3.11.1
+# Release v3.11.2
 
 ## Title
 
-Action Precision + MACD Restore + Chip Quiet Mode
+Version Integrity + Report Sync
 
 ## Purpose
 
